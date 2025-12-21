@@ -27,7 +27,7 @@ fun MarkdownCompiledView(
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
-    val engine = remember { KotlinxMarkdownEngine() }
+    val engine = remember { JetBrainsMarkdownEngine() }
     val blocks = remember(markdown) {
         engine.renderToBlocks(markdown)
     }

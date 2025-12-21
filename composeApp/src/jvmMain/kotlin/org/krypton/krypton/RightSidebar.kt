@@ -23,7 +23,7 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.close
 import org.krypton.krypton.markdown.BlockNode
 import org.krypton.krypton.markdown.InlineNode
-import org.krypton.krypton.markdown.KotlinxMarkdownEngine
+import org.krypton.krypton.markdown.JetBrainsMarkdownEngine
 
 /**
  * Recursively extract plain text from inline nodes.
@@ -84,7 +84,7 @@ private fun OutlinePanel(
     modifier: Modifier = Modifier
 ) {
     val activeDocument = state.getActiveTab()
-    val engine = remember { KotlinxMarkdownEngine() }
+    val engine = remember { JetBrainsMarkdownEngine() }
     
     // Extract headings from the active document
     val headings = remember(activeDocument?.text) {
