@@ -43,6 +43,17 @@ object ObsidianTheme {
     
     val PanelBorderWidth = 1.dp
     val PanelPadding = 8.dp
+    
+    // Markdown-specific colors
+    val CodeBlockBackground = Color(0xFF1E1E1E)
+    val CodeBlockBorder = Color(0xFF3A3A3A)
+    val CodeSpanBackground = Color(0xFF2A2A2A)
+    val LinkColor = Color(0xFF7F9DF2)
+    val LinkHover = Color(0xFF8FAEFF)
+    val BlockquoteBorder = Accent.copy(alpha = 0.6f)
+    val BlockquoteBackground = Color(0xFF1F1F1F)
+    val HeadingColor = TextPrimary
+    val HeadingColorSecondary = TextSecondary
 }
 
 fun obsidianDarkColorScheme() = darkColorScheme(

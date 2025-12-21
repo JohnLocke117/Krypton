@@ -184,7 +184,7 @@ fun FileExplorerContent(
                         TreeItem(
                             node = fileTree!!,
                             depth = 0,
-                            activeTabPaths = state.tabs.map { it.path }.toSet(),
+                            activeTabPaths = state.documents.mapNotNull { it.path }.toSet(),
                             onFileClick = { path ->
                                 if (FileManager.isFile(path)) {
                                     state.openTab(path)

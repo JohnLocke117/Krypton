@@ -20,31 +20,15 @@ fun TextEditor(
     modifier: Modifier = Modifier
 ) {
     val activeTabIndex = state.activeTabIndex
-    val activeTab = state.getActiveTab()
-    val scrollState = rememberScrollState()
-    
-    // Track content separately to ensure reactivity
-    var editorContent by remember(activeTabIndex) { 
-        mutableStateOf(activeTab?.content ?: "") 
-    }
-    
-    // Update editor content when tab changes
-    LaunchedEffect(activeTabIndex) {
-        editorContent = activeTab?.content ?: ""
-        scrollState.scrollTo(0)
-    }
+    val activeDocument = state.getActiveTab()
     
     // Auto-save with debouncing
-    LaunchedEffect(editorContent, activeTabIndex) {
-        activeTab?.let { tab ->
-            if (tab.content != editorContent) {
-                tab.content = editorContent
-                tab.isModified = true
-            }
-            if (tab.isModified) {
+    LaunchedEffect(activeDocument?.text, activeTabIndex) {
+        activeDocument?.let { doc ->
+            if (doc.isDirty && doc.path != null) {
                 kotlinx.coroutines.delay(1000) // 1 second debounce
-                FileManager.writeFile(tab.path, tab.content)
-                tab.isModified = false
+                FileManager.writeFile(doc.path, doc.text)
+                state.saveActiveTab()
             }
         }
     }
@@ -56,7 +40,7 @@ fun TextEditor(
             .padding(24.dp)
     ) {
         // Editor area
-        if (activeTab != null) {
+        if (activeDocument != null) {
             // Card wrapper for editor content
             Card(
                 modifier = Modifier.fillMaxSize(),
@@ -66,22 +50,24 @@ fun TextEditor(
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                BasicTextField(
-                    value = editorContent,
-                    onValueChange = { newContent ->
-                        editorContent = newContent
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(ObsidianTheme.EditorPadding)
-                        .verticalScroll(scrollState),
-                    textStyle = TextStyle(
-                        fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
-                        fontSize = 15.sp,
-                        color = ObsidianTheme.TextPrimary,
-                        lineHeight = (15.sp * ObsidianTheme.EditorLineHeight)
-                    )
-                )
+                // Route based on view mode
+                when (activeDocument.viewMode) {
+                    ViewMode.LivePreview -> {
+                        MarkdownLivePreviewEditor(
+                            markdown = activeDocument.text,
+                            onMarkdownChange = { newText ->
+                                state.updateTabContent(newText)
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    ViewMode.Compiled -> {
+                        MarkdownCompiledView(
+                            markdown = activeDocument.text,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
             }
         } else {
             // Welcome card when no file is open

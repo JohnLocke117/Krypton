@@ -12,10 +12,15 @@ enum class SettingsCategory {
     General, Editor, Appearance, Keybindings
 }
 
-data class Tab(
-    val path: Path,
-    var content: String,
-    var isModified: Boolean = false
+enum class ViewMode {
+    LivePreview, Compiled
+}
+
+data class MarkdownDocument(
+    val path: Path?,
+    val text: String,  // Raw Markdown source
+    val isDirty: Boolean = false,
+    val viewMode: ViewMode = ViewMode.LivePreview
 )
 
 @Composable
@@ -44,9 +49,9 @@ class EditorState {
     var newFileName by mutableStateOf("")
         private set
 
-    // Tab management
-    var tabs by mutableStateOf<List<Tab>>(emptyList())
-        private set
+    // Document management
+    var documents by mutableStateOf<List<MarkdownDocument>>(emptyList())
+    private set
 
     var activeTabIndex by mutableStateOf(-1)
         private set
@@ -109,101 +114,121 @@ class EditorState {
         }
     }
 
-    // Tab management functions
+    // Document management functions
     fun openTab(path: Path) {
-        // Check if tab already exists
-        val existingIndex = tabs.indexOfFirst { it.path == path }
+        // Check if document already exists
+        val existingIndex = documents.indexOfFirst { it.path == path }
         if (existingIndex >= 0) {
             activeTabIndex = existingIndex
             selectedFile = path
-            fileContent = tabs[existingIndex].content
+            fileContent = documents[existingIndex].text
             return
         }
 
         // Load file content
         val content = FileManager.readFile(path) ?: ""
-        val newTab = Tab(path = path, content = content, isModified = false)
+        val newDocument = MarkdownDocument(path = path, text = content, isDirty = false)
         
-        tabs = tabs + newTab
-        activeTabIndex = tabs.size - 1
+        documents = documents + newDocument
+        activeTabIndex = documents.size - 1
         selectedFile = path
         fileContent = content
     }
 
     fun closeTab(index: Int) {
-        if (index < 0 || index >= tabs.size) return
+        if (index < 0 || index >= documents.size) return
 
         // Auto-save before closing
-        val tab = tabs[index]
-        if (tab.isModified) {
-            FileManager.writeFile(tab.path, tab.content)
+        val doc = documents[index]
+        if (doc.isDirty && doc.path != null) {
+            FileManager.writeFile(doc.path, doc.text)
         }
 
-        tabs = tabs.toMutableList().apply { removeAt(index) }
+        documents = documents.toMutableList().apply { removeAt(index) }
 
         // Adjust active tab index
         when {
-            tabs.isEmpty() -> {
+            documents.isEmpty() -> {
                 activeTabIndex = -1
                 selectedFile = null
                 fileContent = ""
             }
-            activeTabIndex >= tabs.size -> {
-                activeTabIndex = tabs.size - 1
-                selectedFile = tabs[activeTabIndex].path
-                fileContent = tabs[activeTabIndex].content
+            activeTabIndex >= documents.size -> {
+                activeTabIndex = documents.size - 1
+                selectedFile = documents[activeTabIndex].path
+                fileContent = documents[activeTabIndex].text
             }
             activeTabIndex > index -> {
                 activeTabIndex--
-                selectedFile = tabs[activeTabIndex].path
-                fileContent = tabs[activeTabIndex].content
+                selectedFile = documents[activeTabIndex].path
+                fileContent = documents[activeTabIndex].text
             }
             else -> {
-                selectedFile = tabs[activeTabIndex].path
-                fileContent = tabs[activeTabIndex].content
+                selectedFile = documents[activeTabIndex].path
+                fileContent = documents[activeTabIndex].text
             }
         }
     }
 
     fun switchTab(index: Int) {
-        if (index < 0 || index >= tabs.size) return
+        if (index < 0 || index >= documents.size) return
 
-        // Auto-save current tab before switching
-        if (activeTabIndex >= 0 && activeTabIndex < tabs.size) {
-            val currentTab = tabs[activeTabIndex]
-            if (currentTab.isModified) {
-                FileManager.writeFile(currentTab.path, currentTab.content)
-                currentTab.isModified = false
+        // Auto-save current document before switching
+        if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+            val currentDoc = documents[activeTabIndex]
+            if (currentDoc.isDirty && currentDoc.path != null) {
+                FileManager.writeFile(currentDoc.path, currentDoc.text)
+                documents = documents.toMutableList().apply {
+                    set(activeTabIndex, currentDoc.copy(isDirty = false))
+                }
             }
         }
 
         activeTabIndex = index
-        selectedFile = tabs[index].path
-        fileContent = tabs[index].content
+        selectedFile = documents[index].path
+        fileContent = documents[index].text
     }
 
     fun updateTabContent(content: String) {
-        if (activeTabIndex >= 0 && activeTabIndex < tabs.size) {
-            val tab = tabs[activeTabIndex]
-            tab.content = content
-            tab.isModified = true
+        if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+            val doc = documents[activeTabIndex]
+            documents = documents.toMutableList().apply {
+                set(activeTabIndex, doc.copy(text = content, isDirty = true))
+            }
             fileContent = content
         }
     }
 
-    fun getActiveTab(): Tab? {
-        return if (activeTabIndex >= 0 && activeTabIndex < tabs.size) {
-            tabs[activeTabIndex]
+    fun getActiveTab(): MarkdownDocument? {
+        return if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+            documents[activeTabIndex]
         } else {
             null
         }
     }
 
     fun saveActiveTab() {
-        if (activeTabIndex >= 0 && activeTabIndex < tabs.size) {
-            val tab = tabs[activeTabIndex]
-            FileManager.writeFile(tab.path, tab.content)
-            tab.isModified = false
+        if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+            val doc = documents[activeTabIndex]
+            if (doc.path != null) {
+                FileManager.writeFile(doc.path, doc.text)
+                documents = documents.toMutableList().apply {
+                    set(activeTabIndex, doc.copy(isDirty = false))
+                }
+            }
+        }
+    }
+
+    fun toggleViewMode() {
+        if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+            val doc = documents[activeTabIndex]
+            val newMode = when (doc.viewMode) {
+                ViewMode.LivePreview -> ViewMode.Compiled
+                ViewMode.Compiled -> ViewMode.LivePreview
+            }
+            documents = documents.toMutableList().apply {
+                set(activeTabIndex, doc.copy(viewMode = newMode))
+            }
         }
     }
 

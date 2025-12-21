@@ -41,13 +41,37 @@ fun TabBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // Tabs
-            state.tabs.forEachIndexed { index, tab ->
+            state.documents.forEachIndexed { index, doc ->
                 TabItem(
-                    tab = tab,
+                    doc = doc,
                     isActive = index == state.activeTabIndex,
                     onClick = { state.switchTab(index) },
                     onClose = { state.closeTab(index) }
                 )
+            }
+
+            // View Mode Toggle (only show when a tab is active)
+            if (state.activeTabIndex >= 0 && state.activeTabIndex < state.documents.size) {
+                val activeDoc = state.documents[state.activeTabIndex]
+                Box(
+                    modifier = Modifier
+                        .height(ObsidianTheme.TabHeight)
+                        .clip(RoundedCornerShape(ObsidianTheme.TabCornerRadius))
+                        .background(ObsidianTheme.SurfaceContainer)
+                        .clickable { state.toggleViewMode() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = when (activeDoc.viewMode) {
+                            ViewMode.LivePreview -> "Live"
+                            ViewMode.Compiled -> "Compiled"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = ObsidianTheme.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
             }
 
             // New Tab Button
@@ -82,14 +106,14 @@ fun TabBar(
 
 @Composable
 fun TabItem(
-    tab: Tab,
+    doc: MarkdownDocument,
     isActive: Boolean,
     onClick: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val fileName = tab.path.fileName.toString()
-    val isModified = tab.isModified
+    val fileName = doc.path?.fileName?.toString() ?: "Untitled"
+    val isModified = doc.isDirty
 
     val backgroundColor = if (isActive) {
         ObsidianTheme.Background
