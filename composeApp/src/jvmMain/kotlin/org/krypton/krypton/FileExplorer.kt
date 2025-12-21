@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,7 +13,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources._file
+import krypton.composeapp.generated.resources._folder
+import krypton.composeapp.generated.resources._folder_open
 import java.nio.file.Path
 
 @Composable
@@ -38,16 +44,42 @@ fun FileExplorer(
         }
     }
 
-    Surface(
+    Column(
         modifier = modifier
-            .fillMaxHeight()
-            .width(280.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        tonalElevation = 1.dp
+            .fillMaxSize()
     ) {
+        // Top Header with Icons
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 1.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Dummy Icons (4 icons)
+                IconButton(onClick = { /* TODO */ }) {
+                    Text("🔍", fontSize = 20.sp)
+                }
+                IconButton(onClick = { /* TODO */ }) {
+                    Text("⭐", fontSize = 20.sp)
+                }
+                IconButton(onClick = { /* TODO */ }) {
+                    Text("⚙️", fontSize = 20.sp)
+                }
+                IconButton(onClick = { /* TODO */ }) {
+                    Text("📌", fontSize = 20.sp)
+                }
+            }
+        }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
                 .padding(16.dp)
         ) {
             // Open Folder Button
@@ -191,6 +223,24 @@ fun FileExplorer(
                 }
             }
         }
+
+        // Bottom Strip with Current Folder Name
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 1.dp
+        ) {
+            Text(
+                text = state.currentDirectory?.fileName?.toString() ?: "No folder selected",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -234,27 +284,34 @@ fun TreeItem(
                 if (node.isDirectory) {
                     Box(
                         modifier = Modifier
-                            .width(18.dp)
-                            .height(18.dp),
+                            .width(20.dp)
+                            .height(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = if (node.isExpanded) "▼" else "▶",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp
+                            fontSize = 12.sp
                         )
                     }
                 } else {
-                    Spacer(modifier = Modifier.width(18.dp))
+                    Spacer(modifier = Modifier.width(20.dp))
                 }
 
                 // Icon
-                Text(
-                    text = if (node.isDirectory) "📁" else "📄",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(end = 6.dp),
-                    fontSize = 14.sp
+                Image(
+                    painter = painterResource(
+                        if (node.isDirectory) {
+                            if (node.isExpanded) Res.drawable._folder_open else Res.drawable._folder
+                        } else {
+                            Res.drawable._file
+                        }
+                    ),
+                    contentDescription = if (node.isDirectory) "Folder" else "File",
+                    modifier = Modifier
+                        .size(20.dp)
+                        .padding(end = 8.dp)
                 )
 
                 // Name
@@ -269,7 +326,7 @@ fun TreeItem(
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontSize = 13.sp
+                    fontSize = 15.sp
                 )
             }
         }

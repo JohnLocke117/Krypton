@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.nio.file.Path
 
 @Composable
@@ -83,6 +84,7 @@ fun TabItem(
 
     Surface(
         modifier = modifier
+            .widthIn(min = 120.dp)
             .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
             .clickable(onClick = onClick),
         color = if (isActive) {
@@ -94,11 +96,12 @@ fun TabItem(
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .height(32.dp),
+                .height(32.dp)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            // File name - must be visible
             Text(
                 text = fileName,
                 style = MaterialTheme.typography.bodyMedium,
@@ -109,7 +112,9 @@ fun TabItem(
                 },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 4.dp)
             )
 
             // Modified indicator
@@ -123,14 +128,17 @@ fun TabItem(
             }
 
             // Close button
-            IconButton(
-                onClick = { onClose() },
-                modifier = Modifier.size(20.dp)
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "×",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 16.sp
                 )
             }
         }

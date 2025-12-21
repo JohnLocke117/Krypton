@@ -1,10 +1,12 @@
 package org.krypton.krypton
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import java.io.File
@@ -42,39 +44,69 @@ fun App() {
     ) {
         val state = rememberEditorState()
 
-        Row(
-            modifier = Modifier.fillMaxSize()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp)
         ) {
-            FileExplorer(
-                state = state,
-                onFolderSelected = {
-                    openFolderDialog { selectedPath ->
-                        selectedPath?.let { path ->
-                            val file = path.toFile()
-                            if (file.isDirectory) {
-                                state.changeDirectory(path)
-                            } else {
-                                state.changeDirectory(file.parentFile?.toPath())
-                                state.openTab(path)
-                            }
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxHeight()
-            )
-
-            Column(
-                modifier = Modifier.weight(1f)
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                TabBar(
-                    state = state,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // File Explorer Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(280.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    FileExplorer(
+                        state = state,
+                        onFolderSelected = {
+                            openFolderDialog { selectedPath ->
+                                selectedPath?.let { path ->
+                                    val file = path.toFile()
+                                    if (file.isDirectory) {
+                                        state.changeDirectory(path)
+                                    } else {
+                                        state.changeDirectory(file.parentFile?.toPath())
+                                        state.openTab(path)
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-                TextEditor(
-                    state = state,
-                    modifier = Modifier.weight(1f)
-                )
+                // Editor Section Card
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        TabBar(
+                            state = state,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        TextEditor(
+                            state = state,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }
