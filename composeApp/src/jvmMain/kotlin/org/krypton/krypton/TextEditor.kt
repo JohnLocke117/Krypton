@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun TextEditor(
     state: EditorState,
+    onOpenFolder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val activeTabIndex = state.activeTabIndex
@@ -52,35 +53,47 @@ fun TextEditor(
         modifier = modifier
             .fillMaxSize()
             .background(ObsidianTheme.Background)
+            .padding(24.dp)
     ) {
         // Editor area
         if (activeTab != null) {
-            BasicTextField(
-                value = editorContent,
-                onValueChange = { newContent ->
-                    editorContent = newContent
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(ObsidianTheme.EditorPadding)
-                    .verticalScroll(scrollState),
-                textStyle = TextStyle(
-                    fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
-                    fontSize = 15.sp,
-                    color = ObsidianTheme.TextPrimary,
-                    lineHeight = (15.sp * ObsidianTheme.EditorLineHeight)
+            // Card wrapper for editor content
+            Card(
+                modifier = Modifier.fillMaxSize(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = ObsidianTheme.BackgroundElevated
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                BasicTextField(
+                    value = editorContent,
+                    onValueChange = { newContent ->
+                        editorContent = newContent
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(ObsidianTheme.EditorPadding)
+                        .verticalScroll(scrollState),
+                    textStyle = TextStyle(
+                        fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
+                        fontSize = 15.sp,
+                        color = ObsidianTheme.TextPrimary,
+                        lineHeight = (15.sp * ObsidianTheme.EditorLineHeight)
+                    )
                 )
-            )
+            }
         } else {
+            // Welcome card when no file is open
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "No file open\n\nSelect a file from the sidebar to open",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextSecondary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                WelcomeCard(
+                    onNewFile = {
+                        state.startCreatingNewFile()
+                    },
+                    onOpenFolder = onOpenFolder
                 )
             }
         }

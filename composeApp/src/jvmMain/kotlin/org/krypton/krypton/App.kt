@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.Font
@@ -48,6 +49,19 @@ fun App() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(ObsidianTheme.Background)
+                .onKeyEvent { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        val isCtrlOrCmd = keyEvent.isCtrlPressed || keyEvent.isMetaPressed
+                        if (isCtrlOrCmd && keyEvent.key == Key.Comma) {
+                            state.openSettingsDialog()
+                            true
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
         ) {
             Row(
                 modifier = Modifier.fillMaxSize()
@@ -90,6 +104,19 @@ fun App() {
 
                     TextEditor(
                         state = state,
+                        onOpenFolder = {
+                            openFolderDialog { selectedPath ->
+                                selectedPath?.let { path ->
+                                    val file = path.toFile()
+                                    if (file.isDirectory) {
+                                        state.changeDirectory(path)
+                                    } else {
+                                        state.changeDirectory(file.parentFile?.toPath())
+                                        state.openTab(path)
+                                    }
+                                }
+                            }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -106,6 +133,11 @@ fun App() {
                     modifier = Modifier.fillMaxHeight()
                 )
             }
+            
+            // Settings Dialog (overlay)
+            SettingsDialog(
+                state = state
+            )
         }
     }
 }

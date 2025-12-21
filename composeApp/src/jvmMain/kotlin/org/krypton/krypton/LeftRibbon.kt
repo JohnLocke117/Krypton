@@ -68,13 +68,6 @@ fun LeftRibbon(
             isActive = state.activeRibbonButton == RibbonButton.Bookmarks,
             onClick = { state.updateActiveRibbonButton(RibbonButton.Bookmarks) }
         )
-        
-        RibbonIconButton(
-            icon = Res.drawable.settings,
-            contentDescription = "Settings",
-            isActive = state.activeRibbonButton == RibbonButton.Settings,
-            onClick = { state.updateActiveRibbonButton(RibbonButton.Settings) }
-        )
     }
 }
 

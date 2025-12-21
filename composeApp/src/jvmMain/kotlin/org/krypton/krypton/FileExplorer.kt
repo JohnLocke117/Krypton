@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.nio.file.Path
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.add
@@ -26,7 +27,6 @@ import krypton.composeapp.generated.resources.keyboard_arrow_down as keyboardArr
 import krypton.composeapp.generated.resources.search
 import krypton.composeapp.generated.resources.settings
 import krypton.composeapp.generated.resources.star
-import java.nio.file.Path
 
 @Composable
 fun FileExplorer(
@@ -73,23 +73,25 @@ fun FileExplorerContent(
                 .weight(1f)
                 .padding(ObsidianTheme.PanelPadding)
         ) {
-            // Open Folder Button
-            Button(
-                onClick = { onFolderSelected(null) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = ObsidianTheme.Accent
-                )
-            ) {
-                Text(
-                    text = "Open Folder",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = ObsidianTheme.TextPrimary
-                )
-            }
+            // Open Folder Button - only show when no folder is open
+            if (state.currentDirectory == null) {
+                Button(
+                    onClick = { onFolderSelected(null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ObsidianTheme.Accent
+                    )
+                ) {
+                    Text(
+                        text = "Open Folder",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = ObsidianTheme.TextPrimary
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // New File Button
             OutlinedButton(
@@ -213,20 +215,14 @@ fun FileExplorerContent(
             }
         }
 
-        // Bottom Strip with Current Folder Name
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = ObsidianTheme.SurfaceContainer
-        ) {
-            Text(
-                text = state.currentDirectory?.fileName?.toString() ?: "No folder selected",
-                style = MaterialTheme.typography.bodySmall,
-                color = ObsidianTheme.TextSecondary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        // Bottom Strip with Current Folder Name and Settings - only show when folder is open
+        if (state.currentDirectory != null) {
+            FolderNameBar(
+                folderName = state.currentDirectory!!.fileName.toString(),
+                onFolderClick = { /* Will be handled by FolderMenu */ },
+                onSettingsClick = { state.openSettingsDialog() },
+                onFolderSelected = onFolderSelected,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

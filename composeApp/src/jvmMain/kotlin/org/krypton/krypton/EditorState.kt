@@ -8,6 +8,10 @@ enum class RibbonButton {
     Files, Search, Bookmarks, Settings
 }
 
+enum class SettingsCategory {
+    General, Editor, Appearance, Keybindings
+}
+
 data class Tab(
     val path: Path,
     var content: String,
@@ -246,6 +250,25 @@ class EditorState {
 
     fun updateActiveRibbonButton(button: RibbonButton) {
         activeRibbonButton = button
+    }
+
+    // Settings dialog state
+    var settingsDialogOpen by mutableStateOf(false)
+        private set
+
+    var selectedSettingsCategory by mutableStateOf(SettingsCategory.General)
+        private set
+
+    fun openSettingsDialog() {
+        settingsDialogOpen = true
+    }
+
+    fun closeSettingsDialog() {
+        settingsDialogOpen = false
+    }
+
+    fun selectSettingsCategory(category: SettingsCategory) {
+        selectedSettingsCategory = category
     }
 }
 
