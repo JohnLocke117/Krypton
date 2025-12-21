@@ -9,16 +9,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources._file
-import krypton.composeapp.generated.resources._folder
-import krypton.composeapp.generated.resources._folder_open
+import krypton.composeapp.generated.resources.add
+import krypton.composeapp.generated.resources.chevron_right as chevronRight
+import krypton.composeapp.generated.resources.close
+import krypton.composeapp.generated.resources.description
+import krypton.composeapp.generated.resources.folder
+import krypton.composeapp.generated.resources.folder_open as folderOpen
+import krypton.composeapp.generated.resources.keep
+import krypton.composeapp.generated.resources.keyboard_arrow_down as keyboardArrowDown
+import krypton.composeapp.generated.resources.search
+import krypton.composeapp.generated.resources.settings
+import krypton.composeapp.generated.resources.star
 import java.nio.file.Path
 
 @Composable
@@ -63,16 +69,32 @@ fun FileExplorer(
             ) {
                 // Dummy Icons (4 icons)
                 IconButton(onClick = { /* TODO */ }) {
-                    Text("🔍", fontSize = 20.sp)
+                    Image(
+                        painter = painterResource(Res.drawable.search),
+                        contentDescription = "Search",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 IconButton(onClick = { /* TODO */ }) {
-                    Text("⭐", fontSize = 20.sp)
+                    Image(
+                        painter = painterResource(Res.drawable.star),
+                        contentDescription = "Star",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 IconButton(onClick = { /* TODO */ }) {
-                    Text("⚙️", fontSize = 20.sp)
+                    Image(
+                        painter = painterResource(Res.drawable.settings),
+                        contentDescription = "Settings",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 IconButton(onClick = { /* TODO */ }) {
-                    Text("📌", fontSize = 20.sp)
+                    Image(
+                        painter = painterResource(Res.drawable.keep),
+                        contentDescription = "Pin",
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }
@@ -282,35 +304,29 @@ fun TreeItem(
             ) {
                 // Chevron for folders
                 if (node.isDirectory) {
-                    Box(
-                        modifier = Modifier
-                            .width(20.dp)
-                            .height(20.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (node.isExpanded) "▼" else "▶",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp
-                        )
-                    }
+                    Image(
+                        painter = painterResource(
+                            if (node.isExpanded) Res.drawable.keyboardArrowDown else Res.drawable.chevronRight
+                        ),
+                        contentDescription = if (node.isExpanded) "Expanded" else "Collapsed",
+                        modifier = Modifier.size(20.dp)
+                    )
                 } else {
-                    Spacer(modifier = Modifier.width(20.dp))
+                    Spacer(modifier = Modifier.width(24.dp))
                 }
 
                 // Icon
                 Image(
                     painter = painterResource(
                         if (node.isDirectory) {
-                            if (node.isExpanded) Res.drawable._folder_open else Res.drawable._folder
+                            if (node.isExpanded) Res.drawable.folderOpen else Res.drawable.folder
                         } else {
-                            Res.drawable._file
+                            Res.drawable.description
                         }
                     ),
                     contentDescription = if (node.isDirectory) "Folder" else "File",
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(22.dp)
                         .padding(end = 8.dp)
                 )
 

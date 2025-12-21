@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +15,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.painterResource
+import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.add
+import krypton.composeapp.generated.resources.close
 import java.nio.file.Path
 
 @Composable
@@ -61,10 +66,10 @@ fun TabBar(
                     .size(32.dp)
                     .padding(horizontal = 2.dp)
             ) {
-                Text(
-                    text = "+",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                Image(
+                    painter = painterResource(Res.drawable.add),
+                    contentDescription = "New Tab",
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -130,15 +135,14 @@ fun TabItem(
             // Close button
             Box(
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(20.dp)
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "×",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 16.sp
+                Image(
+                    painter = painterResource(Res.drawable.close),
+                    contentDescription = "Close",
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
