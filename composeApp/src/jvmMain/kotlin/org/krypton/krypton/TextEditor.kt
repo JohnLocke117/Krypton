@@ -99,15 +99,39 @@ fun TextEditor(
                 // Route based on view mode
                 when (activeDocument.viewMode) {
                     ViewMode.LivePreview -> {
-                        MarkdownLivePreviewEditor(
-                            markdown = activeDocument.text,
-                            settings = settings,
-                            theme = theme,
-                            onMarkdownChange = { newText ->
-                                state.updateTabContent(newText)
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            MarkdownLivePreviewEditor(
+                                markdown = activeDocument.text,
+                                settings = settings,
+                                theme = theme,
+                                searchState = state.searchState,
+                                onMarkdownChange = { newText ->
+                                    state.updateTabContent(newText)
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            
+                            // Search dialog overlay
+                            state.searchState?.let { searchState ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.TopEnd
+                                ) {
+                                    SearchDialog(
+                                        state = state,
+                                        theme = theme,
+                                        onSearchUpdate = { newState ->
+                                            state.updateSearchState { newState }
+                                        },
+                                        onReplace = { newText ->
+                                            state.updateTabContent(newText)
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                     ViewMode.Compiled -> {
                         MarkdownCompiledView(

@@ -23,6 +23,7 @@ fun FolderNameBar(
     onFolderClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onFolderSelected: (Path?) -> Unit,
+    onCloseFolder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -72,6 +73,10 @@ fun FolderNameBar(
                         showMenu = false
                         onFolderSelected(null)
                     },
+                    onCloseFolder = {
+                        showMenu = false
+                        onCloseFolder()
+                    },
                     onRevealInFinder = {
                         showMenu = false
                         // TODO: Implement reveal in Finder/Explorer
@@ -100,6 +105,7 @@ private fun FolderMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onOpenAnotherFolder: () -> Unit,
+    onCloseFolder: () -> Unit,
     onRevealInFinder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -111,6 +117,10 @@ private fun FolderMenu(
         DropdownMenuItem(
             text = { Text("Open another folder...") },
             onClick = onOpenAnotherFolder
+        )
+        DropdownMenuItem(
+            text = { Text("Close folder") },
+            onClick = onCloseFolder
         )
         DropdownMenuItem(
             text = { Text("Reveal in Finder") },

@@ -2,6 +2,9 @@ package org.krypton.krypton
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.nio.file.Path
 
 enum class RibbonButton {
@@ -56,6 +59,13 @@ class EditorState {
     var activeTabIndex by mutableStateOf(-1)
         private set
 
+    // Undo/Redo management per document
+    private val undoRedoManagers = mutableMapOf<Int, UndoRedoManager>()
+
+    private fun getUndoRedoManager(tabIndex: Int): UndoRedoManager {
+        return undoRedoManagers.getOrPut(tabIndex) { UndoRedoManager() }
+    }
+
     fun changeDirectory(path: Path?) {
         currentDirectory = path
         selectedFile = null
@@ -63,6 +73,44 @@ class EditorState {
         isCreatingNewFile = false
         newFileName = ""
         refreshFiles()
+    }
+    
+    fun changeDirectoryWithHistory(path: Path?, settingsRepository: SettingsRepository?) {
+        changeDirectory(path)
+        
+        // Save to recent folders history (async)
+        if (path != null && settingsRepository != null) {
+            val pathString = path.toString()
+            val recent = settingsRepository.settingsFlow.value.app.recentFolders
+            val updated = (listOf(pathString) + recent)
+                .distinct()
+                .take(5)
+            // Use a coroutine scope to call suspend function
+            CoroutineScope(Dispatchers.IO).launch {
+                settingsRepository.update { settings ->
+                    settings.copy(
+                        app = settings.app.copy(recentFolders = updated)
+                    )
+                }
+            }
+        }
+    }
+    
+    var showRecentFoldersDialog by mutableStateOf(false)
+        private set
+    
+    fun closeFolder() {
+        currentDirectory = null
+        selectedFile = null
+        fileContent = ""
+        isCreatingNewFile = false
+        newFileName = ""
+        files = emptyList()
+        showRecentFoldersDialog = true
+    }
+    
+    fun dismissRecentFoldersDialog() {
+        showRecentFoldersDialog = false
     }
 
     fun refreshFiles() {
@@ -122,6 +170,8 @@ class EditorState {
             activeTabIndex = existingIndex
             selectedFile = path
             fileContent = documents[existingIndex].text
+            // Ensure undo/redo manager exists
+            getUndoRedoManager(existingIndex)
             return
         }
 
@@ -130,9 +180,13 @@ class EditorState {
         val newDocument = MarkdownDocument(path = path, text = content, isDirty = false)
         
         documents = documents + newDocument
-        activeTabIndex = documents.size - 1
+        val newIndex = documents.size - 1
+        activeTabIndex = newIndex
         selectedFile = path
         fileContent = content
+        
+        // Initialize undo/redo manager for new tab
+        getUndoRedoManager(newIndex).initialize(content)
     }
 
     fun closeTab(index: Int) {
@@ -142,6 +196,15 @@ class EditorState {
         val doc = documents[index]
         if (doc.isDirty && doc.path != null) {
             FileManager.writeFile(doc.path, doc.text)
+        }
+
+        // Remove undo/redo manager
+        undoRedoManagers.remove(index)
+        // Reindex remaining managers
+        val managersToReindex = undoRedoManagers.filter { it.key > index }.toList()
+        undoRedoManagers.clear()
+        managersToReindex.forEach { (oldKey, manager) ->
+            undoRedoManagers[oldKey - 1] = manager
         }
 
         documents = documents.toMutableList().apply { removeAt(index) }
@@ -187,16 +250,96 @@ class EditorState {
         activeTabIndex = index
         selectedFile = documents[index].path
         fileContent = documents[index].text
+        
+        // Update search matches for new document
+        searchState?.let { currentState ->
+            if (currentState.searchQuery.isNotEmpty()) {
+                val matches = SearchEngine.findMatches(
+                    text = documents[index].text,
+                    query = currentState.searchQuery,
+                    matchCase = currentState.matchCase,
+                    wholeWords = currentState.wholeWords,
+                    useRegex = currentState.useRegex
+                )
+                searchState = currentState.copy(
+                    matches = matches,
+                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
+                )
+            }
+        }
     }
 
-    fun updateTabContent(content: String) {
+    fun updateTabContent(content: String, pushToHistory: Boolean = true) {
         if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
             val doc = documents[activeTabIndex]
+            
+            // Push to undo history before updating (unless this is an undo/redo operation)
+            if (pushToHistory) {
+                getUndoRedoManager(activeTabIndex).pushState(doc.text)
+            }
+            
             documents = documents.toMutableList().apply {
                 set(activeTabIndex, doc.copy(text = content, isDirty = true))
             }
             fileContent = content
+            
+            // Update search matches if search is active
+            searchState?.let { currentState ->
+                if (currentState.searchQuery.isNotEmpty()) {
+                    val matches = SearchEngine.findMatches(
+                        text = content,
+                        query = currentState.searchQuery,
+                        matchCase = currentState.matchCase,
+                        wholeWords = currentState.wholeWords,
+                        useRegex = currentState.useRegex
+                    )
+                    searchState = currentState.copy(
+                        matches = matches,
+                        currentMatchIndex = if (matches.isNotEmpty() && currentState.currentMatchIndex < matches.size) {
+                            currentState.currentMatchIndex
+                        } else if (matches.isNotEmpty()) {
+                            0
+                        } else {
+                            -1
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    fun undo(): Boolean {
+        if (activeTabIndex < 0 || activeTabIndex >= documents.size) return false
+        
+        val doc = documents[activeTabIndex]
+        val manager = getUndoRedoManager(activeTabIndex)
+        val previousState = manager.undo(doc.text) ?: return false
+        
+        // Update content without pushing to history
+        updateTabContent(previousState, pushToHistory = false)
+        return true
+    }
+
+    fun redo(): Boolean {
+        if (activeTabIndex < 0 || activeTabIndex >= documents.size) return false
+        
+        val doc = documents[activeTabIndex]
+        val manager = getUndoRedoManager(activeTabIndex)
+        val nextState = manager.redo(doc.text) ?: return false
+        
+        // Update content without pushing to history
+        updateTabContent(nextState, pushToHistory = false)
+        return true
+    }
+
+    fun canUndo(): Boolean {
+        if (activeTabIndex < 0 || activeTabIndex >= documents.size) return false
+        return getUndoRedoManager(activeTabIndex).canUndo()
+    }
+
+    fun canRedo(): Boolean {
+        if (activeTabIndex < 0 || activeTabIndex >= documents.size) return false
+        return getUndoRedoManager(activeTabIndex).canRedo()
     }
 
     fun getActiveTab(): MarkdownDocument? {
@@ -295,6 +438,73 @@ class EditorState {
     fun openSettingsJson() {
         val settingsPath = SettingsPersistence.getSettingsFilePath()
         openTab(settingsPath)
+    }
+
+    // Search state
+    var searchState by mutableStateOf<SearchState?>(null)
+        private set
+
+    fun openSearchDialog(showReplace: Boolean = false) {
+        searchState = SearchState(showReplace = showReplace)
+    }
+
+    fun closeSearchDialog() {
+        searchState = null
+    }
+
+    fun updateSearchState(update: (SearchState) -> SearchState) {
+        searchState = searchState?.let { currentState ->
+            val updated = update(currentState)
+            // Recalculate matches if document text changed
+            val activeDoc = getActiveTab()
+            if (activeDoc != null && updated.searchQuery.isNotEmpty()) {
+                val matches = SearchEngine.findMatches(
+                    text = activeDoc.text,
+                    query = updated.searchQuery,
+                    matchCase = updated.matchCase,
+                    wholeWords = updated.wholeWords,
+                    useRegex = updated.useRegex
+                )
+                updated.copy(
+                    matches = matches,
+                    currentMatchIndex = if (matches.isNotEmpty() && updated.currentMatchIndex < matches.size) {
+                        updated.currentMatchIndex
+                    } else if (matches.isNotEmpty()) {
+                        0
+                    } else {
+                        -1
+                    }
+                )
+            } else {
+                updated
+            }
+        }
+    }
+
+    fun findNext(): Boolean {
+        val state = searchState ?: return false
+        if (state.matches.isEmpty()) return false
+        
+        val nextIndex = if (state.currentMatchIndex < state.matches.size - 1) {
+            state.currentMatchIndex + 1
+        } else {
+            0 // Wrap around
+        }
+        searchState = state.copy(currentMatchIndex = nextIndex)
+        return true
+    }
+
+    fun findPrevious(): Boolean {
+        val state = searchState ?: return false
+        if (state.matches.isEmpty()) return false
+        
+        val prevIndex = if (state.currentMatchIndex > 0) {
+            state.currentMatchIndex - 1
+        } else {
+            state.matches.size - 1 // Wrap around
+        }
+        searchState = state.copy(currentMatchIndex = prevIndex)
+        return true
     }
 }
 

@@ -8,20 +8,43 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.close
+import org.krypton.krypton.markdown.BlockNode
+import org.krypton.krypton.markdown.InlineNode
+import org.krypton.krypton.markdown.KotlinxMarkdownEngine
+
+/**
+ * Recursively extract plain text from inline nodes.
+ */
+private fun extractTextFromInlineNodes(nodes: List<InlineNode>): String {
+    return nodes.joinToString("") { node ->
+        when (node) {
+            is InlineNode.Text -> node.content
+            is InlineNode.Strong -> extractTextFromInlineNodes(node.inlineNodes)
+            is InlineNode.Emphasis -> extractTextFromInlineNodes(node.inlineNodes)
+            is InlineNode.Code -> node.code
+            is InlineNode.Link -> node.text
+            is InlineNode.Image -> node.alt
+        }
+    }
+}
 
 @Composable
 fun RightSidebar(
     state: EditorState,
+    theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     val targetWidth = if (state.rightSidebarVisible) state.rightSidebarWidth else 0.dp
@@ -35,26 +58,19 @@ fun RightSidebar(
         visible = state.rightSidebarVisible,
         modifier = modifier.width(animatedWidth)
     ) {
-        Column(
+        Surface(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(animatedWidth)
-                .background(ObsidianTheme.BackgroundElevated)
-                .border(ObsidianTheme.PanelBorderWidth, ObsidianTheme.Border, RoundedCornerShape(0.dp))
+                .background(theme.BackgroundElevated)
+                .border(theme.PanelBorderWidth, theme.Border, RoundedCornerShape(0.dp)),
+            color = theme.BackgroundElevated
         ) {
             OutlinePanel(
+                state = state,
+                theme = theme,
                 onClose = { state.toggleRightSidebar() },
-                modifier = Modifier.weight(1f)
-            )
-            
-            Divider(
-                color = ObsidianTheme.Border,
-                thickness = ObsidianTheme.PanelBorderWidth
-            )
-            
-            BacklinksPanel(
-                onClose = { state.toggleRightSidebar() },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxSize()
             )
         }
     }
@@ -62,14 +78,29 @@ fun RightSidebar(
 
 @Composable
 private fun OutlinePanel(
+    state: EditorState,
+    theme: ObsidianThemeValues,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val activeDocument = state.getActiveTab()
+    val engine = remember { KotlinxMarkdownEngine() }
+    
+    // Extract headings from the active document
+    val headings = remember(activeDocument?.text) {
+        if (activeDocument?.text != null) {
+            val blocks = engine.renderToBlocks(activeDocument.text)
+            blocks.filterIsInstance<BlockNode.Heading>()
+        } else {
+            emptyList()
+        }
+    }
+    
     Column(modifier = modifier) {
         // Header bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = ObsidianTheme.SurfaceContainer
+            color = theme.SurfaceContainer
         ) {
             Row(
                 modifier = Modifier
@@ -81,7 +112,7 @@ private fun OutlinePanel(
                 Text(
                     text = "Outline",
                     style = MaterialTheme.typography.titleSmall,
-                    color = ObsidianTheme.TextPrimary
+                    color = theme.TextPrimary
                 )
                 Box(
                     modifier = Modifier
@@ -93,80 +124,81 @@ private fun OutlinePanel(
                         painter = painterResource(Res.drawable.close),
                         contentDescription = "Close",
                         modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
+                        colorFilter = ColorFilter.tint(theme.TextSecondary)
                     )
                 }
             }
         }
         
-        // Content
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(ObsidianTheme.PanelPadding),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Outline panel\n(Coming soon)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextSecondary
-            )
+        // Content - List of headings
+        if (headings.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(theme.PanelPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No headings found",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = theme.TextSecondary
+                )
+            }
+        } else {
+            val scrollState = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(theme.PanelPadding),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                headings.forEach { heading ->
+                    OutlineHeadingItem(
+                        heading = heading,
+                        theme = theme,
+                        onClick = {
+                            // TODO: Scroll to heading in editor
+                        }
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun BacklinksPanel(
-    onClose: () -> Unit,
+private fun OutlineHeadingItem(
+    heading: BlockNode.Heading,
+    theme: ObsidianThemeValues,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
-        // Header bar
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = ObsidianTheme.SurfaceContainer
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Backlinks",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = ObsidianTheme.TextPrimary
-                )
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable(onClick = onClose),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(Res.drawable.close),
-                        contentDescription = "Close",
-                        modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
-                    )
-                }
-            }
-        }
-        
-        // Content
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(ObsidianTheme.PanelPadding),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Backlinks panel\n(Coming soon)",
-                style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextSecondary
-            )
-        }
+    // Calculate indentation based on heading level (h1 = 0, h2 = 1, etc.)
+    val indentLevel = heading.level - 1
+    val indentDp = (indentLevel * 16).dp
+    
+    // Extract plain text from inline nodes (recursively handle nested formatting)
+    val headingText = remember(heading) {
+        extractTextFromInlineNodes(heading.inlineNodes)
+    }
+    
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = indentDp, top = 4.dp, end = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = headingText.ifEmpty { "Untitled" },
+            style = MaterialTheme.typography.bodyMedium,
+            color = theme.TextPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
+
 

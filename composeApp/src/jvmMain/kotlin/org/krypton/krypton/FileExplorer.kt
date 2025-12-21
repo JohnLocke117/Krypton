@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.nio.file.Path
+import java.nio.file.Paths
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.add
@@ -32,11 +34,17 @@ import krypton.composeapp.generated.resources.star
 fun FileExplorer(
     state: EditorState,
     onFolderSelected: (Path?) -> Unit,
+    recentFolders: List<String>,
+    onRecentFolderSelected: (Path) -> Unit,
+    theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     FileExplorerContent(
         state = state,
         onFolderSelected = onFolderSelected,
+        recentFolders = recentFolders,
+        onRecentFolderSelected = onRecentFolderSelected,
+        theme = theme,
         modifier = modifier
     )
 }
@@ -45,6 +53,9 @@ fun FileExplorer(
 fun FileExplorerContent(
     state: EditorState,
     onFolderSelected: (Path?) -> Unit,
+    recentFolders: List<String>,
+    onRecentFolderSelected: (Path) -> Unit,
+    theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     var fileTree by remember { mutableStateOf<FileTreeNode?>(null) }
@@ -73,24 +84,56 @@ fun FileExplorerContent(
                 .weight(1f)
                 .padding(ObsidianTheme.PanelPadding)
         ) {
-            // Open Folder Button - only show when no folder is open
+            // Open Folder Button and Recent Folders - only show when no folder is open
             if (state.currentDirectory == null) {
                 Button(
                     onClick = { onFolderSelected(null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.medium,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ObsidianTheme.Accent
+                        containerColor = theme.Accent
                     )
                 ) {
                     Text(
                         text = "Open Folder",
                         style = MaterialTheme.typography.labelLarge,
-                        color = ObsidianTheme.TextPrimary
+                        color = theme.TextPrimary
                     )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+                
+                // Recent Folders List
+                if (recentFolders.isNotEmpty()) {
+                    Text(
+                        text = "Recent Folders",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = theme.TextSecondary,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    recentFolders.forEach { folderPath ->
+                        RecentFolderButton(
+                            path = folderPath,
+                            theme = theme,
+                            onClick = {
+                                try {
+                                    val path = java.nio.file.Paths.get(folderPath)
+                                    val file = path.toFile()
+                                    if (file.exists() && file.isDirectory) {
+                                        onRecentFolderSelected(path)
+                                    }
+                                } catch (e: Exception) {
+                                    // Invalid path, skip
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
             }
 
             // New File Button
@@ -222,6 +265,7 @@ fun FileExplorerContent(
                 onFolderClick = { /* Will be handled by FolderMenu */ },
                 onSettingsClick = { state.openSettingsDialog() },
                 onFolderSelected = onFolderSelected,
+                onCloseFolder = { state.closeFolder() },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -320,6 +364,50 @@ fun TreeItem(
                     onFolderToggle = onFolderToggle
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RecentFolderButton(
+    path: String,
+    theme: ObsidianThemeValues,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val folderName = try {
+        Paths.get(path).fileName.toString()
+    } catch (e: Exception) {
+        path
+    }
+    
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = theme.TextPrimary
+        ),
+        border = BorderStroke(1.dp, theme.Border)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = folderName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = path,
+                style = MaterialTheme.typography.bodySmall,
+                color = theme.TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

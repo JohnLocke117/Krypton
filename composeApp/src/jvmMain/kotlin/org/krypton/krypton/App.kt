@@ -50,6 +50,39 @@ fun App() {
         )
     ) {
         val state = rememberEditorState()
+        
+        // Load last opened folder on startup
+        LaunchedEffect(settings.app.recentFolders) {
+            if (state.currentDirectory == null && settings.app.recentFolders.isNotEmpty()) {
+                val lastFolder = settings.app.recentFolders.firstOrNull()
+                lastFolder?.let {
+                    try {
+                        val path = java.nio.file.Paths.get(it)
+                        val file = path.toFile()
+                        if (file.exists() && file.isDirectory) {
+                            state.changeDirectoryWithHistory(path, settingsRepository)
+                        }
+                    } catch (e: Exception) {
+                        // Invalid path, skip
+                    }
+                }
+            }
+        }
+        
+        // Load last opened folder on startup
+        LaunchedEffect(Unit) {
+            val lastFolder = settings.app.recentFolders.firstOrNull()
+            if (lastFolder != null) {
+                try {
+                    val path = java.nio.file.Paths.get(lastFolder)
+                    if (java.nio.file.Files.exists(path) && java.nio.file.Files.isDirectory(path)) {
+                        state.changeDirectoryWithHistory(path, settingsRepository)
+                    }
+                } catch (e: Exception) {
+                    // Invalid path, ignore
+                }
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -58,11 +91,51 @@ fun App() {
                 .onKeyEvent { keyEvent ->
                     if (keyEvent.type == KeyEventType.KeyDown) {
                         val isCtrlOrCmd = keyEvent.isCtrlPressed || keyEvent.isMetaPressed
-                        if (isCtrlOrCmd && keyEvent.key == Key.Comma) {
-                            state.openSettingsDialog()
-                            true
-                        } else {
-                            false
+                        val isShift = keyEvent.isShiftPressed
+                        
+                        when {
+                            // Settings
+                            isCtrlOrCmd && keyEvent.key == Key.Comma -> {
+                                state.openSettingsDialog()
+                                true
+                            }
+                            // Search
+                            isCtrlOrCmd && keyEvent.key == Key.F -> {
+                                state.openSearchDialog(showReplace = false)
+                                true
+                            }
+                            // Search & Replace
+                            isCtrlOrCmd && keyEvent.key == Key.H -> {
+                                state.openSearchDialog(showReplace = true)
+                                true
+                            }
+                            // Find next
+                            keyEvent.key == Key.F3 && !isShift -> {
+                                state.findNext()
+                                true
+                            }
+                            // Find previous
+                            keyEvent.key == Key.F3 && isShift -> {
+                                state.findPrevious()
+                                true
+                            }
+                            // Close search
+                            keyEvent.key == Key.Escape && state.searchState != null -> {
+                                state.closeSearchDialog()
+                                true
+                            }
+                            // Undo
+                            isCtrlOrCmd && keyEvent.key == Key.Z && !isShift -> {
+                                state.undo()
+                                true
+                            }
+                            // Redo
+                            (isCtrlOrCmd && keyEvent.key == Key.Z && isShift) ||
+                            (isCtrlOrCmd && keyEvent.key == Key.Y) -> {
+                                state.redo()
+                                true
+                            }
+                            else -> false
                         }
                     } else {
                         false
@@ -86,14 +159,19 @@ fun App() {
                             selectedPath?.let { path ->
                                 val file = path.toFile()
                                 if (file.isDirectory) {
-                                    state.changeDirectory(path)
+                                    state.changeDirectoryWithHistory(path, settingsRepository)
                                 } else {
-                                    state.changeDirectory(file.parentFile?.toPath())
+                                    val parentPath = file.parentFile?.toPath()
+                                    if (parentPath != null) {
+                                        state.changeDirectoryWithHistory(parentPath, settingsRepository)
+                                    }
                                     state.openTab(path)
                                 }
                             }
                         }
                     },
+                    theme = theme,
+                    settingsRepository = settingsRepository,
                     modifier = Modifier.fillMaxHeight()
                 )
 
@@ -118,9 +196,12 @@ fun App() {
                                 selectedPath?.let { path ->
                                     val file = path.toFile()
                                     if (file.isDirectory) {
-                                        state.changeDirectory(path)
+                                        state.changeDirectoryWithHistory(path, settingsRepository)
                                     } else {
-                                        state.changeDirectory(file.parentFile?.toPath())
+                                        val parentPath = file.parentFile?.toPath()
+                                        if (parentPath != null) {
+                                            state.changeDirectoryWithHistory(parentPath, settingsRepository)
+                                        }
                                         state.openTab(path)
                                     }
                                 }
@@ -133,6 +214,7 @@ fun App() {
                 // Right Sidebar
                 RightSidebar(
                     state = state,
+                    theme = theme,
                     modifier = Modifier.fillMaxHeight()
                 )
 
@@ -151,6 +233,36 @@ fun App() {
                     state.openSettingsJson()
                 }
             )
+            
+            // Recent Folders Dialog
+            if (state.showRecentFoldersDialog) {
+                RecentFoldersDialog(
+                    recentFolders = settings.app.recentFolders,
+                    onFolderSelected = { path ->
+                        state.changeDirectoryWithHistory(path, settingsRepository)
+                    },
+                    onOpenNewFolder = {
+                        openFolderDialog { selectedPath ->
+                            selectedPath?.let { path ->
+                                val file = path.toFile()
+                                if (file.isDirectory) {
+                                    state.changeDirectoryWithHistory(path, settingsRepository)
+                                } else {
+                                    val parentPath = file.parentFile?.toPath()
+                                    if (parentPath != null) {
+                                        state.changeDirectoryWithHistory(parentPath, settingsRepository)
+                                    }
+                                    state.openTab(path)
+                                }
+                            }
+                        }
+                    },
+                    onDismiss = {
+                        state.dismissRecentFoldersDialog()
+                    },
+                    theme = theme
+                )
+            }
         }
     }
 }

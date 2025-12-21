@@ -16,6 +16,8 @@ import androidx.compose.ui.unit.dp
 fun LeftSidebar(
     state: EditorState,
     onFolderSelected: (java.nio.file.Path?) -> Unit,
+    theme: ObsidianThemeValues,
+    settingsRepository: SettingsRepository?,
     modifier: Modifier = Modifier
 ) {
     val targetWidth = if (state.leftSidebarVisible) state.leftSidebarWidth else 0.dp
@@ -41,6 +43,8 @@ fun LeftSidebar(
                     FilesPanel(
                         state = state,
                         onFolderSelected = onFolderSelected,
+                        theme = theme,
+                        settingsRepository = settingsRepository,
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -62,12 +66,21 @@ fun LeftSidebar(
 private fun FilesPanel(
     state: EditorState,
     onFolderSelected: (java.nio.file.Path?) -> Unit,
+    theme: ObsidianThemeValues,
+    settingsRepository: SettingsRepository?,
     modifier: Modifier = Modifier
 ) {
+    val recentFolders = settingsRepository?.settingsFlow?.collectAsState()?.value?.app?.recentFolders ?: emptyList()
+    
     // This will contain the FileExplorer content without the card wrapper
     FileExplorerContent(
         state = state,
         onFolderSelected = onFolderSelected,
+        recentFolders = recentFolders,
+        onRecentFolderSelected = { path ->
+            state.changeDirectoryWithHistory(path, settingsRepository)
+        },
+        theme = theme,
         modifier = modifier
     )
 }
