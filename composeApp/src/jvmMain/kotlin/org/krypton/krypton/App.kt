@@ -23,8 +23,14 @@ fun App() {
         Font(Res.font.UbuntuSans_Regular)
     )
 
+    // Initialize settings repository
+    val settingsRepository = remember { SettingsRepositoryImpl() }
+    val settings by settingsRepository.settingsFlow.collectAsState()
+    val colorScheme = buildColorSchemeFromSettings(settings)
+    val theme = rememberObsidianTheme(settings)
+
     MaterialTheme(
-        colorScheme = obsidianDarkColorScheme(),
+        colorScheme = colorScheme,
         typography = MaterialTheme.typography.copy(
             displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = ubuntuFontFamily),
             displayMedium = MaterialTheme.typography.displayMedium.copy(fontFamily = ubuntuFontFamily),
@@ -48,7 +54,7 @@ fun App() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(ObsidianTheme.Background)
+                .background(theme.Background)
                 .onKeyEvent { keyEvent ->
                     if (keyEvent.type == KeyEventType.KeyDown) {
                         val isCtrlOrCmd = keyEvent.isCtrlPressed || keyEvent.isMetaPressed
@@ -99,11 +105,14 @@ fun App() {
                 ) {
                     TabBar(
                         state = state,
+                        settings = settings,
+                        theme = theme,
                         modifier = Modifier.fillMaxWidth()
                     )
 
                     TextEditor(
                         state = state,
+                        settingsRepository = settingsRepository,
                         onOpenFolder = {
                             openFolderDialog { selectedPath ->
                                 selectedPath?.let { path ->
@@ -136,7 +145,11 @@ fun App() {
             
             // Settings Dialog (overlay)
             SettingsDialog(
-                state = state
+                state = state,
+                settingsRepository = settingsRepository,
+                onOpenSettingsJson = {
+                    state.openSettingsJson()
+                }
             )
         }
     }

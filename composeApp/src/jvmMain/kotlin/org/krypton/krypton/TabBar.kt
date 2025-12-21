@@ -26,11 +26,13 @@ import java.nio.file.Path
 @Composable
 fun TabBar(
     state: EditorState,
+    settings: Settings,
+    theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = ObsidianTheme.BackgroundElevated
+        color = theme.BackgroundElevated
     ) {
         Row(
             modifier = Modifier
@@ -45,6 +47,8 @@ fun TabBar(
                 TabItem(
                     doc = doc,
                     isActive = index == state.activeTabIndex,
+                    settings = settings,
+                    theme = theme,
                     onClick = { state.switchTab(index) },
                     onClose = { state.closeTab(index) }
                 )
@@ -55,9 +59,9 @@ fun TabBar(
                 val activeDoc = state.documents[state.activeTabIndex]
                 Box(
                     modifier = Modifier
-                        .height(ObsidianTheme.TabHeight)
-                        .clip(RoundedCornerShape(ObsidianTheme.TabCornerRadius))
-                        .background(ObsidianTheme.SurfaceContainer)
+                        .height(theme.TabHeight)
+                        .clip(RoundedCornerShape(theme.TabCornerRadius))
+                        .background(theme.SurfaceContainer)
                         .clickable { state.toggleViewMode() }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
@@ -68,8 +72,8 @@ fun TabBar(
                             ViewMode.Compiled -> "Compiled"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = ObsidianTheme.TextSecondary,
-                        fontSize = 11.sp
+                        color = theme.TextSecondary,
+                        fontSize = settings.ui.tabLabelFontSize.sp
                     )
                 }
             }
@@ -77,9 +81,9 @@ fun TabBar(
             // New Tab Button
             Box(
                 modifier = Modifier
-                    .size(ObsidianTheme.TabHeight)
-                    .clip(RoundedCornerShape(ObsidianTheme.TabCornerRadius))
-                    .background(ObsidianTheme.SurfaceContainer)
+                    .size(theme.TabHeight)
+                    .clip(RoundedCornerShape(theme.TabCornerRadius))
+                    .background(theme.SurfaceContainer)
                     .clickable {
                         openFolderDialog { selectedPath ->
                             selectedPath?.let { path ->
@@ -97,7 +101,7 @@ fun TabBar(
                     painter = painterResource(Res.drawable.add),
                     contentDescription = "New Tab",
                     modifier = Modifier.size(16.dp),
-                    colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
+                    colorFilter = ColorFilter.tint(theme.TextSecondary)
                 )
             }
         }
@@ -108,6 +112,8 @@ fun TabBar(
 fun TabItem(
     doc: MarkdownDocument,
     isActive: Boolean,
+    settings: Settings,
+    theme: ObsidianThemeValues,
     onClick: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
@@ -116,25 +122,25 @@ fun TabItem(
     val isModified = doc.isDirty
 
     val backgroundColor = if (isActive) {
-        ObsidianTheme.Background
+        theme.Background
     } else {
-        ObsidianTheme.BackgroundElevated
+        theme.BackgroundElevated
     }
 
     val textColor = if (isActive) {
-        ObsidianTheme.TextPrimary
+        theme.TextPrimary
     } else {
-        ObsidianTheme.TextSecondary
+        theme.TextSecondary
     }
 
     Box(
         modifier = modifier
             .widthIn(min = 120.dp, max = 240.dp)
-            .height(ObsidianTheme.TabHeight)
-            .clip(RoundedCornerShape(ObsidianTheme.TabCornerRadius))
+            .height(theme.TabHeight)
+            .clip(RoundedCornerShape(theme.TabCornerRadius))
             .background(backgroundColor)
             .clickable(onClick = onClick)
-            .padding(horizontal = ObsidianTheme.TabPadding, vertical = 8.dp)
+            .padding(horizontal = theme.TabPadding, vertical = 8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxSize(),
@@ -147,7 +153,7 @@ fun TabItem(
                 contentDescription = "File",
                 modifier = Modifier.size(16.dp),
                 colorFilter = ColorFilter.tint(
-                    if (isActive) ObsidianTheme.Accent else ObsidianTheme.TextTertiary
+                    if (isActive) theme.Accent else theme.TextTertiary
                 )
             )
 
@@ -159,7 +165,7 @@ fun TabItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
-                fontSize = 13.sp
+                fontSize = settings.ui.tabFontSize.sp
             )
 
             // Modified indicator
@@ -168,7 +174,7 @@ fun TabItem(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(ObsidianTheme.Accent)
+                        .background(theme.Accent)
                 )
             }
 
@@ -184,7 +190,7 @@ fun TabItem(
                         painter = painterResource(Res.drawable.close),
                         contentDescription = "Close",
                         modifier = Modifier.size(14.dp),
-                        colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
+                        colorFilter = ColorFilter.tint(theme.TextSecondary)
                     )
                 }
             }

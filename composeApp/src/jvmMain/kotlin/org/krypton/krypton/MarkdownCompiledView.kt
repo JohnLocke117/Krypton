@@ -23,6 +23,8 @@ import org.krypton.krypton.markdown.*
 @Composable
 fun MarkdownCompiledView(
     markdown: String,
+    settings: Settings,
+    theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     val engine = remember { KotlinxMarkdownEngine() }
@@ -35,18 +37,18 @@ fun MarkdownCompiledView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(ObsidianTheme.EditorPadding)
+            .padding(theme.EditorPadding)
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         blocks.forEach { block ->
-            RenderBlock(block)
+            RenderBlock(block, settings, theme)
         }
     }
 }
 
 @Composable
-private fun RenderBlock(block: BlockNode) {
+private fun RenderBlock(block: BlockNode, settings: Settings, theme: ObsidianThemeValues) {
     when (block) {
         is BlockNode.Heading -> {
             val typography = when (block.level) {
@@ -62,7 +64,7 @@ private fun RenderBlock(block: BlockNode) {
             Text(
                 text = block.text,
                 style = typography.copy(
-                    color = ObsidianTheme.HeadingColor,
+                    color = theme.HeadingColor,
                     fontWeight = FontWeight.Bold
                 ),
                 modifier = Modifier.padding(vertical = 8.dp)
@@ -74,7 +76,7 @@ private fun RenderBlock(block: BlockNode) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Start
             ) {
-                RenderInlineNodes(block.inlineNodes)
+                RenderInlineNodes(block.inlineNodes, settings, theme)
             }
         }
         
@@ -84,7 +86,7 @@ private fun RenderBlock(block: BlockNode) {
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = ObsidianTheme.CodeBlockBackground
+                    containerColor = theme.CodeBlockBackground
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
@@ -92,9 +94,9 @@ private fun RenderBlock(block: BlockNode) {
                     text = block.code,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        fontSize = 13.sp
+                        fontSize = settings.editor.codeBlockFontSize.sp
                     ),
-                    color = ObsidianTheme.TextPrimary,
+                    color = theme.TextPrimary,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp)
@@ -109,11 +111,11 @@ private fun RenderBlock(block: BlockNode) {
                     .padding(vertical = 8.dp)
                     .border(
                         width = 4.dp,
-                        color = ObsidianTheme.BlockquoteBorder,
+                        color = theme.BlockquoteBorder,
                         shape = RoundedCornerShape(4.dp)
                     ),
                 colors = CardDefaults.cardColors(
-                    containerColor = ObsidianTheme.BlockquoteBackground
+                    containerColor = theme.BlockquoteBackground
                 ),
                 shape = RoundedCornerShape(4.dp)
             ) {
@@ -124,7 +126,7 @@ private fun RenderBlock(block: BlockNode) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     block.blocks.forEach { childBlock ->
-                        RenderBlock(childBlock)
+                        RenderBlock(childBlock, settings, theme)
                     }
                 }
             }
@@ -144,7 +146,7 @@ private fun RenderBlock(block: BlockNode) {
                     ) {
                         Text(
                             text = "• ",
-                            color = ObsidianTheme.TextSecondary,
+                            color = theme.TextSecondary,
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Column(
@@ -152,7 +154,7 @@ private fun RenderBlock(block: BlockNode) {
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             item.blocks.forEach { childBlock ->
-                                RenderBlock(childBlock)
+                                RenderBlock(childBlock, settings, theme)
                             }
                         }
                     }
@@ -174,7 +176,7 @@ private fun RenderBlock(block: BlockNode) {
                     ) {
                         Text(
                             text = "${block.startNumber + index}. ",
-                            color = ObsidianTheme.TextSecondary,
+                            color = theme.TextSecondary,
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Column(
@@ -182,7 +184,7 @@ private fun RenderBlock(block: BlockNode) {
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             item.blocks.forEach { childBlock ->
-                                RenderBlock(childBlock)
+                                RenderBlock(childBlock, settings, theme)
                             }
                         }
                     }
@@ -195,21 +197,21 @@ private fun RenderBlock(block: BlockNode) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 16.dp),
-                color = ObsidianTheme.Border
+                color = theme.Border
             )
         }
     }
 }
 
 @Composable
-private fun RenderInlineNodes(nodes: List<InlineNode>) {
+private fun RenderInlineNodes(nodes: List<InlineNode>, settings: Settings, theme: ObsidianThemeValues) {
     nodes.forEach { node ->
         when (node) {
             is InlineNode.Text -> {
                 Text(
                     text = node.content,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = theme.TextPrimary
                 )
             }
             is InlineNode.Strong -> {
@@ -223,7 +225,7 @@ private fun RenderInlineNodes(nodes: List<InlineNode>) {
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.Bold
                     ),
-                    color = ObsidianTheme.TextPrimary
+                    color = theme.TextPrimary
                 )
             }
             is InlineNode.Emphasis -> {
@@ -237,22 +239,22 @@ private fun RenderInlineNodes(nodes: List<InlineNode>) {
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontStyle = FontStyle.Italic
                     ),
-                    color = ObsidianTheme.TextPrimary
+                    color = theme.TextPrimary
                 )
             }
             is InlineNode.Code -> {
                 Surface(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     shape = RoundedCornerShape(4.dp),
-                    color = ObsidianTheme.CodeSpanBackground
+                    color = theme.CodeSpanBackground
                 ) {
                     Text(
                         text = node.code,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            fontSize = 13.sp
+                            fontSize = settings.editor.codeSpanFontSize.sp
                         ),
-                        color = ObsidianTheme.TextPrimary,
+                        color = theme.TextPrimary,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -261,7 +263,7 @@ private fun RenderInlineNodes(nodes: List<InlineNode>) {
                 Text(
                     text = node.text,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = ObsidianTheme.LinkColor,
+                        color = theme.LinkColor,
                         textDecoration = TextDecoration.Underline
                     )
                 )
@@ -270,7 +272,7 @@ private fun RenderInlineNodes(nodes: List<InlineNode>) {
                 Text(
                     text = "[Image: ${node.alt}]",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = ObsidianTheme.TextSecondary
+                    color = theme.TextSecondary
                 )
             }
         }

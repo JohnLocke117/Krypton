@@ -9,7 +9,7 @@ enum class RibbonButton {
 }
 
 enum class SettingsCategory {
-    General, Editor, Appearance, Keybindings
+    General, Editor, Appearance, UI, Colors, Keybindings
 }
 
 enum class ViewMode {
@@ -244,10 +244,10 @@ class EditorState {
     var rightSidebarVisible by mutableStateOf(true)
         private set
 
-    var leftSidebarWidth by mutableStateOf(ObsidianTheme.SidebarDefaultWidth)
+    var leftSidebarWidth by mutableStateOf(280.dp)
         private set
 
-    var rightSidebarWidth by mutableStateOf(ObsidianTheme.SidebarDefaultWidth)
+    var rightSidebarWidth by mutableStateOf(280.dp)
         private set
 
     var activeRibbonButton by mutableStateOf(RibbonButton.Files)
@@ -261,15 +261,11 @@ class EditorState {
         rightSidebarVisible = !rightSidebarVisible
     }
 
-    fun updateLeftSidebarWidth(width: androidx.compose.ui.unit.Dp) {
-        val minWidth = ObsidianTheme.SidebarMinWidth
-        val maxWidth = ObsidianTheme.SidebarMaxWidth
+    fun updateLeftSidebarWidth(width: androidx.compose.ui.unit.Dp, minWidth: androidx.compose.ui.unit.Dp = 200.dp, maxWidth: androidx.compose.ui.unit.Dp = 400.dp) {
         leftSidebarWidth = if (width < minWidth) minWidth else if (width > maxWidth) maxWidth else width
     }
 
-    fun updateRightSidebarWidth(width: androidx.compose.ui.unit.Dp) {
-        val minWidth = ObsidianTheme.SidebarMinWidth
-        val maxWidth = ObsidianTheme.SidebarMaxWidth
+    fun updateRightSidebarWidth(width: androidx.compose.ui.unit.Dp, minWidth: androidx.compose.ui.unit.Dp = 200.dp, maxWidth: androidx.compose.ui.unit.Dp = 400.dp) {
         rightSidebarWidth = if (width < minWidth) minWidth else if (width > maxWidth) maxWidth else width
     }
 
@@ -294,6 +290,11 @@ class EditorState {
 
     fun selectSettingsCategory(category: SettingsCategory) {
         selectedSettingsCategory = category
+    }
+
+    fun openSettingsJson() {
+        val settingsPath = SettingsPersistence.getSettingsFilePath()
+        openTab(settingsPath)
     }
 }
 

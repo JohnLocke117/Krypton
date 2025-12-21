@@ -12,23 +12,69 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @Composable
 fun TextEditor(
     state: EditorState,
+    settingsRepository: SettingsRepository?,
     onOpenFolder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val coroutineScope = rememberCoroutineScope()
     val activeTabIndex = state.activeTabIndex
     val activeDocument = state.getActiveTab()
+    val settingsPath = SettingsPersistence.getSettingsFilePath()
+    var showErrorSnackbar by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
     
-    // Auto-save with debouncing
-    LaunchedEffect(activeDocument?.text, activeTabIndex) {
+    val settings = settingsRepository?.settingsFlow?.collectAsState()?.value ?: Settings()
+    val theme = rememberObsidianTheme(settings)
+    
+    // Auto-save with debouncing - use settings interval
+    LaunchedEffect(activeDocument?.text, activeTabIndex, settings.app.autosaveIntervalSeconds) {
         activeDocument?.let { doc ->
             if (doc.isDirty && doc.path != null) {
-                kotlinx.coroutines.delay(1000) // 1 second debounce
-                FileManager.writeFile(doc.path, doc.text)
-                state.saveActiveTab()
+                val delayMs = settings.app.autosaveIntervalSeconds * 1000L
+                kotlinx.coroutines.delay(delayMs.coerceAtLeast(1000)) // Minimum 1 second
+                
+                // Special handling for settings.json
+                if (doc.path == settingsPath && settingsRepository != null) {
+                    // Parse and validate JSON from document text
+                    val parsed = SettingsPersistence.parseSettingsFromJson(doc.text)
+                    if (parsed != null) {
+                        val validation = validateSettings(parsed)
+                        if (validation.isValid) {
+                            // Update repository and save file
+                            coroutineScope.launch {
+                                try {
+                                    settingsRepository.update { parsed }
+                                    FileManager.writeFile(doc.path, doc.text)
+                                    state.saveActiveTab()
+                                } catch (e: Exception) {
+                                    errorMessage = e.message ?: "Failed to update settings"
+                                    showErrorSnackbar = true
+                                }
+                            }
+                        } else {
+                            // Validation failed, show error but don't save
+                            errorMessage = "Settings validation failed: ${validation.errors.joinToString(", ")}"
+                            showErrorSnackbar = true
+                            // Don't call saveActiveTab() - keep the document dirty
+                            return@LaunchedEffect
+                        }
+                    } else {
+                        // JSON parsing failed
+                        errorMessage = "Invalid JSON format. Please check your syntax."
+                        showErrorSnackbar = true
+                        // Don't save invalid JSON
+                        return@LaunchedEffect
+                    }
+                } else {
+                    // Normal file save
+                    FileManager.writeFile(doc.path, doc.text)
+                    state.saveActiveTab()
+                }
             }
         }
     }
@@ -36,8 +82,8 @@ fun TextEditor(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ObsidianTheme.Background)
-            .padding(24.dp)
+            .background(theme.Background)
+            .padding(theme.EditorPadding)
     ) {
         // Editor area
         if (activeDocument != null) {
@@ -46,7 +92,7 @@ fun TextEditor(
                 modifier = Modifier.fillMaxSize(),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = ObsidianTheme.BackgroundElevated
+                    containerColor = theme.BackgroundElevated
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
@@ -55,6 +101,8 @@ fun TextEditor(
                     ViewMode.LivePreview -> {
                         MarkdownLivePreviewEditor(
                             markdown = activeDocument.text,
+                            settings = settings,
+                            theme = theme,
                             onMarkdownChange = { newText ->
                                 state.updateTabContent(newText)
                             },
@@ -64,6 +112,8 @@ fun TextEditor(
                     ViewMode.Compiled -> {
                         MarkdownCompiledView(
                             markdown = activeDocument.text,
+                            settings = settings,
+                            theme = theme,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -81,6 +131,31 @@ fun TextEditor(
                     },
                     onOpenFolder = onOpenFolder
                 )
+            }
+        }
+    }
+
+    // Error snackbar
+    if (showErrorSnackbar) {
+        LaunchedEffect(showErrorSnackbar) {
+            kotlinx.coroutines.delay(5000) // Auto-dismiss after 5 seconds
+            showErrorSnackbar = false
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Snackbar(
+                modifier = Modifier.fillMaxWidth(0.8f),
+                action = {
+                    TextButton(onClick = { showErrorSnackbar = false }) {
+                        Text("Dismiss")
+                    }
+                }
+            ) {
+                Text(errorMessage)
             }
         }
     }

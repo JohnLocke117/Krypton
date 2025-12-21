@@ -19,11 +19,21 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun MarkdownLivePreviewEditor(
     markdown: String,
+    settings: Settings,
+    theme: ObsidianThemeValues,
     onMarkdownChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editorContent by remember(markdown) { mutableStateOf(markdown) }
     val scrollState = rememberScrollState()
+    
+    // Get font family from settings
+    val fontFamily = remember(settings.editor.fontFamily) {
+        when (settings.editor.fontFamily.lowercase()) {
+            "monospace", "jetbrains mono" -> androidx.compose.ui.text.font.FontFamily.Monospace
+            else -> androidx.compose.ui.text.font.FontFamily.Default
+        }
+    }
     
     // Update editor content when markdown prop changes
     LaunchedEffect(markdown) {
@@ -46,13 +56,13 @@ fun MarkdownLivePreviewEditor(
         },
         modifier = modifier
             .fillMaxSize()
-            .padding(ObsidianTheme.EditorPadding)
+            .padding(theme.EditorPadding)
             .verticalScroll(scrollState),
         textStyle = TextStyle(
-            fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
-            fontSize = 15.sp,
-            color = ObsidianTheme.TextPrimary,
-            lineHeight = (15.sp * ObsidianTheme.EditorLineHeight)
+            fontFamily = fontFamily,
+            fontSize = settings.editor.fontSize.sp,
+            color = theme.TextPrimary,
+            lineHeight = (settings.editor.fontSize.sp * settings.editor.lineHeight)
         )
     )
 }
