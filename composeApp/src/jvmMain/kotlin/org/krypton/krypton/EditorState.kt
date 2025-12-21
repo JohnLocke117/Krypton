@@ -1,7 +1,12 @@
 package org.krypton.krypton
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.dp
 import java.nio.file.Path
+
+enum class RibbonButton {
+    Files, Search, Bookmarks, Settings
+}
 
 data class Tab(
     val path: Path,
@@ -201,6 +206,46 @@ class EditorState {
     // Legacy functions for backward compatibility
     fun selectFile(path: Path) {
         openTab(path)
+    }
+
+    // Sidebar state
+    var leftSidebarVisible by mutableStateOf(true)
+        private set
+
+    var rightSidebarVisible by mutableStateOf(true)
+        private set
+
+    var leftSidebarWidth by mutableStateOf(ObsidianTheme.SidebarDefaultWidth)
+        private set
+
+    var rightSidebarWidth by mutableStateOf(ObsidianTheme.SidebarDefaultWidth)
+        private set
+
+    var activeRibbonButton by mutableStateOf(RibbonButton.Files)
+        private set
+
+    fun toggleLeftSidebar() {
+        leftSidebarVisible = !leftSidebarVisible
+    }
+
+    fun toggleRightSidebar() {
+        rightSidebarVisible = !rightSidebarVisible
+    }
+
+    fun updateLeftSidebarWidth(width: androidx.compose.ui.unit.Dp) {
+        val minWidth = ObsidianTheme.SidebarMinWidth
+        val maxWidth = ObsidianTheme.SidebarMaxWidth
+        leftSidebarWidth = if (width < minWidth) minWidth else if (width > maxWidth) maxWidth else width
+    }
+
+    fun updateRightSidebarWidth(width: androidx.compose.ui.unit.Dp) {
+        val minWidth = ObsidianTheme.SidebarMinWidth
+        val maxWidth = ObsidianTheme.SidebarMaxWidth
+        rightSidebarWidth = if (width < minWidth) minWidth else if (width > maxWidth) maxWidth else width
+    }
+
+    fun updateActiveRibbonButton(button: RibbonButton) {
+        activeRibbonButton = button
     }
 }
 

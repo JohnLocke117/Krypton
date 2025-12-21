@@ -10,10 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.nio.file.Path
 
 @Composable
 fun TextEditor(
@@ -50,60 +48,40 @@ fun TextEditor(
         }
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(ObsidianTheme.Background)
     ) {
         // Editor area
         if (activeTab != null) {
-            Card(
+            BasicTextField(
+                value = editorContent,
+                onValueChange = { newContent ->
+                    editorContent = newContent
+                },
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                ),
-                shape = MaterialTheme.shapes.medium
-            ) {
-                BasicTextField(
-                    value = editorContent,
-                    onValueChange = { newContent ->
-                        editorContent = newContent
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                        .verticalScroll(scrollState),
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 20.sp
-                    )
+                    .padding(ObsidianTheme.EditorPadding)
+                    .verticalScroll(scrollState),
+                textStyle = TextStyle(
+                    fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
+                    fontSize = 15.sp,
+                    color = ObsidianTheme.TextPrimary,
+                    lineHeight = (15.sp * ObsidianTheme.EditorLineHeight)
                 )
-            }
+            )
         } else {
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text(
-                        text = "No file open\n\nSelect a file from the sidebar to open",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.padding(24.dp)
-                    )
-                }
+                Text(
+                    text = "No file open\n\nSelect a file from the sidebar to open",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = ObsidianTheme.TextSecondary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         }
     }

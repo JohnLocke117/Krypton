@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,6 +20,7 @@ import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.close
+import krypton.composeapp.generated.resources.description
 import java.nio.file.Path
 
 @Composable
@@ -28,15 +30,15 @@ fun TabBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        tonalElevation = 1.dp
+        color = ObsidianTheme.BackgroundElevated
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // Tabs
             state.tabs.forEachIndexed { index, tab ->
@@ -44,32 +46,34 @@ fun TabBar(
                     tab = tab,
                     isActive = index == state.activeTabIndex,
                     onClick = { state.switchTab(index) },
-                    onClose = { state.closeTab(index) },
-                    modifier = Modifier.padding(horizontal = 2.dp)
+                    onClose = { state.closeTab(index) }
                 )
             }
 
             // New Tab Button
-            IconButton(
-                onClick = {
-                    // Open file dialog to create new file or open existing
-                    openFolderDialog { selectedPath ->
-                        selectedPath?.let { path ->
-                            val file = path.toFile()
-                            if (file.isFile) {
-                                state.openTab(path)
+            Box(
+                modifier = Modifier
+                    .size(ObsidianTheme.TabHeight)
+                    .clip(RoundedCornerShape(ObsidianTheme.TabCornerRadius))
+                    .background(ObsidianTheme.SurfaceContainer)
+                    .clickable {
+                        openFolderDialog { selectedPath ->
+                            selectedPath?.let { path ->
+                                val file = path.toFile()
+                                if (file.isFile) {
+                                    state.openTab(path)
+                                }
                             }
                         }
                     }
-                },
-                modifier = Modifier
-                    .size(32.dp)
-                    .padding(horizontal = 2.dp)
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(Res.drawable.add),
                     contentDescription = "New Tab",
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(16.dp),
+                    colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
                 )
             }
         }
@@ -87,39 +91,51 @@ fun TabItem(
     val fileName = tab.path.fileName.toString()
     val isModified = tab.isModified
 
-    Surface(
+    val backgroundColor = if (isActive) {
+        ObsidianTheme.Background
+    } else {
+        ObsidianTheme.BackgroundElevated
+    }
+
+    val textColor = if (isActive) {
+        ObsidianTheme.TextPrimary
+    } else {
+        ObsidianTheme.TextSecondary
+    }
+
+    Box(
         modifier = modifier
-            .widthIn(min = 120.dp)
-            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-            .clickable(onClick = onClick),
-        color = if (isActive) {
-            MaterialTheme.colorScheme.surface
-        } else {
-            MaterialTheme.colorScheme.surfaceContainer
-        },
-        tonalElevation = if (isActive) 2.dp else 0.dp
+            .widthIn(min = 120.dp, max = 240.dp)
+            .height(ObsidianTheme.TabHeight)
+            .clip(RoundedCornerShape(ObsidianTheme.TabCornerRadius))
+            .background(backgroundColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = ObsidianTheme.TabPadding, vertical = 8.dp)
     ) {
         Row(
-            modifier = Modifier
-                .height(32.dp)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxSize(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // File name - must be visible
+            // File icon
+            Image(
+                painter = painterResource(Res.drawable.description),
+                contentDescription = "File",
+                modifier = Modifier.size(16.dp),
+                colorFilter = ColorFilter.tint(
+                    if (isActive) ObsidianTheme.Accent else ObsidianTheme.TextTertiary
+                )
+            )
+
+            // File name
             Text(
                 text = fileName,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isActive) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                color = textColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(end = 4.dp)
+                modifier = Modifier.weight(1f),
+                fontSize = 13.sp
             )
 
             // Modified indicator
@@ -128,22 +144,25 @@ fun TabItem(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(ObsidianTheme.Accent)
                 )
             }
 
-            // Close button
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable(onClick = onClose),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(Res.drawable.close),
-                    contentDescription = "Close",
-                    modifier = Modifier.size(18.dp)
-                )
+            // Close button (show when active or when there are multiple tabs)
+            if (isActive) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.close),
+                        contentDescription = "Close",
+                        modifier = Modifier.size(14.dp),
+                        colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
+                    )
+                }
             }
         }
     }

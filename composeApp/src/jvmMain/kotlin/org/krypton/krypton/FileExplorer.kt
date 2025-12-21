@@ -1,6 +1,7 @@
 package org.krypton.krypton
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -33,6 +34,19 @@ fun FileExplorer(
     onFolderSelected: (Path?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    FileExplorerContent(
+        state = state,
+        onFolderSelected = onFolderSelected,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun FileExplorerContent(
+    state: EditorState,
+    onFolderSelected: (Path?) -> Unit,
+    modifier: Modifier = Modifier
+) {
     var fileTree by remember { mutableStateOf<FileTreeNode?>(null) }
     var treeVersion by remember { mutableStateOf(0) } // Force recomposition on tree changes
 
@@ -54,55 +68,10 @@ fun FileExplorer(
         modifier = modifier
             .fillMaxSize()
     ) {
-        // Top Header with Icons
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 1.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Dummy Icons (4 icons)
-                IconButton(onClick = { /* TODO */ }) {
-                    Image(
-                        painter = painterResource(Res.drawable.search),
-                        contentDescription = "Search",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { /* TODO */ }) {
-                    Image(
-                        painter = painterResource(Res.drawable.star),
-                        contentDescription = "Star",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { /* TODO */ }) {
-                    Image(
-                        painter = painterResource(Res.drawable.settings),
-                        contentDescription = "Settings",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { /* TODO */ }) {
-                    Image(
-                        painter = painterResource(Res.drawable.keep),
-                        contentDescription = "Pin",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(16.dp)
+                .padding(ObsidianTheme.PanelPadding)
         ) {
             // Open Folder Button
             Button(
@@ -110,12 +79,13 @@ fun FileExplorer(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = ObsidianTheme.Accent
                 )
             ) {
                 Text(
                     text = "Open Folder",
-                    style = MaterialTheme.typography.labelLarge
+                    style = MaterialTheme.typography.labelLarge,
+                    color = ObsidianTheme.TextPrimary
                 )
             }
 
@@ -183,6 +153,7 @@ fun FileExplorer(
                                         // Rebuild tree after creating file
                                         state.currentDirectory?.let { dir ->
                                             fileTree = FileTreeBuilder.buildTree(dir)
+                                            treeVersion++ // Trigger recomposition
                                         }
                                     }
                                 },
@@ -226,20 +197,16 @@ fun FileExplorer(
                 }
             } else {
                 Spacer(modifier = Modifier.weight(1f))
-                Card(
+                Box(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    shape = MaterialTheme.shapes.medium
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "No folder selected\n\nClick 'Open Folder' to browse",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = ObsidianTheme.TextSecondary,
                         modifier = Modifier
-                            .padding(16.dp)
-                            .fillMaxWidth(),
+                            .padding(16.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
@@ -249,16 +216,15 @@ fun FileExplorer(
         // Bottom Strip with Current Folder Name
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            tonalElevation = 1.dp
+            color = ObsidianTheme.SurfaceContainer
         ) {
             Text(
                 text = state.currentDirectory?.fileName?.toString() ?: "No folder selected",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                color = ObsidianTheme.TextSecondary,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -279,27 +245,27 @@ fun TreeItem(
     val indent = (depth * 16).dp
 
     Column(modifier = modifier) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(
+                    if (isSelected) {
+                        ObsidianTheme.SelectionAccent
+                    } else {
+                        androidx.compose.ui.graphics.Color.Transparent
+                    }
+                )
                 .clickable {
                     if (node.isDirectory) {
                         onFolderToggle(node)
                     } else {
                         onFileClick(node.path)
                     }
-                },
-            color = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-            } else {
-                androidx.compose.ui.graphics.Color.Transparent
-            },
-            shape = MaterialTheme.shapes.small
+                }
+                .padding(start = indent, end = 8.dp, top = 2.dp, bottom = 2.dp)
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = indent, end = 8.dp, top = 1.dp, bottom = 1.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Chevron for folders
@@ -335,14 +301,14 @@ fun TreeItem(
                     text = node.name,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
+                        ObsidianTheme.Accent
                     } else {
-                        MaterialTheme.colorScheme.onSurface
+                        ObsidianTheme.TextPrimary
                     },
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    fontSize = 15.sp
+                    fontSize = 14.sp
                 )
             }
         }

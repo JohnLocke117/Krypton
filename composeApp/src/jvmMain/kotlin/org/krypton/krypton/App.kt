@@ -23,7 +23,7 @@ fun App() {
     )
 
     MaterialTheme(
-        colorScheme = darkColorScheme(),
+        colorScheme = obsidianDarkColorScheme(),
         typography = MaterialTheme.typography.copy(
             displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = ubuntuFontFamily),
             displayMedium = MaterialTheme.typography.displayMedium.copy(fontFamily = ubuntuFontFamily),
@@ -47,66 +47,64 @@ fun App() {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(16.dp)
+                .background(ObsidianTheme.Background)
         ) {
             Row(
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                // File Explorer Card
-                Card(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(280.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    FileExplorer(
-                        state = state,
-                        onFolderSelected = {
-                            openFolderDialog { selectedPath ->
-                                selectedPath?.let { path ->
-                                    val file = path.toFile()
-                                    if (file.isDirectory) {
-                                        state.changeDirectory(path)
-                                    } else {
-                                        state.changeDirectory(file.parentFile?.toPath())
-                                        state.openTab(path)
-                                    }
+                // Left Ribbon
+                LeftRibbon(
+                    state = state,
+                    modifier = Modifier.fillMaxHeight()
+                )
+
+                // Left Sidebar
+                LeftSidebar(
+                    state = state,
+                    onFolderSelected = {
+                        openFolderDialog { selectedPath ->
+                            selectedPath?.let { path ->
+                                val file = path.toFile()
+                                if (file.isDirectory) {
+                                    state.changeDirectory(path)
+                                } else {
+                                    state.changeDirectory(file.parentFile?.toPath())
+                                    state.openTab(path)
                                 }
                             }
-                        },
-                        modifier = Modifier.fillMaxSize()
+                        }
+                    },
+                    modifier = Modifier.fillMaxHeight()
+                )
+
+                // Center Editor Area
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                ) {
+                    TabBar(
+                        state = state,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    TextEditor(
+                        state = state,
+                        modifier = Modifier.weight(1f)
                     )
                 }
 
-                // Editor Section Card
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        TabBar(
-                            state = state,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                // Right Sidebar
+                RightSidebar(
+                    state = state,
+                    modifier = Modifier.fillMaxHeight()
+                )
 
-                        TextEditor(
-                            state = state,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
+                // Right Ribbon
+                RightRibbon(
+                    state = state,
+                    modifier = Modifier.fillMaxHeight()
+                )
             }
         }
     }
@@ -125,31 +123,3 @@ fun openFolderDialog(onResult: (java.nio.file.Path?) -> Unit) {
         onResult(null)
     }
 }
-
-fun darkColorScheme() = androidx.compose.material3.darkColorScheme(
-    primary = androidx.compose.ui.graphics.Color(0xFFBB86FC),
-    onPrimary = androidx.compose.ui.graphics.Color(0xFF000000),
-    primaryContainer = androidx.compose.ui.graphics.Color(0xFF6200EE),
-    onPrimaryContainer = androidx.compose.ui.graphics.Color(0xFFEADDFF),
-    secondary = androidx.compose.ui.graphics.Color(0xFF03DAC6),
-    onSecondary = androidx.compose.ui.graphics.Color(0xFF000000),
-    secondaryContainer = androidx.compose.ui.graphics.Color(0xFF018786),
-    onSecondaryContainer = androidx.compose.ui.graphics.Color(0xFFA0E7E1),
-    tertiary = androidx.compose.ui.graphics.Color(0xFF03DAC6),
-    onTertiary = androidx.compose.ui.graphics.Color(0xFF000000),
-    tertiaryContainer = androidx.compose.ui.graphics.Color(0xFF018786),
-    onTertiaryContainer = androidx.compose.ui.graphics.Color(0xFFA0E7E1),
-    error = androidx.compose.ui.graphics.Color(0xFFCF6679),
-    onError = androidx.compose.ui.graphics.Color(0xFF000000),
-    errorContainer = androidx.compose.ui.graphics.Color(0xFFB00020),
-    onErrorContainer = androidx.compose.ui.graphics.Color(0xFFFFDAD6),
-    background = androidx.compose.ui.graphics.Color(0xFF121212),
-    onBackground = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
-    surface = androidx.compose.ui.graphics.Color(0xFF1E1E1E),
-    onSurface = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
-    surfaceVariant = androidx.compose.ui.graphics.Color(0xFF2C2C2C),
-    onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFC4C4C4),
-    surfaceContainerHighest = androidx.compose.ui.graphics.Color(0xFF2D2D2D),
-    outline = androidx.compose.ui.graphics.Color(0xFF5F5F5F),
-    outlineVariant = androidx.compose.ui.graphics.Color(0xFF3F3F3F)
-)
