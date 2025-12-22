@@ -24,6 +24,8 @@ import krypton.composeapp.generated.resources.close
 import org.krypton.krypton.markdown.BlockNode
 import org.krypton.krypton.markdown.InlineNode
 import org.krypton.krypton.markdown.JetBrainsMarkdownEngine
+import org.krypton.krypton.chat.ChatPanel
+import org.krypton.krypton.chat.ChatService
 
 /**
  * Recursively extract plain text from inline nodes.
@@ -45,6 +47,7 @@ private fun extractTextFromInlineNodes(nodes: List<InlineNode>): String {
 fun RightSidebar(
     state: EditorState,
     theme: ObsidianThemeValues,
+    chatService: ChatService?,
     modifier: Modifier = Modifier
 ) {
     val targetWidth = if (state.rightSidebarVisible) state.rightSidebarWidth else 0.dp
@@ -66,12 +69,38 @@ fun RightSidebar(
                 .border(theme.PanelBorderWidth, theme.Border, RoundedCornerShape(0.dp)),
             color = theme.BackgroundElevated
         ) {
-            OutlinePanel(
-                state = state,
-                theme = theme,
-                onClose = { state.toggleRightSidebar() },
-                modifier = Modifier.fillMaxSize()
-            )
+            when (state.activeRightPanel) {
+                RightPanelType.Outline -> {
+                    OutlinePanel(
+                        state = state,
+                        theme = theme,
+                        onClose = { state.toggleRightSidebar() },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                RightPanelType.Chat -> {
+                    if (chatService != null) {
+                        ChatPanel(
+                            chatService = chatService,
+                            theme = theme,
+                            onClose = { state.toggleRightSidebar() },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // Fallback if chatService is not provided
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Chat service not available",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = theme.TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

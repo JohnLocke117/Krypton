@@ -11,6 +11,10 @@ enum class RibbonButton {
     Files, Search, Bookmarks, Settings
 }
 
+enum class RightPanelType {
+    Outline, Chat
+}
+
 enum class SettingsCategory {
     General, Editor, Appearance, UI, Colors, Keybindings
 }
@@ -396,12 +400,23 @@ class EditorState {
     var activeRibbonButton by mutableStateOf(RibbonButton.Files)
         private set
 
+    var activeRightPanel by mutableStateOf(RightPanelType.Outline)
+        private set
+
     fun toggleLeftSidebar() {
         leftSidebarVisible = !leftSidebarVisible
     }
 
     fun toggleRightSidebar() {
         rightSidebarVisible = !rightSidebarVisible
+    }
+
+    fun updateActiveRightPanel(type: RightPanelType) {
+        activeRightPanel = type
+        // Open sidebar if closed when switching to chat
+        if (type == RightPanelType.Chat && !rightSidebarVisible) {
+            rightSidebarVisible = true
+        }
     }
 
     fun updateLeftSidebarWidth(width: androidx.compose.ui.unit.Dp, minWidth: androidx.compose.ui.unit.Dp = 200.dp, maxWidth: androidx.compose.ui.unit.Dp = 400.dp) {

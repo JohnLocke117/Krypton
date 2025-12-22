@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.Font
@@ -15,6 +16,8 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileSystemView
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.UbuntuSans_Regular
+import org.krypton.krypton.chat.ChatService
+import org.krypton.krypton.chat.OllamaChatService
 
 @Composable
 @Preview
@@ -50,6 +53,9 @@ fun App() {
         )
     ) {
         val state = rememberEditorState()
+        
+        // Initialize chat service
+        val chatService = remember { OllamaChatService() }
         
         // Load last opened folder on startup
         LaunchedEffect(settings.app.recentFolders) {
@@ -142,6 +148,8 @@ fun App() {
                     }
                 }
         ) {
+            val density = LocalDensity.current
+            
             Row(
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -174,6 +182,22 @@ fun App() {
                     settingsRepository = settingsRepository,
                     modifier = Modifier.fillMaxHeight()
                 )
+
+                // Left Resizable Splitter
+                if (state.leftSidebarVisible) {
+                    ResizableSplitter(
+                        onDrag = { deltaPx ->
+                            val deltaDp = with(density) { deltaPx.toDp() }
+                            val newWidth = state.leftSidebarWidth + deltaDp
+                            state.updateLeftSidebarWidth(
+                                newWidth,
+                                minWidth = settings.ui.sidebarMinWidth.dp,
+                                maxWidth = settings.ui.sidebarMaxWidth.dp
+                            )
+                        },
+                        theme = theme
+                    )
+                }
 
                 // Center Editor Area
                 Column(
@@ -211,10 +235,27 @@ fun App() {
                     )
                 }
 
+                // Right Resizable Splitter
+                if (state.rightSidebarVisible) {
+                    ResizableSplitter(
+                        onDrag = { deltaPx ->
+                            val deltaDp = with(density) { deltaPx.toDp() }
+                            val newWidth = state.rightSidebarWidth - deltaDp // Negative because dragging right decreases width
+                            state.updateRightSidebarWidth(
+                                newWidth,
+                                minWidth = settings.ui.sidebarMinWidth.dp,
+                                maxWidth = settings.ui.sidebarMaxWidth.dp
+                            )
+                        },
+                        theme = theme
+                    )
+                }
+
                 // Right Sidebar
                 RightSidebar(
                     state = state,
                     theme = theme,
+                    chatService = chatService,
                     modifier = Modifier.fillMaxHeight()
                 )
 

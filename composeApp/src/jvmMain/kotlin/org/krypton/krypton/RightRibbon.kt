@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.chat
 import krypton.composeapp.generated.resources.right_panel_close
 import krypton.composeapp.generated.resources.right_panel_open
 import krypton.composeapp.generated.resources.settings
@@ -45,6 +46,13 @@ fun RightRibbon(
         Spacer(modifier = Modifier.height(4.dp))
         
         // Static ribbon buttons
+        RibbonIconButton(
+            icon = Res.drawable.chat,
+            contentDescription = "Chat",
+            isActive = state.activeRightPanel == RightPanelType.Chat,
+            onClick = { state.updateActiveRightPanel(RightPanelType.Chat) }
+        )
+        
         RibbonIconButton(
             icon = Res.drawable.settings,
             contentDescription = "Settings",
