@@ -16,7 +16,7 @@ enum class RightPanelType {
 }
 
 enum class SettingsCategory {
-    General, Editor, Appearance, UI, Colors, Keybindings
+    General, Editor, Appearance, UI, Colors, Keybindings, RAG
 }
 
 enum class ViewMode {
@@ -38,6 +38,9 @@ fun rememberEditorState(): EditorState {
 }
 
 class EditorState {
+    // Optional callback for auto-indexing on save
+    var onFileSaved: ((String) -> Unit)? = null
+    
     var currentDirectory by mutableStateOf<Path?>(null)
         private set
 
@@ -361,6 +364,12 @@ class EditorState {
                 FileManager.writeFile(doc.path, doc.text)
                 documents = documents.toMutableList().apply {
                     set(activeTabIndex, doc.copy(isDirty = false))
+                }
+                
+                // Auto-index if callback is set and file is markdown
+                val filePath = doc.path.toString()
+                if (filePath.endsWith(".md", ignoreCase = true)) {
+                    onFileSaved?.invoke(filePath)
                 }
             }
         }

@@ -18,6 +18,10 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.UbuntuSans_Regular
 import org.krypton.krypton.chat.ChatService
 import org.krypton.krypton.chat.OllamaChatService
+import org.krypton.krypton.chat.RagChatService
+import org.krypton.krypton.rag.*
+import io.ktor.client.engine.cio.*
+import kotlinx.coroutines.launch
 
 @Composable
 @Preview
@@ -53,9 +57,77 @@ fun App() {
         )
     ) {
         val state = rememberEditorState()
+        val coroutineScope = rememberCoroutineScope()
         
-        // Initialize chat service
-        val chatService = remember { OllamaChatService() }
+        // Initialize RAG components
+        val ragComponents = remember(settings.rag) {
+            try {
+                val dbPath = getRagDatabasePath()
+                val notesRoot = state.currentDirectory?.toString()
+                val httpEngine = CIO.create()
+                
+                val config = RagConfig(
+                    vectorBackend = settings.rag.vectorBackend,
+                    llamaBaseUrl = settings.rag.llamaBaseUrl,
+                    embeddingBaseUrl = settings.rag.embeddingBaseUrl,
+                    llamaModel = "llama3.2:1b",
+                    embeddingModel = "nomic-embed-text:v1.5"
+                )
+                
+                createRagComponents(
+                    config = config,
+                    dbPath = dbPath,
+                    notesRoot = notesRoot,
+                    httpClientEngine = httpEngine,
+                    sqlDriverFactory = ::createSqlDriver
+                )
+            } catch (e: Exception) {
+                // If RAG initialization fails, return null
+                // Chat will fall back to direct Ollama
+                null
+            }
+        }
+        
+        // Initialize base chat service
+        val baseChatService = remember { OllamaChatService() }
+        
+        // Create RAG-enabled chat service
+        val chatService = remember(ragComponents, settings.rag.ragEnabled) {
+            if (ragComponents != null && settings.rag.ragEnabled) {
+                RagChatService(
+                    baseChatService = baseChatService,
+                    ragService = ragComponents.ragService,
+                    ragEnabled = true
+                )
+            } else {
+                baseChatService
+            }
+        }
+        
+        // Set up auto-indexing callback
+        LaunchedEffect(ragComponents) {
+            ragComponents?.indexer?.let { indexer ->
+                state.onFileSaved = { filePath ->
+                    coroutineScope.launch {
+                        try {
+                            // Get relative path from notes root
+                            val notesRoot = state.currentDirectory?.toString()
+                            val relativePath = if (notesRoot != null && filePath.startsWith(notesRoot)) {
+                                filePath.substring(notesRoot.length + 1).replace('\\', '/')
+                            } else {
+                                filePath
+                            }
+                            indexer.indexFile(relativePath)
+                        } catch (e: Exception) {
+                            // Log error but don't block save
+                            println("Auto-indexing failed for $filePath: ${e.message}")
+                        }
+                    }
+                }
+            } ?: run {
+                state.onFileSaved = null
+            }
+        }
         
         // Load last opened folder on startup
         LaunchedEffect(settings.app.recentFolders) {
@@ -272,6 +344,18 @@ fun App() {
                 settingsRepository = settingsRepository,
                 onOpenSettingsJson = {
                     state.openSettingsJson()
+                },
+                onReindex = {
+                    ragComponents?.indexer?.let { indexer ->
+                        coroutineScope.launch {
+                            try {
+                                indexer.fullReindex()
+                            } catch (e: Exception) {
+                                // TODO: Show error to user
+                                println("Reindex failed: ${e.message}")
+                            }
+                        }
+                    }
                 }
             )
             

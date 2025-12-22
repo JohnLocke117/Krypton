@@ -30,6 +30,17 @@ fun ChatPanel(
     var inputText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
+    
+    // RAG toggle state (enabled by default)
+    var ragEnabled by remember { mutableStateOf(true) }
+    
+    // Update RAG state if chatService is RagChatService
+    val ragChatService = chatService as? org.krypton.krypton.chat.RagChatService
+    LaunchedEffect(ragChatService) {
+        ragChatService?.let {
+            ragEnabled = it.isRagEnabled()
+        }
+    }
 
     // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(chatState.messages.size) {
@@ -49,11 +60,42 @@ fun ChatPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Chat",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = theme.TextPrimary
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Chat",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = theme.TextPrimary
+                    )
+                    if (ragChatService != null) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "RAG",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (ragEnabled) theme.Accent else theme.TextSecondary
+                            )
+                            Switch(
+                                checked = ragEnabled,
+                                onCheckedChange = {
+                                    ragEnabled = it
+                                    ragChatService.setRagEnabled(it)
+                                },
+                                modifier = Modifier.size(32.dp, 18.dp),
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = theme.Accent,
+                                    checkedTrackColor = theme.Accent.copy(alpha = 0.5f),
+                                    uncheckedThumbColor = theme.TextSecondary,
+                                    uncheckedTrackColor = theme.SurfaceVariant
+                                )
+                            )
+                        }
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .size(20.dp)

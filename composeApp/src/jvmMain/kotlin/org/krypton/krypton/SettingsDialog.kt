@@ -25,6 +25,7 @@ fun SettingsDialog(
     state: EditorState,
     settingsRepository: SettingsRepository,
     onOpenSettingsJson: () -> Unit,
+    onReindex: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -129,6 +130,7 @@ fun SettingsDialog(
                                 category = state.selectedSettingsCategory,
                                 settings = localSettings,
                                 onSettingsChange = { localSettings = it },
+                                onReindex = onReindex,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .verticalScroll(rememberScrollState())
@@ -272,6 +274,7 @@ private fun SettingsContent(
     category: SettingsCategory,
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
+    onReindex: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -282,6 +285,7 @@ private fun SettingsContent(
             text = when (category) {
                 SettingsCategory.UI -> "UI Settings"
                 SettingsCategory.Colors -> "Color Settings"
+                SettingsCategory.RAG -> "RAG Settings"
                 else -> category.name
             },
             style = MaterialTheme.typography.headlineSmall,
@@ -321,6 +325,13 @@ private fun SettingsContent(
             }
             SettingsCategory.Keybindings -> {
                 KeybindingsSettings()
+            }
+            SettingsCategory.RAG -> {
+                RagSettings(
+                    settings = settings,
+                    onSettingsChange = onSettingsChange,
+                    onReindex = { onReindex?.invoke() }
+                )
             }
         }
     }

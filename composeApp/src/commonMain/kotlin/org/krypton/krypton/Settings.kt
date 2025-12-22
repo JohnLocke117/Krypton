@@ -65,11 +65,27 @@ data class AppSettings(
 )
 
 @Serializable
+enum class VectorBackend {
+    SQLITE_BRUTE_FORCE,
+    SQLITE_VECTOR_EXTENSION
+}
+
+@Serializable
+data class RagSettings(
+    val vectorBackend: VectorBackend = VectorBackend.SQLITE_BRUTE_FORCE,
+    val llamaBaseUrl: String = "http://localhost:11434",
+    val embeddingBaseUrl: String = "http://localhost:11434",
+    val ragEnabled: Boolean = true,
+    val topK: Int = 5
+)
+
+@Serializable
 data class Settings(
     val version: Int = 1,
     val editor: EditorSettings = EditorSettings(),
     val ui: UISettings = UISettings(),
     val colors: ColorSettings = ColorSettings(),
-    val app: AppSettings = AppSettings()
+    val app: AppSettings = AppSettings(),
+    val rag: RagSettings = RagSettings()
 )
 

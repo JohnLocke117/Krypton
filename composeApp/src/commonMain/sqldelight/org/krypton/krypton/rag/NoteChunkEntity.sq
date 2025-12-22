@@ -1,0 +1,27 @@
+CREATE TABLE IF NOT EXISTS NoteChunkEntity (
+  id TEXT NOT NULL PRIMARY KEY,
+  filePath TEXT NOT NULL,
+  startLine INTEGER NOT NULL,
+  endLine INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  embedding BLOB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS filePathIndex ON NoteChunkEntity(filePath);
+
+insertOrReplace:
+INSERT OR REPLACE INTO NoteChunkEntity (id, filePath, startLine, endLine, text, embedding)
+VALUES (?, ?, ?, ?, ?, ?);
+
+selectAll:
+SELECT * FROM NoteChunkEntity;
+
+selectByFilePath:
+SELECT * FROM NoteChunkEntity WHERE filePath = ?;
+
+deleteAll:
+DELETE FROM NoteChunkEntity;
+
+deleteByFilePath:
+DELETE FROM NoteChunkEntity WHERE filePath = ?;
+
