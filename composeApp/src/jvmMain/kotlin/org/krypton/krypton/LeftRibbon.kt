@@ -26,40 +26,42 @@ fun LeftRibbon(
     state: EditorState,
     modifier: Modifier = Modifier
 ) {
-    val appColors = LocalAppColors.current
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(ObsidianTheme.RibbonWidth)
-            .background(CatppuccinMochaColors.Base),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        // Toggle button at the top
-        RibbonToggleButton(
-            iconOpen = Res.drawable.left_panel_open,
-            iconClose = Res.drawable.left_panel_close,
-            isOpen = state.leftSidebarVisible,
-            onClick = { state.toggleLeftSidebar() },
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        // Static ribbon buttons
-        RibbonIconButton(
-            icon = Res.drawable.folder,
-            contentDescription = "Files",
-            isActive = state.activeRibbonButton == RibbonButton.Files,
-            onClick = { state.updateActiveRibbonButton(RibbonButton.Files) }
-        )
-        
-        RibbonIconButton(
-            icon = Res.drawable.star,
-            contentDescription = "Bookmarks",
-            isActive = state.activeRibbonButton == RibbonButton.Bookmarks,
-            onClick = { state.updateActiveRibbonButton(RibbonButton.Bookmarks) }
-        )
-    }
+    val ribbonWidth = 40.dp
+    Ribbon(
+        orientation = RibbonOrientation.Vertical,
+        slots = listOf(
+            // Slot 0: Toggle button at the top
+            {
+                RibbonToggleButton(
+                    iconOpen = Res.drawable.left_panel_open,
+                    iconClose = Res.drawable.left_panel_close,
+                    isOpen = state.leftSidebarVisible,
+                    onClick = { state.toggleLeftSidebar() }
+                )
+            },
+            // Slot 1: Files icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.folder,
+                    contentDescription = "Files",
+                    isActive = state.activeRibbonButton == RibbonButton.Files,
+                    onClick = { state.updateActiveRibbonButton(RibbonButton.Files) },
+                    cardFacingEdge = CardFacingEdge.End
+                )
+            },
+            // Slot 2: Bookmarks icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.star,
+                    contentDescription = "Bookmarks",
+                    isActive = state.activeRibbonButton == RibbonButton.Bookmarks,
+                    onClick = { state.updateActiveRibbonButton(RibbonButton.Bookmarks) },
+                    cardFacingEdge = CardFacingEdge.End
+                )
+            }
+        ),
+        modifier = modifier,
+        ribbonSize = ribbonWidth
+    )
 }
 

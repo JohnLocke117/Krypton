@@ -26,40 +26,42 @@ fun RightRibbon(
     state: EditorState,
     modifier: Modifier = Modifier
 ) {
-    val appColors = LocalAppColors.current
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .width(ObsidianTheme.RibbonWidth)
-            .background(CatppuccinMochaColors.Base),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        // Toggle button at the top
-        RibbonToggleButton(
-            iconOpen = Res.drawable.right_panel_open,
-            iconClose = Res.drawable.right_panel_close,
-            isOpen = state.rightSidebarVisible,
-            onClick = { state.toggleRightSidebar() },
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        // Static ribbon buttons
-        RibbonIconButton(
-            icon = Res.drawable.chat,
-            contentDescription = "Chat",
-            isActive = state.activeRightPanel == RightPanelType.Chat,
-            onClick = { state.updateActiveRightPanel(RightPanelType.Chat) }
-        )
-        
-        RibbonIconButton(
-            icon = Res.drawable.settings,
-            contentDescription = "Settings",
-            isActive = false,
-            onClick = { /* TODO: Open settings */ }
-        )
-    }
+    val ribbonWidth = 40.dp
+    Ribbon(
+        orientation = RibbonOrientation.Vertical,
+        slots = listOf(
+            // Slot 0: Toggle button at the top
+            {
+                RibbonToggleButton(
+                    iconOpen = Res.drawable.right_panel_open,
+                    iconClose = Res.drawable.right_panel_close,
+                    isOpen = state.rightSidebarVisible,
+                    onClick = { state.toggleRightSidebar() }
+                )
+            },
+            // Slot 1: Chat icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.chat,
+                    contentDescription = "Chat",
+                    isActive = state.activeRightPanel == RightPanelType.Chat,
+                    onClick = { state.updateActiveRightPanel(RightPanelType.Chat) },
+                    cardFacingEdge = CardFacingEdge.Start
+                )
+            },
+            // Slot 2: Settings icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.settings,
+                    contentDescription = "Settings",
+                    isActive = false,
+                    onClick = { /* TODO: Open settings */ },
+                    cardFacingEdge = CardFacingEdge.Start
+                )
+            }
+        ),
+        modifier = modifier,
+        ribbonSize = ribbonWidth
+    )
 }
 
