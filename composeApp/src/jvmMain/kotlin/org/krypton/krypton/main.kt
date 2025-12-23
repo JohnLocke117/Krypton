@@ -8,12 +8,20 @@ import androidx.compose.ui.window.application
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.polymer
+import org.krypton.krypton.di.allModules
 import org.krypton.krypton.util.initializeKermit
 import org.krypton.krypton.util.AppLogger
+import org.koin.core.context.startKoin
 
 fun main() = application {
     // Initialize Kermit logging at app startup
     initializeKermit()
+    
+    // Initialize Koin dependency injection
+    startKoin {
+        modules(allModules)
+    }
+    
     AppLogger.i("App", "Application started")
     
     Window(

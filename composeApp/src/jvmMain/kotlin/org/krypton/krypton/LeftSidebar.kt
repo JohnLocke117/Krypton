@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.ui.state.RibbonButton
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -28,13 +29,17 @@ import java.nio.file.Path
 
 @Composable
 fun LeftSidebar(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     onFolderSelected: (java.nio.file.Path?) -> Unit,
     theme: ObsidianThemeValues,
-    settingsRepository: SettingsRepository?,
+    settingsRepository: org.krypton.krypton.data.repository.SettingsRepository?,
     modifier: Modifier = Modifier
 ) {
-    val targetWidth = if (state.leftSidebarVisible) state.leftSidebarWidth else 0.dp
+    val leftSidebarVisible by state.leftSidebarVisible.collectAsState()
+    val leftSidebarWidth by state.leftSidebarWidth.collectAsState()
+    val activeRibbonButton by state.activeRibbonButton.collectAsState()
+    
+    val targetWidth = if (leftSidebarVisible) leftSidebarWidth.dp else 0.dp
     val animatedWidth by animateDpAsState(
         targetValue = targetWidth,
         animationSpec = tween(durationMillis = 300),
@@ -44,7 +49,7 @@ fun LeftSidebar(
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
     AnimatedVisibility(
-        visible = state.leftSidebarVisible,
+        visible = leftSidebarVisible,
         modifier = modifier.width(animatedWidth)
     ) {
         Column(
@@ -74,7 +79,7 @@ fun LeftSidebar(
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                when (state.activeRibbonButton) {
+                when (activeRibbonButton) {
                     RibbonButton.Files -> {
                         FilesPanel(
                             state = state,
@@ -117,10 +122,10 @@ fun LeftSidebar(
 
 @Composable
 private fun FilesPanel(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     onFolderSelected: (java.nio.file.Path?) -> Unit,
     theme: ObsidianThemeValues,
-    settingsRepository: SettingsRepository?,
+    settingsRepository: org.krypton.krypton.data.repository.SettingsRepository?,
     modifier: Modifier = Modifier
 ) {
     val recentFolders = settingsRepository?.settingsFlow?.collectAsState()?.value?.app?.recentFolders ?: emptyList()
@@ -131,7 +136,7 @@ private fun FilesPanel(
         onFolderSelected = onFolderSelected,
         recentFolders = recentFolders,
         onRecentFolderSelected = { path ->
-            state.changeDirectoryWithHistory(path, settingsRepository)
+            state.changeDirectoryWithHistory(path)
         },
         theme = theme,
         modifier = modifier
@@ -215,12 +220,13 @@ private fun SettingsPanel(
 
 @Composable
 private fun SidebarTopBar(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
+    val currentDirectory by state.currentDirectory.collectAsState()
     
     // Match the height of FolderNameBar which has 8dp vertical padding
     // Total height: 8dp (top) + 24dp (icon) + 8dp (bottom) = 40dp, but we'll use padding for consistency
@@ -244,11 +250,11 @@ private fun SidebarTopBar(
                     icon = Res.drawable.file_copy,
                     contentDescription = "New File",
                     onClick = { 
-                        state.currentDirectory?.let { 
+                        currentDirectory?.let { 
                             state.startCreatingNewFile(it) 
                         }
                     },
-                    enabled = state.currentDirectory != null,
+                    enabled = currentDirectory != null,
                     theme = theme,
                     modifier = Modifier
                 )
@@ -258,11 +264,11 @@ private fun SidebarTopBar(
                     icon = Res.drawable.folder_copy,
                     contentDescription = "New Folder",
                     onClick = { 
-                        state.currentDirectory?.let { 
+                        currentDirectory?.let { 
                             state.startCreatingNewFolder(it) 
                         }
                     },
-                    enabled = state.currentDirectory != null,
+                    enabled = currentDirectory != null,
                     theme = theme,
                     modifier = Modifier
                 )
@@ -282,18 +288,19 @@ private fun SidebarTopBar(
 
 @Composable
 private fun SidebarBottomBar(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     onFolderSelected: (Path?) -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
     val appColors = LocalAppColors.current
+    val currentDirectory by state.currentDirectory.collectAsState()
     
     // FolderNameBar has its own Surface with padding, so we don't need an extra Box
     // We use the same height as top bar for consistency, but FolderNameBar will determine its own height
-    if (state.currentDirectory != null) {
+    if (currentDirectory != null) {
         FolderNameBar(
-            folderName = state.currentDirectory!!.fileName.toString(),
+            folderName = currentDirectory!!.fileName.toString(),
             onFolderClick = { /* Will be handled by FolderMenu */ },
             onSettingsClick = { state.openSettingsDialog() },
             onFolderSelected = onFolderSelected,

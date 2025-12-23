@@ -3,6 +3,7 @@ package org.krypton.krypton.rag
 import app.cash.sqldelight.db.SqlDriver
 import io.ktor.client.engine.*
 import org.krypton.krypton.VectorBackend
+import org.krypton.krypton.config.RagDefaults
 
 /**
  * Configuration for RAG components.
@@ -11,8 +12,8 @@ data class RagConfig(
     val vectorBackend: VectorBackend,
     val llamaBaseUrl: String,
     val embeddingBaseUrl: String,
-    val llamaModel: String = RagConstants.DEFAULT_LLAMA_MODEL,
-    val embeddingModel: String = RagConstants.DEFAULT_EMBEDDING_MODEL
+    val llamaModel: String = RagDefaults.DEFAULT_LLAMA_MODEL,
+    val embeddingModel: String = RagDefaults.DEFAULT_EMBEDDING_MODEL
 )
 
 /**

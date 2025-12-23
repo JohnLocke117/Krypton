@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.ui.state.SettingsCategory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,33 +23,36 @@ import krypton.composeapp.generated.resources.close
 
 @Composable
 fun SettingsDialog(
-    state: EditorState,
-    settingsRepository: SettingsRepository,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
+    settingsRepository: org.krypton.krypton.data.repository.SettingsRepository,
     onOpenSettingsJson: () -> Unit,
     onReindex: (() -> Unit)? = null,
+    onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
     val currentSettings by settingsRepository.settingsFlow.collectAsState()
+    val settingsDialogOpen by state.settingsDialogOpen.collectAsState()
+    val selectedSettingsCategory by state.selectedSettingsCategory.collectAsState()
     var localSettings by remember { mutableStateOf(currentSettings) }
     var validationErrors by remember { mutableStateOf<List<String>>(emptyList()) }
     val theme = rememberObsidianTheme(currentSettings)
 
     // Update local settings when dialog opens or current settings change externally
-    LaunchedEffect(state.settingsDialogOpen, currentSettings) {
-        if (state.settingsDialogOpen) {
+    LaunchedEffect(settingsDialogOpen, currentSettings) {
+        if (settingsDialogOpen) {
             localSettings = currentSettings
             validationErrors = emptyList()
         }
     }
 
-    if (state.settingsDialogOpen) {
+    if (settingsDialogOpen) {
         // Backdrop
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.5f))
-                .clickable(onClick = { state.closeSettingsDialog() }),
+                .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
             // Dialog content
@@ -82,7 +86,7 @@ fun SettingsDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             IconButton(
-                                onClick = { state.closeSettingsDialog() }
+                                onClick = onDismiss
                             ) {
                                 Image(
                                     painter = painterResource(Res.drawable.close),
@@ -108,7 +112,7 @@ fun SettingsDialog(
                             color = MaterialTheme.colorScheme.background
                         ) {
                             SettingsCategoryList(
-                                selectedCategory = state.selectedSettingsCategory,
+                                selectedCategory = selectedSettingsCategory,
                                 onCategorySelected = { state.selectSettingsCategory(it) },
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -127,7 +131,7 @@ fun SettingsDialog(
                                 .background(MaterialTheme.colorScheme.surface)
                         ) {
                             SettingsContent(
-                                category = state.selectedSettingsCategory,
+                                category = selectedSettingsCategory,
                                 settings = localSettings,
                                 onSettingsChange = { localSettings = it },
                                 onReindex = onReindex,
@@ -179,7 +183,7 @@ fun SettingsDialog(
                             }
                             Row {
                                 TextButton(
-                                    onClick = { state.closeSettingsDialog() }
+                                    onClick = onDismiss
                                 ) {
                                     Text("Cancel")
                                 }
@@ -191,7 +195,7 @@ fun SettingsDialog(
                                             coroutineScope.launch {
                                                 try {
                                                     settingsRepository.update { localSettings }
-                                                    state.closeSettingsDialog()
+                                                    onDismiss()
                                                 } catch (e: Exception) {
                                                     validationErrors = listOf(e.message ?: "Failed to save settings")
                                                 }

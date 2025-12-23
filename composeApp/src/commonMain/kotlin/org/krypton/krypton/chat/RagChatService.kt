@@ -5,6 +5,7 @@ import org.krypton.krypton.util.IdGenerator
 import org.krypton.krypton.util.TimeProvider
 import org.krypton.krypton.util.createIdGenerator
 import org.krypton.krypton.util.createTimeProvider
+import org.krypton.krypton.util.AppLogger
 
 /**
  * Chat service that conditionally uses RAG or direct LLM.
@@ -46,8 +47,12 @@ class RagChatService(
                 
                 return history + userMsg + assistantMsg
             } catch (e: Exception) {
-                // If RAG fails, fall back to base chat service
-                // TODO: Log error
+                // If RAG fails, log error and fall back to base chat service
+                AppLogger.w(
+                    "RagChatService",
+                    "RAG query failed, falling back to base chat service: ${e.message}",
+                    e
+                )
                 return baseChatService.sendMessage(history, userMessage)
             }
         } else {

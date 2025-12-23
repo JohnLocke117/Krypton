@@ -1,6 +1,7 @@
 package org.krypton.krypton
 
 import androidx.compose.foundation.Image
+import org.krypton.krypton.ui.state.RightPanelType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,10 +24,13 @@ import krypton.composeapp.generated.resources.settings
 
 @Composable
 fun RightRibbon(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     modifier: Modifier = Modifier
 ) {
     val ribbonWidth = 40.dp
+    val rightSidebarVisible by state.rightSidebarVisible.collectAsState()
+    val activeRightPanel by state.activeRightPanel.collectAsState()
+    
     Ribbon(
         orientation = RibbonOrientation.Vertical,
         slots = listOf(
@@ -35,7 +39,7 @@ fun RightRibbon(
                 RibbonToggleButton(
                     iconOpen = Res.drawable.right_panel_open,
                     iconClose = Res.drawable.right_panel_close,
-                    isOpen = state.rightSidebarVisible,
+                    isOpen = rightSidebarVisible,
                     onClick = { state.toggleRightSidebar() }
                 )
             },
@@ -44,7 +48,7 @@ fun RightRibbon(
                 RibbonIconButton(
                     icon = Res.drawable.chat,
                     contentDescription = "Chat",
-                    isActive = state.activeRightPanel == RightPanelType.Chat,
+                    isActive = activeRightPanel == RightPanelType.Chat,
                     onClick = { state.updateActiveRightPanel(RightPanelType.Chat) },
                     cardFacingEdge = CardFacingEdge.Start
                 )
@@ -55,7 +59,7 @@ fun RightRibbon(
                     icon = Res.drawable.settings,
                     contentDescription = "Settings",
                     isActive = false,
-                    onClick = { /* TODO: Open settings */ },
+                    onClick = { state.openSettingsDialog() },
                     cardFacingEdge = CardFacingEdge.Start
                 )
             }

@@ -1,6 +1,6 @@
 package org.krypton.krypton.rag
 
-import org.krypton.krypton.SettingsPersistence
+import org.krypton.krypton.data.repository.SettingsPersistence
 import java.nio.file.Paths
 
 /**
@@ -8,9 +8,9 @@ import java.nio.file.Paths
  * 
  * Database is stored in the same directory as settings.json.
  */
-fun getRagDatabasePath(): String {
-    val settingsPath = SettingsPersistence.getSettingsFilePath()
-    val dbDir = settingsPath.parent
+fun getRagDatabasePath(settingsPersistence: SettingsPersistence): String {
+    val settingsPath = settingsPersistence.getSettingsFilePath()
+    val dbDir = Paths.get(settingsPath).parent
     return dbDir.resolve("vector.db").toString()
 }
 

@@ -20,16 +20,22 @@ import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.keyboard_arrow_down
+import org.krypton.krypton.ui.state.SearchStateHolder
+import org.krypton.krypton.ui.state.EditorStateHolder
 
 @Composable
 fun SearchDialog(
-    state: EditorState,
+    searchStateHolder: SearchStateHolder,
+    editorStateHolder: EditorStateHolder,
     theme: ObsidianThemeValues,
-    onSearchUpdate: (SearchState) -> Unit,
     onReplace: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val searchState = state.searchState ?: return
+    val searchState by searchStateHolder.state.collectAsState()
+    val activeDocument by editorStateHolder.activeDocument.collectAsState()
+    
+    val currentSearchState = searchState ?: return
+    val documentText = activeDocument?.text ?: ""
 
     Card(
         modifier = modifier
@@ -55,22 +61,11 @@ fun SearchDialog(
             ) {
                 // Search input
                 OutlinedTextField(
-                    value = searchState.searchQuery,
+                    value = currentSearchState.searchQuery,
                     onValueChange = { query ->
-                        val matches = SearchEngine.findMatches(
-                            text = state.getActiveTab()?.text ?: "",
-                            query = query,
-                            matchCase = searchState.matchCase,
-                            wholeWords = searchState.wholeWords,
-                            useRegex = searchState.useRegex
-                        )
-                        onSearchUpdate(
-                            searchState.copy(
-                                searchQuery = query,
-                                matches = matches,
-                                currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                            )
-                        )
+                        searchStateHolder.updateSearchState(documentText) { currentState ->
+                            currentState.copy(searchQuery = query)
+                        }
                     },
                     modifier = Modifier
                         .weight(1f)
@@ -78,11 +73,11 @@ fun SearchDialog(
                             if (event.type == KeyEventType.KeyDown) {
                                 when (event.key) {
                                     Key.Enter -> {
-                                        state.findNext()
+                                        searchStateHolder.findNext()
                                         true
                                     }
                                     Key.Escape -> {
-                                        state.closeSearchDialog()
+                                        searchStateHolder.closeSearchDialog()
                                         true
                                     }
                                     else -> false
@@ -102,9 +97,9 @@ fun SearchDialog(
                 )
 
                 // Match counter
-                if (searchState.hasMatches) {
+                if (currentSearchState.hasMatches) {
                     Text(
-                        text = searchState.currentMatchText,
+                        text = currentSearchState.currentMatchText,
                         style = MaterialTheme.typography.bodySmall,
                         color = theme.TextSecondary,
                         modifier = Modifier.padding(horizontal = 8.dp)
@@ -113,33 +108,33 @@ fun SearchDialog(
 
                 // Navigation buttons
                 IconButton(
-                    onClick = { state.findPrevious() },
-                    enabled = searchState.hasMatches
+                    onClick = { searchStateHolder.findPrevious() },
+                    enabled = currentSearchState.hasMatches
                 ) {
                     // Use chevron_right rotated or a simple up arrow
                     Text(
                         text = "↑",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (searchState.hasMatches) theme.TextPrimary else theme.TextTertiary
+                        color = if (currentSearchState.hasMatches) theme.TextPrimary else theme.TextTertiary
                     )
                 }
 
                 IconButton(
-                    onClick = { state.findNext() },
-                    enabled = searchState.hasMatches
+                    onClick = { searchStateHolder.findNext() },
+                    enabled = currentSearchState.hasMatches
                 ) {
                     Image(
                         painter = painterResource(Res.drawable.keyboard_arrow_down),
                         contentDescription = "Next",
                         modifier = Modifier.size(20.dp),
                         colorFilter = ColorFilter.tint(
-                            if (searchState.hasMatches) theme.TextPrimary else theme.TextTertiary
+                            if (currentSearchState.hasMatches) theme.TextPrimary else theme.TextTertiary
                         )
                     )
                 }
 
                 // Close button
-                IconButton(onClick = { state.closeSearchDialog() }) {
+                IconButton(onClick = { searchStateHolder.closeSearchDialog() }) {
                     Image(
                         painter = painterResource(Res.drawable.close),
                         contentDescription = "Close",
@@ -150,16 +145,18 @@ fun SearchDialog(
             }
 
             // Replace row (if showReplace is true)
-            if (searchState.showReplace) {
+            if (currentSearchState.showReplace) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
-                        value = searchState.replaceQuery,
+                        value = currentSearchState.replaceQuery,
                         onValueChange = { replace ->
-                            onSearchUpdate(searchState.copy(replaceQuery = replace))
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(replaceQuery = replace)
+                            }
                         },
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Replace") },
@@ -174,55 +171,27 @@ fun SearchDialog(
 
                     TextButton(
                         onClick = {
-                            val activeDoc = state.getActiveTab()
-                            if (activeDoc != null && searchState.currentMatchIndex >= 0) {
-                                val match = searchState.matches[searchState.currentMatchIndex]
-                                val newText = SearchEngine.replaceMatch(
-                                    activeDoc.text,
-                                    match,
-                                    searchState.replaceQuery
-                                )
+                            if (activeDocument != null && currentSearchState.currentMatchIndex >= 0) {
+                                val newText = searchStateHolder.replaceCurrent(documentText)
                                 onReplace(newText)
                                 // Update matches after replace
-                                val updatedMatches = SearchEngine.findMatches(
-                                    text = newText,
-                                    query = searchState.searchQuery,
-                                    matchCase = searchState.matchCase,
-                                    wholeWords = searchState.wholeWords,
-                                    useRegex = searchState.useRegex
-                                )
-                                onSearchUpdate(
-                                    searchState.copy(
-                                        matches = updatedMatches,
-                                        currentMatchIndex = if (updatedMatches.isNotEmpty()) {
-                                            minOf(searchState.currentMatchIndex, updatedMatches.size - 1)
-                                        } else -1
-                                    )
-                                )
+                                searchStateHolder.findMatches(newText)
                             }
                         },
-                        enabled = searchState.hasMatches && searchState.currentMatchIndex >= 0
+                        enabled = currentSearchState.hasMatches && currentSearchState.currentMatchIndex >= 0
                     ) {
                         Text("Replace")
                     }
 
                     TextButton(
                         onClick = {
-                            val activeDoc = state.getActiveTab()
-                            if (activeDoc != null) {
-                                val newText = SearchEngine.replaceAll(
-                                    activeDoc.text,
-                                    searchState.searchQuery,
-                                    searchState.replaceQuery,
-                                    searchState.matchCase,
-                                    searchState.wholeWords,
-                                    searchState.useRegex
-                                )
+                            if (activeDocument != null) {
+                                val newText = searchStateHolder.replaceAll(documentText)
                                 onReplace(newText)
-                                state.closeSearchDialog()
+                                searchStateHolder.closeSearchDialog()
                             }
                         },
-                        enabled = searchState.hasMatches
+                        enabled = currentSearchState.hasMatches
                     ) {
                         Text("Replace All")
                     }
@@ -240,25 +209,11 @@ fun SearchDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Checkbox(
-                        checked = searchState.matchCase,
+                        checked = currentSearchState.matchCase,
                         onCheckedChange = { matchCase ->
-                            val activeDoc = state.getActiveTab()
-                            val matches = if (activeDoc != null) {
-                                SearchEngine.findMatches(
-                                    text = activeDoc.text,
-                                    query = searchState.searchQuery,
-                                    matchCase = matchCase,
-                                    wholeWords = searchState.wholeWords,
-                                    useRegex = searchState.useRegex
-                                )
-                            } else emptyList()
-                            onSearchUpdate(
-                                searchState.copy(
-                                    matchCase = matchCase,
-                                    matches = matches,
-                                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                                )
-                            )
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(matchCase = matchCase)
+                            }
                         },
                         colors = CheckboxDefaults.colors(
                             checkedColor = theme.Accent
@@ -269,23 +224,9 @@ fun SearchDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = theme.TextSecondary,
                         modifier = Modifier.clickable {
-                            val activeDoc = state.getActiveTab()
-                            val matches = if (activeDoc != null) {
-                                SearchEngine.findMatches(
-                                    text = activeDoc.text,
-                                    query = searchState.searchQuery,
-                                    matchCase = !searchState.matchCase,
-                                    wholeWords = searchState.wholeWords,
-                                    useRegex = searchState.useRegex
-                                )
-                            } else emptyList()
-                            onSearchUpdate(
-                                searchState.copy(
-                                    matchCase = !searchState.matchCase,
-                                    matches = matches,
-                                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                                )
-                            )
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(matchCase = !currentState.matchCase)
+                            }
                         }
                     )
                 }
@@ -295,25 +236,11 @@ fun SearchDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Checkbox(
-                        checked = searchState.wholeWords,
+                        checked = currentSearchState.wholeWords,
                         onCheckedChange = { wholeWords ->
-                            val activeDoc = state.getActiveTab()
-                            val matches = if (activeDoc != null) {
-                                SearchEngine.findMatches(
-                                    text = activeDoc.text,
-                                    query = searchState.searchQuery,
-                                    matchCase = searchState.matchCase,
-                                    wholeWords = wholeWords,
-                                    useRegex = searchState.useRegex
-                                )
-                            } else emptyList()
-                            onSearchUpdate(
-                                searchState.copy(
-                                    wholeWords = wholeWords,
-                                    matches = matches,
-                                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                                )
-                            )
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(wholeWords = wholeWords)
+                            }
                         },
                         colors = CheckboxDefaults.colors(
                             checkedColor = theme.Accent
@@ -324,23 +251,9 @@ fun SearchDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = theme.TextSecondary,
                         modifier = Modifier.clickable {
-                            val activeDoc = state.getActiveTab()
-                            val matches = if (activeDoc != null) {
-                                SearchEngine.findMatches(
-                                    text = activeDoc.text,
-                                    query = searchState.searchQuery,
-                                    matchCase = searchState.matchCase,
-                                    wholeWords = !searchState.wholeWords,
-                                    useRegex = searchState.useRegex
-                                )
-                            } else emptyList()
-                            onSearchUpdate(
-                                searchState.copy(
-                                    wholeWords = !searchState.wholeWords,
-                                    matches = matches,
-                                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                                )
-                            )
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(wholeWords = !currentState.wholeWords)
+                            }
                         }
                     )
                 }
@@ -350,25 +263,11 @@ fun SearchDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Checkbox(
-                        checked = searchState.useRegex,
+                        checked = currentSearchState.useRegex,
                         onCheckedChange = { useRegex ->
-                            val activeDoc = state.getActiveTab()
-                            val matches = if (activeDoc != null) {
-                                SearchEngine.findMatches(
-                                    text = activeDoc.text,
-                                    query = searchState.searchQuery,
-                                    matchCase = searchState.matchCase,
-                                    wholeWords = searchState.wholeWords,
-                                    useRegex = useRegex
-                                )
-                            } else emptyList()
-                            onSearchUpdate(
-                                searchState.copy(
-                                    useRegex = useRegex,
-                                    matches = matches,
-                                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                                )
-                            )
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(useRegex = useRegex)
+                            }
                         },
                         colors = CheckboxDefaults.colors(
                             checkedColor = theme.Accent
@@ -379,23 +278,9 @@ fun SearchDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = theme.TextSecondary,
                         modifier = Modifier.clickable {
-                            val activeDoc = state.getActiveTab()
-                            val matches = if (activeDoc != null) {
-                                SearchEngine.findMatches(
-                                    text = activeDoc.text,
-                                    query = searchState.searchQuery,
-                                    matchCase = searchState.matchCase,
-                                    wholeWords = searchState.wholeWords,
-                                    useRegex = !searchState.useRegex
-                                )
-                            } else emptyList()
-                            onSearchUpdate(
-                                searchState.copy(
-                                    useRegex = !searchState.useRegex,
-                                    matches = matches,
-                                    currentMatchIndex = if (matches.isNotEmpty()) 0 else -1
-                                )
-                            )
+                            searchStateHolder.updateSearchState(documentText) { currentState ->
+                                currentState.copy(useRegex = !currentState.useRegex)
+                            }
                         }
                     )
                 }

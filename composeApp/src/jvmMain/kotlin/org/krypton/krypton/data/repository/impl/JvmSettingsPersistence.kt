@@ -1,29 +1,33 @@
-package org.krypton.krypton
+package org.krypton.krypton.data.repository.impl
 
-import org.krypton.krypton.settings.SettingsPersistence as ISettingsPersistence
 import kotlinx.serialization.json.Json
+import org.krypton.krypton.Settings
+import org.krypton.krypton.data.repository.SettingsPersistence
 import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption
 
-object SettingsPersistence : ISettingsPersistence {
+/**
+ * JVM implementation of SettingsPersistence using java.nio.file.
+ */
+object JvmSettingsPersistence : SettingsPersistence {
     private val json = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
 
-    override fun getSettingsFilePath(): Path {
+    override fun getSettingsFilePath(): String {
         val homeDir = System.getProperty("user.home")
         val settingsDir = Paths.get(homeDir, "Varun", "Code", "Test")
-        return settingsDir.resolve("settings.json")
+        return settingsDir.resolve("settings.json").toString()
     }
 
-    override fun loadSettingsFromFile(path: Path): Settings? {
+    override fun loadSettingsFromFile(path: String): Settings? {
         return try {
-            if (Files.exists(path) && Files.isRegularFile(path)) {
-                val content = Files.readString(path)
+            val filePath = Paths.get(path)
+            if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+                val content = Files.readString(filePath)
                 if (content.isBlank()) {
                     null
                 } else {
@@ -49,17 +53,18 @@ object SettingsPersistence : ISettingsPersistence {
         }
     }
 
-    override fun saveSettingsToFile(path: Path, settings: Settings): Boolean {
+    override fun saveSettingsToFile(path: String, settings: Settings): Boolean {
         return try {
+            val filePath = Paths.get(path)
             // Ensure directory exists
-            val parentDir = path.parent
+            val parentDir = filePath.parent
             if (parentDir != null && !Files.exists(parentDir)) {
                 Files.createDirectories(parentDir)
             }
 
             val content = json.encodeToString(Settings.serializer(), settings)
             Files.writeString(
-                path,
+                filePath,
                 content,
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING,

@@ -21,10 +21,11 @@ data class FileTreeNode(
 object FileTreeBuilder {
     fun buildTree(rootPath: Path, maxDepth: Int = 10): FileTreeNode? {
         return try {
-            if (!FileManager.isDirectory(rootPath)) {
+            val fileManager = getFileManager()
+            if (!fileManager.isDirectory(rootPath)) {
                 return null
             }
-            buildTreeRecursive(rootPath, rootPath.fileName.toString(), 0, maxDepth)
+            buildTreeRecursive(rootPath, rootPath.fileName.toString(), 0, maxDepth, fileManager)
         } catch (e: Exception) {
             null
         }
@@ -34,7 +35,8 @@ object FileTreeBuilder {
         path: Path,
         name: String,
         currentDepth: Int,
-        maxDepth: Int
+        maxDepth: Int,
+        fileManager: FileManager
     ): FileTreeNode? {
         if (currentDepth >= maxDepth) {
             return null
@@ -44,17 +46,18 @@ object FileTreeBuilder {
             val node = FileTreeNode(
                 path = path,
                 name = name,
-                isDirectory = FileManager.isDirectory(path)
+                isDirectory = fileManager.isDirectory(path)
             )
             
             if (node.isDirectory) {
-                val files = FileManager.listFiles(path)
+                val files = fileManager.listFiles(path)
                 for (file in files) {
                     val childNode = buildTreeRecursive(
                         file,
                         file.fileName.toString(),
                         currentDepth + 1,
-                        maxDepth
+                        maxDepth,
+                        fileManager
                     )
                     childNode?.let { node.addChild(it) }
                 }

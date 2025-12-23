@@ -21,10 +21,14 @@ import javax.swing.filechooser.FileSystemView
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.UbuntuSans_Regular
 import org.krypton.krypton.chat.ChatService
-import org.krypton.krypton.chat.ChatServiceFactory
-import org.krypton.krypton.rag.*
+import org.krypton.krypton.data.repository.SettingsRepository
+import org.krypton.krypton.rag.RagComponents
+import org.krypton.krypton.ui.state.ChatStateHolder
+import org.krypton.krypton.ui.state.EditorStateHolder
+import org.krypton.krypton.ui.state.SearchStateHolder
 import org.krypton.krypton.util.Logger
 import org.krypton.krypton.util.createLogger
+import org.koin.core.context.GlobalContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -38,8 +42,20 @@ fun App() {
     // Initialize logger
     val logger = remember { createLogger("App") }
 
-    // Initialize settings repository
-    val settingsRepository = remember { SettingsRepositoryImpl() }
+    // Inject dependencies via Koin
+    val koin = remember { GlobalContext.get() }
+    val settingsRepository: SettingsRepository = remember { koin.get() }
+    val editorStateHolder: EditorStateHolder = remember { koin.get() }
+    val chatStateHolder: ChatStateHolder = remember { koin.get() }
+    val searchStateHolder: SearchStateHolder = remember { koin.get() }
+    val ragComponents: RagComponents? = remember { 
+        try { 
+            koin.getOrNull<RagComponents>() 
+        } catch (e: Exception) { 
+            null 
+        } 
+    }
+    
     val settings by settingsRepository.settingsFlow.collectAsState()
     val colorScheme = buildColorSchemeFromSettings(settings)
     val theme = rememberObsidianTheme(settings)
@@ -47,6 +63,17 @@ fun App() {
     // Create theme colors and app colors
     val themeColors = remember(settings) { AppThemeColors(settings) }
     val appColors = rememberAppColors(themeColors)
+    
+    // Observe state from state holders
+    val editorDomainState by editorStateHolder.domainState.collectAsState()
+    val leftSidebarVisible by editorStateHolder.leftSidebarVisible.collectAsState()
+    val rightSidebarVisible by editorStateHolder.rightSidebarVisible.collectAsState()
+    val leftSidebarWidth by editorStateHolder.leftSidebarWidth.collectAsState()
+    val rightSidebarWidth by editorStateHolder.rightSidebarWidth.collectAsState()
+    val activeRibbonButton by editorStateHolder.activeRibbonButton.collectAsState()
+    val activeRightPanel by editorStateHolder.activeRightPanel.collectAsState()
+    val settingsDialogOpen by editorStateHolder.settingsDialogOpen.collectAsState()
+    val showRecentFoldersDialog by editorStateHolder.showRecentFoldersDialog.collectAsState()
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -75,32 +102,15 @@ fun App() {
         )
     ) {
         val coroutineScope = rememberCoroutineScope()
-        val state = rememberEditorState(coroutineScope)
-        
-        // Initialize RAG components
-        val ragComponents = remember(settings.rag, state.currentDirectory) {
-            RagComponentProvider.createRagComponents(
-                ragSettings = settings.rag,
-                notesRoot = state.currentDirectory?.toString()
-            )
-        }
-        
-        // Create chat service (with optional RAG support)
-        val chatService = remember(ragComponents, settings.rag) {
-            ChatServiceFactory.createChatService(
-                ragComponents = ragComponents,
-                ragSettings = settings.rag
-            )
-        }
         
         // Set up auto-indexing callback
         LaunchedEffect(ragComponents) {
             ragComponents?.indexer?.let { indexer ->
-                state.onFileSaved = { filePath ->
+                editorStateHolder.onFileSaved = { filePath ->
                     coroutineScope.launch {
                         try {
                             // Get relative path from notes root
-                            val notesRoot = state.currentDirectory?.toString()
+                            val notesRoot = editorDomainState.currentDirectory
                             val relativePath = if (notesRoot != null && filePath.startsWith(notesRoot)) {
                                 filePath.substring(notesRoot.length + 1).replace('\\', '/')
                             } else {
@@ -114,7 +124,7 @@ fun App() {
                     }
                 }
             } ?: run {
-                state.onFileSaved = null
+                editorStateHolder.onFileSaved = null
             }
         }
         
@@ -125,7 +135,7 @@ fun App() {
                 try {
                     val path = java.nio.file.Paths.get(lastFolder)
                     if (java.nio.file.Files.exists(path) && java.nio.file.Files.isDirectory(path)) {
-                        state.changeDirectoryWithHistory(path, settingsRepository)
+                        editorStateHolder.changeDirectoryWithHistory(path)
                     }
                 } catch (e: Exception) {
                     // Invalid path, ignore
@@ -138,24 +148,33 @@ fun App() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(CatppuccinMochaColors.Base)
-                    .onKeyEvent { handleKeyboardShortcut(it, state) }
+                    .onKeyEvent { handleKeyboardShortcut(it, editorStateHolder) }
             ) {
                 AppContent(
-                    state = state,
+                    editorStateHolder = editorStateHolder,
+                    searchStateHolder = searchStateHolder,
+                    chatStateHolder = chatStateHolder,
                     settings = settings,
                     theme = theme,
-                    chatService = chatService,
-                    settingsRepository = settingsRepository
+                    settingsRepository = settingsRepository,
+                    leftSidebarVisible = leftSidebarVisible,
+                    rightSidebarVisible = rightSidebarVisible,
+                    leftSidebarWidth = leftSidebarWidth,
+                    rightSidebarWidth = rightSidebarWidth,
+                    activeRibbonButton = activeRibbonButton,
+                    activeRightPanel = activeRightPanel
                 )
                 
                 AppDialogs(
-                    state = state,
+                    editorStateHolder = editorStateHolder,
                     settings = settings,
                     theme = theme,
                     settingsRepository = settingsRepository,
                     ragComponents = ragComponents,
                     coroutineScope = coroutineScope,
-                    logger = logger
+                    logger = logger,
+                    showRecentFoldersDialog = showRecentFoldersDialog,
+                    settingsDialogOpen = settingsDialogOpen
                 )
             }
         }
@@ -164,13 +183,21 @@ fun App() {
 
 @Composable
 private fun AppContent(
-    state: EditorState,
+    editorStateHolder: EditorStateHolder,
+    searchStateHolder: SearchStateHolder,
+    chatStateHolder: ChatStateHolder,
     settings: Settings,
     theme: ObsidianThemeValues,
-    chatService: ChatService,
-    settingsRepository: SettingsRepository
+    settingsRepository: SettingsRepository,
+    leftSidebarVisible: Boolean,
+    rightSidebarVisible: Boolean,
+    leftSidebarWidth: Double,
+    rightSidebarWidth: Double,
+    activeRibbonButton: org.krypton.krypton.ui.state.RibbonButton,
+    activeRightPanel: org.krypton.krypton.ui.state.RightPanelType
 ) {
     val density = LocalDensity.current
+    val editorDomainState by editorStateHolder.domainState.collectAsState()
     
     Column(
         modifier = Modifier.fillMaxSize()
@@ -186,7 +213,7 @@ private fun AppContent(
         ) {
             // Left Ribbon
             LeftRibbon(
-                state = state,
+                state = editorStateHolder,
                 modifier = Modifier.fillMaxHeight()
             )
 
@@ -205,10 +232,10 @@ private fun AppContent(
                 ) {
                     // Left Sidebar
                     LeftSidebar(
-                        state = state,
+                        state = editorStateHolder,
                         onFolderSelected = {
                             openFolderDialog { selectedPath ->
-                                handleFolderSelection(selectedPath, state, settingsRepository)
+                                handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
                             }
                         },
                         theme = theme,
@@ -217,15 +244,15 @@ private fun AppContent(
                     )
 
                     // Left Resizable Splitter
-                    if (state.leftSidebarVisible) {
+                    if (leftSidebarVisible) {
                         ResizableSplitter(
                             onDrag = { deltaPx ->
                                 val deltaDp = with(density) { deltaPx.toDp() }
-                                val newWidth = state.leftSidebarWidth + deltaDp
-                                state.updateLeftSidebarWidth(
+                                val newWidth = leftSidebarWidth + deltaDp.value
+                                editorStateHolder.updateLeftSidebarWidth(
                                     newWidth,
-                                    minWidth = settings.ui.sidebarMinWidth.dp,
-                                    maxWidth = settings.ui.sidebarMaxWidth.dp
+                                    minWidth = settings.ui.sidebarMinWidth.toDouble(),
+                                    maxWidth = settings.ui.sidebarMaxWidth.toDouble()
                                 )
                             },
                             theme = theme
@@ -240,18 +267,18 @@ private fun AppContent(
                             .background(CatppuccinMochaColors.Base)
                     ) {
                         TabBar(
-                            state = state,
+                            state = editorStateHolder,
                             settings = settings,
                             theme = theme,
                             modifier = Modifier.fillMaxWidth()
                         )
 
                         TextEditor(
-                            state = state,
+                            state = editorStateHolder,
                             settingsRepository = settingsRepository,
                             onOpenFolder = {
                                 openFolderDialog { selectedPath ->
-                                    handleFolderSelection(selectedPath, state, settingsRepository)
+                                    handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
                                 }
                             },
                             modifier = Modifier.weight(1f)
@@ -259,15 +286,15 @@ private fun AppContent(
                     }
 
                     // Right Resizable Splitter
-                    if (state.rightSidebarVisible) {
+                    if (rightSidebarVisible) {
                         ResizableSplitter(
                             onDrag = { deltaPx ->
                                 val deltaDp = with(density) { deltaPx.toDp() }
-                                val newWidth = state.rightSidebarWidth - deltaDp
-                                state.updateRightSidebarWidth(
+                                val newWidth = rightSidebarWidth - deltaDp.value
+                                editorStateHolder.updateRightSidebarWidth(
                                     newWidth,
-                                    minWidth = settings.ui.sidebarMinWidth.dp,
-                                    maxWidth = settings.ui.sidebarMaxWidth.dp
+                                    minWidth = settings.ui.sidebarMinWidth.toDouble(),
+                                    maxWidth = settings.ui.sidebarMaxWidth.toDouble()
                                 )
                             },
                             theme = theme
@@ -276,9 +303,9 @@ private fun AppContent(
 
                     // Right Sidebar
                     RightSidebar(
-                        state = state,
+                        state = editorStateHolder,
                         theme = theme,
-                        chatService = chatService,
+                        chatStateHolder = chatStateHolder,
                         modifier = Modifier.fillMaxHeight()
                     )
                 }
@@ -286,7 +313,7 @@ private fun AppContent(
             
             // Right Ribbon
             RightRibbon(
-                state = state,
+                state = editorStateHolder,
                 modifier = Modifier.fillMaxHeight()
             )
         }
@@ -298,48 +325,55 @@ private fun AppContent(
 
 @Composable
 private fun AppDialogs(
-    state: EditorState,
+    editorStateHolder: EditorStateHolder,
     settings: Settings,
     theme: ObsidianThemeValues,
     settingsRepository: SettingsRepository,
     ragComponents: RagComponents?,
     coroutineScope: CoroutineScope,
-    logger: Logger
+    logger: Logger,
+    showRecentFoldersDialog: Boolean,
+    settingsDialogOpen: Boolean
 ) {
     // Settings Dialog
-    SettingsDialog(
-        state = state,
-        settingsRepository = settingsRepository,
-        onOpenSettingsJson = {
-            state.openSettingsJson()
-        },
-        onReindex = {
-            ragComponents?.indexer?.let { indexer ->
-                coroutineScope.launch {
-                    try {
-                        indexer.fullReindex()
-                    } catch (e: Exception) {
-                        logger.error("Reindex failed: ${e.message}", e)
-                    }
-                }
-            }
-        }
-    )
-    
-    // Recent Folders Dialog
-    if (state.showRecentFoldersDialog) {
-        RecentFoldersDialog(
-            recentFolders = settings.app.recentFolders,
-            onFolderSelected = { path ->
-                state.changeDirectoryWithHistory(path, settingsRepository)
+    if (settingsDialogOpen) {
+        SettingsDialog(
+            state = editorStateHolder,
+            settingsRepository = settingsRepository,
+            onOpenSettingsJson = {
+                editorStateHolder.openSettingsJson()
             },
-            onOpenNewFolder = {
-                openFolderDialog { selectedPath ->
-                    handleFolderSelection(selectedPath, state, settingsRepository)
+            onReindex = {
+                ragComponents?.indexer?.let { indexer ->
+                    coroutineScope.launch {
+                        try {
+                            indexer.fullReindex()
+                        } catch (e: Exception) {
+                            logger.error("Reindex failed: ${e.message}", e)
+                        }
+                    }
                 }
             },
             onDismiss = {
-                state.dismissRecentFoldersDialog()
+                editorStateHolder.closeSettingsDialog()
+            }
+        )
+    }
+    
+    // Recent Folders Dialog
+    if (showRecentFoldersDialog) {
+        RecentFoldersDialog(
+            recentFolders = settings.app.recentFolders,
+            onFolderSelected = { path ->
+                editorStateHolder.changeDirectoryWithHistory(path)
+            },
+            onOpenNewFolder = {
+                openFolderDialog { selectedPath ->
+                    handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
+                }
+            },
+            onDismiss = {
+                editorStateHolder.dismissRecentFoldersDialog()
             },
             theme = theme
         )
@@ -348,7 +382,7 @@ private fun AppDialogs(
 
 private fun handleKeyboardShortcut(
     keyEvent: KeyEvent,
-    state: EditorState
+    editorStateHolder: EditorStateHolder
 ): Boolean {
     if (keyEvent.type != KeyEventType.KeyDown) {
         return false
@@ -360,43 +394,43 @@ private fun handleKeyboardShortcut(
     return when {
         // Settings
         isCtrlOrCmd && keyEvent.key == Key.Comma -> {
-            state.openSettingsDialog()
+            editorStateHolder.openSettingsDialog()
             true
         }
         // Search
         isCtrlOrCmd && keyEvent.key == Key.F -> {
-            state.openSearchDialog(showReplace = false)
+            editorStateHolder.openSearchDialog(showReplace = false)
             true
         }
         // Search & Replace
         isCtrlOrCmd && keyEvent.key == Key.H -> {
-            state.openSearchDialog(showReplace = true)
+            editorStateHolder.openSearchDialog(showReplace = true)
             true
         }
         // Find next
         keyEvent.key == Key.F3 && !isShift -> {
-            state.findNext()
+            editorStateHolder.findNext()
             true
         }
         // Find previous
         keyEvent.key == Key.F3 && isShift -> {
-            state.findPrevious()
+            editorStateHolder.findPrevious()
             true
         }
         // Close search
-        keyEvent.key == Key.Escape && state.searchState != null -> {
-            state.closeSearchDialog()
+        keyEvent.key == Key.Escape -> {
+            editorStateHolder.closeSearchDialog()
             true
         }
         // Undo
         isCtrlOrCmd && keyEvent.key == Key.Z && !isShift -> {
-            state.undo()
+            editorStateHolder.undo()
             true
         }
         // Redo
         (isCtrlOrCmd && keyEvent.key == Key.Z && isShift) ||
         (isCtrlOrCmd && keyEvent.key == Key.Y) -> {
-            state.redo()
+            editorStateHolder.redo()
             true
         }
         else -> false
@@ -405,19 +439,19 @@ private fun handleKeyboardShortcut(
 
 private fun handleFolderSelection(
     selectedPath: java.nio.file.Path?,
-    state: EditorState,
+    editorStateHolder: EditorStateHolder,
     settingsRepository: SettingsRepository
 ) {
     selectedPath?.let { path ->
         val file = path.toFile()
         if (file.isDirectory) {
-            state.changeDirectoryWithHistory(path, settingsRepository)
+            editorStateHolder.changeDirectoryWithHistory(path)
         } else {
             val parentPath = file.parentFile?.toPath()
             if (parentPath != null) {
-                state.changeDirectoryWithHistory(parentPath, settingsRepository)
+                editorStateHolder.changeDirectoryWithHistory(parentPath)
             }
-            state.openTab(path)
+            editorStateHolder.openTab(path)
         }
     }
 }

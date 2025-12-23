@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.ui.state.RightPanelType
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -31,7 +32,7 @@ import org.krypton.krypton.markdown.BlockNode
 import org.krypton.krypton.markdown.InlineNode
 import org.krypton.krypton.markdown.JetBrainsMarkdownEngine
 import org.krypton.krypton.chat.ChatPanel
-import org.krypton.krypton.chat.ChatService
+import org.krypton.krypton.ui.state.ChatStateHolder
 
 /**
  * Recursively extract plain text from inline nodes.
@@ -51,12 +52,16 @@ private fun extractTextFromInlineNodes(nodes: List<InlineNode>): String {
 
 @Composable
 fun RightSidebar(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
-    chatService: ChatService?,
+    chatStateHolder: ChatStateHolder,
     modifier: Modifier = Modifier
 ) {
-    val targetWidth = if (state.rightSidebarVisible) state.rightSidebarWidth else 0.dp
+    val rightSidebarVisible by state.rightSidebarVisible.collectAsState()
+    val rightSidebarWidth by state.rightSidebarWidth.collectAsState()
+    val activeRightPanel by state.activeRightPanel.collectAsState()
+    
+    val targetWidth = if (rightSidebarVisible) rightSidebarWidth.dp else 0.dp
     val animatedWidth by animateDpAsState(
         targetValue = targetWidth,
         animationSpec = tween(durationMillis = 300),
@@ -66,7 +71,7 @@ fun RightSidebar(
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
     AnimatedVisibility(
-        visible = state.rightSidebarVisible,
+        visible = rightSidebarVisible,
         modifier = modifier.width(animatedWidth)
     ) {
         Column(
@@ -79,7 +84,7 @@ fun RightSidebar(
             RightSidebarTopBar(
                 state = state,
                 theme = theme,
-                chatService = chatService,
+                chatStateHolder = chatStateHolder,
                 modifier = Modifier.fillMaxWidth()
             )
             
@@ -97,7 +102,7 @@ fun RightSidebar(
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                when (state.activeRightPanel) {
+                when (activeRightPanel) {
                     RightPanelType.Outline -> {
                         OutlinePanel(
                             state = state,
@@ -106,25 +111,11 @@ fun RightSidebar(
                         )
                     }
                     RightPanelType.Chat -> {
-                        if (chatService != null) {
-                            ChatPanel(
-                                chatService = chatService,
-                                theme = theme,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            // Fallback if chatService is not provided
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Chat service not available",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = theme.TextSecondary
-                                )
-                            }
-                        }
+                        ChatPanel(
+                            chatStateHolder = chatStateHolder,
+                            theme = theme,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
@@ -134,13 +125,14 @@ fun RightSidebar(
 
 @Composable
 private fun RightSidebarTopBar(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
-    chatService: ChatService?,
+    chatStateHolder: ChatStateHolder,
     modifier: Modifier = Modifier
 ) {
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
+    val activeRightPanel by state.activeRightPanel.collectAsState()
     
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -154,7 +146,7 @@ private fun RightSidebarTopBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = when (state.activeRightPanel) {
+                text = when (activeRightPanel) {
                     RightPanelType.Outline -> "Outline"
                     RightPanelType.Chat -> "Chat"
                 },
@@ -169,17 +161,18 @@ private fun RightSidebarTopBar(
 
 @Composable
 private fun OutlinePanel(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
-    val activeDocument = state.getActiveTab()
+    val activeDocument by state.activeDocument.collectAsState()
     val engine = remember { JetBrainsMarkdownEngine() }
     
     // Extract headings from the active document
-    val headings = remember(activeDocument?.text) {
-        if (activeDocument?.text != null) {
-            val blocks = engine.renderToBlocks(activeDocument.text)
+    val currentActiveDocument = activeDocument
+    val headings = remember(currentActiveDocument?.text) {
+        if (currentActiveDocument?.text != null) {
+            val blocks = engine.renderToBlocks(currentActiveDocument.text)
             blocks.filterIsInstance<BlockNode.Heading>()
         } else {
             emptyList()

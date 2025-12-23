@@ -1,5 +1,7 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.core.domain.editor.MarkdownDocument
+import org.krypton.krypton.core.domain.editor.ViewMode
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,11 +27,14 @@ import java.nio.file.Path
 
 @Composable
 fun TabBar(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     settings: Settings,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
+    val documents by state.documents.collectAsState()
+    val activeTabIndex by state.activeTabIndex.collectAsState()
+    
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
     Surface(
@@ -45,10 +50,10 @@ fun TabBar(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // Tabs
-            state.documents.forEachIndexed { index, doc ->
+            documents.forEachIndexed { index, doc ->
                 TabItem(
                     doc = doc,
-                    isActive = index == state.activeTabIndex,
+                    isActive = index == activeTabIndex,
                     settings = settings,
                     theme = theme,
                     onClick = { state.switchTab(index) },
@@ -57,8 +62,9 @@ fun TabBar(
             }
 
             // View Mode Toggle (only show when a tab is active)
-            if (state.activeTabIndex >= 0 && state.activeTabIndex < state.documents.size) {
-                val activeDoc = state.documents[state.activeTabIndex]
+            if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+                val activeDoc = documents[activeTabIndex]
+                val currentViewMode = activeDoc.viewMode
                 Box(
                     modifier = Modifier
                         .height(theme.TabHeight)
@@ -69,7 +75,7 @@ fun TabBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = when (activeDoc.viewMode) {
+                        text = when (currentViewMode) {
                             ViewMode.LivePreview -> "Live"
                             ViewMode.Compiled -> "Compiled"
                         },
@@ -122,7 +128,7 @@ fun TabItem(
 ) {
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
-    val fileName = doc.path?.fileName?.toString() ?: "Untitled"
+    val fileName = doc.path?.let { java.nio.file.Paths.get(it).fileName.toString() } ?: "Untitled"
     val isModified = doc.isDirty
 
     val backgroundColor = if (isActive) {

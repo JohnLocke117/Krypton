@@ -1,6 +1,7 @@
 package org.krypton.krypton
 
 import androidx.compose.foundation.Image
+import org.krypton.krypton.ui.state.RibbonButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,10 +24,13 @@ import krypton.composeapp.generated.resources.star
 
 @Composable
 fun LeftRibbon(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     modifier: Modifier = Modifier
 ) {
     val ribbonWidth = 40.dp
+    val leftSidebarVisible by state.leftSidebarVisible.collectAsState()
+    val activeRibbonButton by state.activeRibbonButton.collectAsState()
+    
     Ribbon(
         orientation = RibbonOrientation.Vertical,
         slots = listOf(
@@ -35,7 +39,7 @@ fun LeftRibbon(
                 RibbonToggleButton(
                     iconOpen = Res.drawable.left_panel_open,
                     iconClose = Res.drawable.left_panel_close,
-                    isOpen = state.leftSidebarVisible,
+                    isOpen = leftSidebarVisible,
                     onClick = { state.toggleLeftSidebar() }
                 )
             },
@@ -44,7 +48,7 @@ fun LeftRibbon(
                 RibbonIconButton(
                     icon = Res.drawable.folder,
                     contentDescription = "Files",
-                    isActive = state.activeRibbonButton == RibbonButton.Files,
+                    isActive = activeRibbonButton == RibbonButton.Files,
                     onClick = { state.updateActiveRibbonButton(RibbonButton.Files) },
                     cardFacingEdge = CardFacingEdge.End
                 )
@@ -54,7 +58,7 @@ fun LeftRibbon(
                 RibbonIconButton(
                     icon = Res.drawable.star,
                     contentDescription = "Bookmarks",
-                    isActive = state.activeRibbonButton == RibbonButton.Bookmarks,
+                    isActive = activeRibbonButton == RibbonButton.Bookmarks,
                     onClick = { state.updateActiveRibbonButton(RibbonButton.Bookmarks) },
                     cardFacingEdge = CardFacingEdge.End
                 )

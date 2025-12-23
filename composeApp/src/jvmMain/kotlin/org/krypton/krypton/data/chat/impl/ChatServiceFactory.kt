@@ -1,6 +1,8 @@
-package org.krypton.krypton.chat
+package org.krypton.krypton.data.chat.impl
 
 import org.krypton.krypton.RagSettings
+import org.krypton.krypton.chat.ChatService
+import org.krypton.krypton.chat.RagChatService
 import org.krypton.krypton.rag.RagComponents
 
 /**

@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.core.domain.editor.ViewMode
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,15 +21,15 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun TextEditor(
-    state: EditorState,
-    settingsRepository: SettingsRepository?,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
+    settingsRepository: org.krypton.krypton.data.repository.SettingsRepository?,
     onOpenFolder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
-    val activeTabIndex = state.activeTabIndex
-    val activeDocument = state.getActiveTab()
-    val settingsPath = SettingsPersistence.getSettingsFilePath()
+    val activeTabIndex by state.activeTabIndex.collectAsState()
+    val activeDocument by state.activeDocument.collectAsState()
+    val settingsPath = org.krypton.krypton.data.repository.impl.JvmSettingsPersistence.getSettingsFilePath()
     var showErrorSnackbar by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     
@@ -45,7 +46,7 @@ fun TextEditor(
                 // Special handling for settings.json
                 if (doc.path == settingsPath && settingsRepository != null) {
                     // Parse and validate JSON from document text
-                    val parsed = SettingsPersistence.parseSettingsFromJson(doc.text)
+                    val parsed = org.krypton.krypton.data.repository.impl.JvmSettingsPersistence.parseSettingsFromJson(doc.text)
                     if (parsed != null) {
                         val validation = validateSettings(parsed)
                         if (validation.isValid) {
@@ -53,7 +54,7 @@ fun TextEditor(
                             coroutineScope.launch {
                                 try {
                                     settingsRepository.update { parsed }
-                                    FileManager.writeFile(doc.path, doc.text)
+                                    // File will be saved by the domain layer
                                     state.saveActiveTab()
                                 } catch (e: Exception) {
                                     errorMessage = e.message ?: "Failed to update settings"
@@ -75,8 +76,7 @@ fun TextEditor(
                         return@LaunchedEffect
                     }
                 } else {
-                    // Normal file save
-                    FileManager.writeFile(doc.path, doc.text)
+                    // Normal file save - handled by domain layer
                     state.saveActiveTab()
                 }
             }
@@ -91,47 +91,29 @@ fun TextEditor(
             .padding(theme.EditorPadding)
     ) {
         // Editor area
-        if (activeDocument != null) {
+        val currentActiveDocument = activeDocument
+        if (currentActiveDocument != null) {
             // Route based on view mode
-            when (activeDocument.viewMode) {
+            when (currentActiveDocument.viewMode) {
                 ViewMode.LivePreview -> {
                     Box(modifier = Modifier.fillMaxSize()) {
                         MarkdownLivePreviewEditor(
-                            markdown = activeDocument.text,
+                            markdown = currentActiveDocument.text,
                             settings = settings,
                             theme = theme,
-                            searchState = state.searchState,
+                            searchState = null, // TODO: Get from SearchStateHolder
                             onMarkdownChange = { newText ->
                                 state.updateTabContent(newText)
                             },
                             modifier = Modifier.fillMaxSize()
                         )
                         
-                        // Search dialog overlay
-                        state.searchState?.let { searchState ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.TopEnd
-                            ) {
-                                SearchDialog(
-                                    state = state,
-                                    theme = theme,
-                                    onSearchUpdate = { newState ->
-                                        state.updateSearchState { newState }
-                                    },
-                                    onReplace = { newText ->
-                                        state.updateTabContent(newText)
-                                    }
-                                )
-                            }
-                        }
+                        // TODO: Add search dialog overlay using SearchStateHolder
                     }
                 }
                 ViewMode.Compiled -> {
                     MarkdownCompiledView(
-                        markdown = activeDocument.text,
+                        markdown = currentActiveDocument.text,
                         settings = settings,
                         theme = theme,
                         modifier = Modifier.fillMaxSize()

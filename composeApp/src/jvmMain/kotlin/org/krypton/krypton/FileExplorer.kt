@@ -56,7 +56,7 @@ import krypton.composeapp.generated.resources.star
 
 @Composable
 fun FileExplorer(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     onFolderSelected: (Path?) -> Unit,
     recentFolders: List<String>,
     onRecentFolderSelected: (Path) -> Unit,
@@ -75,19 +75,29 @@ fun FileExplorer(
 
 @Composable
 fun FileExplorerContent(
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     onFolderSelected: (Path?) -> Unit,
     recentFolders: List<String>,
     onRecentFolderSelected: (Path) -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
+    val currentDirectory by state.currentDirectory.collectAsState()
+    val deletingPath by state.deletingPath.collectAsState()
+    val editingMode by state.editingMode.collectAsState()
+    val editingItemPath by state.editingItemPath.collectAsState()
+    val editingParentPath by state.editingParentPath.collectAsState()
+    val documents by state.documents.collectAsState()
+    val activeTabIndex by state.activeTabIndex.collectAsState()
+    
     var fileTree by remember { mutableStateOf<FileTreeNode?>(null) }
     var treeVersion by remember { mutableStateOf(0) } // Force recomposition on tree changes
 
     // Helper function to refresh tree
     fun refreshTree() {
-        state.currentDirectory?.let { dir ->
+        currentDirectory?.let { dir ->
+            // Use FileTreeBuilder which uses FileManager internally
+            // FileManager is still used by FileTreeBuilder for now
             fileTree = FileTreeBuilder.buildTree(dir)?.apply {
                 isExpanded = true
             }
@@ -96,10 +106,10 @@ fun FileExplorerContent(
     }
 
     // Delete confirmation dialog
-    val deletingPath = state.deletingPath
-    if (deletingPath != null) {
+    val currentDeletingPath = deletingPath
+    if (currentDeletingPath != null) {
         DeleteConfirmationDialog(
-            path = deletingPath,
+            path = currentDeletingPath,
             onConfirm = {
                 state.confirmDelete()
                 // Refresh tree after deletion
@@ -112,8 +122,8 @@ fun FileExplorerContent(
     }
 
     // Rebuild tree when directory changes
-    LaunchedEffect(state.currentDirectory) {
-        state.currentDirectory?.let { dir ->
+    LaunchedEffect(currentDirectory) {
+        currentDirectory?.let { dir ->
             fileTree = FileTreeBuilder.buildTree(dir)?.apply {
                 // Expand root by default
                 isExpanded = true
@@ -126,7 +136,7 @@ fun FileExplorerContent(
     }
 
     // Click-outside detection for canceling editing
-    val isEditing = state.editingMode != null
+    val isEditing = editingMode != null
     
     Column(
         modifier = modifier
@@ -148,7 +158,7 @@ fun FileExplorerContent(
             .verticalScroll(rememberScrollState())
     ) {
         // Open Folder Button and Recent Folders - only show when no folder is open
-        if (state.currentDirectory == null) {
+        if (currentDirectory == null) {
             Button(
                 onClick = { onFolderSelected(null) },
                 modifier = Modifier.fillMaxWidth(),
@@ -205,13 +215,16 @@ fun FileExplorerContent(
                 TreeItem(
                     node = fileTree!!,
                     depth = 0,
-                    activeTabPaths = setOfNotNull(
-                        state.documents.getOrNull(state.activeTabIndex)?.path
-                    ),
+                    activeTabPaths = documents.mapNotNull { doc -> 
+                        doc.path?.let { java.nio.file.Paths.get(it) }
+                    }.toSet(),
                     state = state,
                     theme = theme,
                     onFileClick = { path ->
-                        if (FileManager.isFile(path)) {
+                        // Use FileSystem from state holder's dependency
+                        // For now, assume it's a file if it's not a directory
+                        val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.krypton.data.files.FileSystem>()
+                        if (!fileSystem.isDirectory(path.toString())) {
                             AppLogger.action("FileExplorer", "FileOpened", path.toString())
                             state.openTab(path)
                         }
@@ -223,7 +236,7 @@ fun FileExplorerContent(
                     onTreeRefresh = { refreshTree() }
                 )
             }
-        } else if (state.currentDirectory == null) {
+        } else if (currentDirectory == null) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -248,7 +261,7 @@ fun TreeItem(
     node: FileTreeNode,
     depth: Int,
     activeTabPaths: Set<Path>,
-    state: EditorState,
+    state: org.krypton.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
     onFileClick: (Path) -> Unit,
     onFolderToggle: (FileTreeNode) -> Unit,
@@ -259,10 +272,16 @@ fun TreeItem(
     val indent = theme.SidebarIndentPerLevel * depth
     
     // Check if this item is being edited
-    val isRenaming = state.editingMode == FileTreeEditMode.Renaming && state.editingItemPath == node.path
+    val editingMode by state.editingMode.collectAsState()
+    val editingItemPath by state.editingItemPath.collectAsState()
+    val editingParentPath by state.editingParentPath.collectAsState()
+    
+    val isRenaming = editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.Renaming && 
+        editingItemPath == node.path
     val isCreatingInThisParent = node.isDirectory && 
-        state.editingParentPath == node.path && 
-        (state.editingMode == FileTreeEditMode.CreatingFile || state.editingMode == FileTreeEditMode.CreatingFolder)
+        editingParentPath == node.path && 
+        (editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
+         editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)
     
     // Determine parent path for "New" operations
     val parentPath = if (node.isDirectory) {
@@ -409,7 +428,7 @@ fun TreeItem(
         if (node.isDirectory && node.isExpanded) {
             // Show temporary create row if creating in this parent
             if (isCreatingInThisParent) {
-                val isCreatingFile = state.editingMode == FileTreeEditMode.CreatingFile
+                val isCreatingFile = editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFile
                 TemporaryCreateRow(
                     isFile = isCreatingFile,
                     depth = depth + 1,
@@ -653,7 +672,8 @@ private fun DeleteConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val isDirectory = FileManager.isDirectory(path)
+    val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.krypton.data.files.FileSystem>()
+    val isDirectory = fileSystem.isDirectory(path.toString())
     val itemName = path.fileName.toString()
     val message = if (isDirectory) {
         "Are you sure you want to delete the folder \"$itemName\" and all its contents?\n\nThis action cannot be undone."

@@ -1,20 +1,21 @@
-package org.krypton.krypton
+package org.krypton.krypton.data.repository.impl
 
-import org.krypton.krypton.settings.SettingsPersistence as ISettingsPersistence
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.krypton.krypton.Settings
+import org.krypton.krypton.migrateSettings
+import org.krypton.krypton.validateSettings
+import org.krypton.krypton.data.repository.SettingsRepository
+import org.krypton.krypton.data.repository.SettingsPersistence
 
-interface SettingsRepository {
-    val settingsFlow: StateFlow<Settings>
-    suspend fun update(transform: (Settings) -> Settings)
-    suspend fun reloadFromDisk()
-}
-
+/**
+ * JVM implementation of SettingsRepository.
+ */
 class SettingsRepositoryImpl(
-    private val persistence: ISettingsPersistence = SettingsPersistence
+    private val persistence: SettingsPersistence
 ) : SettingsRepository {
     private val mutex = Mutex()
     private val settingsPath = persistence.getSettingsFilePath()

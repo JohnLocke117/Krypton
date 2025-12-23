@@ -39,6 +39,8 @@ kotlin {
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinxJson)
             implementation(libs.sqldelight.driver)
+            implementation(libs.koin.core)
+            implementation(libs.koin.core)
         }
     }
 }

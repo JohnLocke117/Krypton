@@ -5,6 +5,10 @@ import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.ktor.client.engine.*
 import io.ktor.client.engine.cio.*
 import org.krypton.krypton.VectorBackend
+import org.krypton.krypton.data.rag.impl.HttpEmbedder
+import org.krypton.krypton.data.rag.impl.HttpLlamaClient
+import org.krypton.krypton.data.rag.impl.SqliteBruteForceVectorStore
+import org.krypton.krypton.data.rag.impl.SqliteVectorExtensionStore
 import org.krypton.krypton.rag.NoteChunkDatabase
 import java.io.File
 
@@ -21,10 +25,22 @@ actual fun createRagComponents(
     // Create database driver
     val driver = sqlDriverFactory(dbPath)
     
-    // Create vector store based on backend
+    // Create vector store based on backend with fallback handling
     val vectorStore = when (config.vectorBackend) {
         VectorBackend.SQLITE_BRUTE_FORCE -> SqliteBruteForceVectorStore(driver)
-        VectorBackend.SQLITE_VECTOR_EXTENSION -> SqliteVectorExtensionStore(driver)
+        VectorBackend.SQLITE_VECTOR_EXTENSION -> {
+            try {
+                SqliteVectorExtensionStore(driver)
+            } catch (e: Exception) {
+                // Log warning and fall back to brute force if vector extension fails
+                org.krypton.krypton.util.AppLogger.w(
+                    "RagFactory",
+                    "Failed to initialize SQLite vector extension, falling back to brute force: ${e.message}",
+                    e
+                )
+                SqliteBruteForceVectorStore(driver)
+            }
+        }
     }
     
     // Create embedder

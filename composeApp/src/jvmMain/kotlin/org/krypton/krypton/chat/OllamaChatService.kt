@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import org.krypton.krypton.rag.RagConstants
+import org.krypton.krypton.config.ChatDefaults
 import org.krypton.krypton.util.IdGenerator
 import org.krypton.krypton.util.TimeProvider
 import org.krypton.krypton.util.createIdGenerator
@@ -36,13 +36,13 @@ private data class OllamaGenerateResponse(
 )
 
 class OllamaChatService(
-    private val baseUrl: String = "http://localhost:11434",
-    private val model: String = RagConstants.DEFAULT_LLAMA_MODEL,
+    private val baseUrl: String = ChatDefaults.DEFAULT_BASE_URL,
+    private val model: String = ChatDefaults.DEFAULT_MODEL,
     private val idGenerator: IdGenerator = createIdGenerator(),
     private val timeProvider: TimeProvider = createTimeProvider()
 ) : ChatService {
 
-    private val systemPrompt = "You are a helpful study assistant integrated into a personal markdown editor. Be concise and helpful."
+    private val systemPrompt = ChatDefaults.DEFAULT_SYSTEM_PROMPT
 
     private val client = HttpClient(CIO) {
         install(ContentNegotiation) {

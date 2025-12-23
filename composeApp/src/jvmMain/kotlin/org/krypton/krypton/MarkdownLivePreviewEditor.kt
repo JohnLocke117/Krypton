@@ -1,6 +1,7 @@
 package org.krypton.krypton
 
 import androidx.compose.foundation.background
+import org.krypton.krypton.core.domain.search.SearchState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -21,7 +22,7 @@ fun MarkdownLivePreviewEditor(
     markdown: String,
     settings: Settings,
     theme: ObsidianThemeValues,
-    searchState: SearchState?,
+    searchState: org.krypton.krypton.core.domain.search.SearchState?,
     onMarkdownChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -61,7 +62,7 @@ fun MarkdownLivePreviewEditor(
                 // Content was updated externally (undo/redo), don't push
                 return@LaunchedEffect
             }
-            // The actual history push happens in EditorState.updateTabContent
+            // The actual history push happens in EditorStateHolder.updateTabContent
         }
     }
     

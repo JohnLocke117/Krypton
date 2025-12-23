@@ -21,28 +21,32 @@ import org.krypton.krypton.ObsidianThemeValues
 
 @Composable
 fun ChatPanel(
-    chatService: ChatService,
+    chatStateHolder: org.krypton.krypton.ui.state.ChatStateHolder,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
-    var chatState by remember { mutableStateOf(ChatState()) }
+    val messages by chatStateHolder.messages.collectAsState()
+    val isLoading by chatStateHolder.isLoading.collectAsState()
+    val error by chatStateHolder.error.collectAsState()
+    
     var inputText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
-    val coroutineScope = rememberCoroutineScope()
     
     // RAG toggle state (enabled by default)
     var ragEnabled by remember { mutableStateOf(true) }
     
-    // Update RAG state if chatService is RagChatService
-    val ragChatService = chatService as? org.krypton.krypton.chat.RagChatService
-    LaunchedEffect(ragChatService) {
-        ragChatService?.let {
-            ragEnabled = it.isRagEnabled()
+    // Check if chat service supports RAG
+    val ragChatService = remember(chatStateHolder) {
+        val service = chatStateHolder.chatService
+        if (service is org.krypton.krypton.chat.RagChatService) {
+            service
+        } else {
+            null
         }
     }
 
     // Auto-scroll to bottom when new messages arrive
-    LaunchedEffect(chatState.messages.size) {
+    LaunchedEffect(messages.size) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
@@ -89,7 +93,7 @@ fun ChatPanel(
         }
 
         // Error message
-        chatState.error?.let { error ->
+        error?.let { errorMsg ->
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -97,12 +101,28 @@ fun ChatPanel(
                 color = MaterialTheme.colorScheme.errorContainer,
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(12.dp)
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = errorMsg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = { chatStateHolder.clearError() },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Dismiss")
+                    }
+                }
             }
         }
 
@@ -115,7 +135,7 @@ fun ChatPanel(
                 .padding(theme.PanelPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (chatState.messages.isEmpty()) {
+            if (messages.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -129,7 +149,7 @@ fun ChatPanel(
                     )
                 }
             } else {
-                chatState.messages.forEach { message ->
+                messages.forEach { message ->
                     ChatMessageItem(
                         message = message,
                         theme = theme,
@@ -138,7 +158,7 @@ fun ChatPanel(
                 }
                 
                 // Loading indicator
-                if (chatState.isLoading) {
+                if (isLoading) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -190,43 +210,18 @@ fun ChatPanel(
                             disabledTextColor = theme.TextSecondary
                         ),
                         maxLines = 5,
-                        enabled = !chatState.isLoading,
+                        enabled = !isLoading,
                         shape = RoundedCornerShape(8.dp)
                     )
                     Button(
                         onClick = {
-                            if (inputText.isNotBlank() && !chatState.isLoading) {
+                            if (inputText.isNotBlank() && !isLoading) {
                                 val message = inputText.trim()
                                 inputText = ""
-                                chatState = chatState.copy(
-                                    isLoading = true,
-                                    error = null
-                                )
-                                coroutineScope.launch {
-                                    try {
-                                        val updatedMessages = chatService.sendMessage(
-                                            history = chatState.messages,
-                                            userMessage = message
-                                        )
-                                        chatState = chatState.copy(
-                                            messages = updatedMessages,
-                                            isLoading = false,
-                                            error = null
-                                        )
-                                    } catch (e: Exception) {
-                                        chatState = chatState.copy(
-                                            isLoading = false,
-                                            error = if (e is ChatServiceException) {
-                                                e.message
-                                            } else {
-                                                "Could not reach Ollama. Please make sure `ollama serve` is running."
-                                            }
-                                        )
-                                    }
-                                }
+                                chatStateHolder.sendMessage(message)
                             }
                         },
-                        enabled = inputText.isNotBlank() && !chatState.isLoading,
+                        enabled = inputText.isNotBlank() && !isLoading,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = theme.Accent,
                             contentColor = theme.TextPrimary,

@@ -1,7 +1,7 @@
-package org.krypton.krypton
+package org.krypton.krypton.core.domain.search
 
 /**
- * State for search and replace functionality.
+ * Immutable state for search and replace functionality.
  */
 data class SearchState(
     val searchQuery: String = "",
@@ -13,8 +13,19 @@ data class SearchState(
     val matches: List<IntRange> = emptyList(),
     val showReplace: Boolean = false
 ) {
+    /**
+     * Whether there are any matches found.
+     */
     val hasMatches: Boolean get() = matches.isNotEmpty()
+    
+    /**
+     * Total number of matches.
+     */
     val matchCount: Int get() = matches.size
+    
+    /**
+     * Human-readable string for current match position.
+     */
     val currentMatchText: String get() = if (currentMatchIndex >= 0 && currentMatchIndex < matches.size) {
         "${currentMatchIndex + 1} of ${matches.size}"
     } else {

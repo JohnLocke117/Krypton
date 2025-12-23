@@ -1,35 +1,36 @@
 package org.krypton.krypton
 
 import kotlinx.serialization.Serializable
+import org.krypton.krypton.config.EditorDefaults
 
 @Serializable
 data class EditorSettings(
-    val theme: String = "dark",
-    val fontFamily: String = "JetBrains Mono",
-    val fontSize: Int = 14,
+    val theme: String = EditorDefaults.DEFAULT_THEME,
+    val fontFamily: String = EditorDefaults.DEFAULT_FONT_FAMILY,
+    val fontSize: Int = EditorDefaults.DEFAULT_FONT_SIZE,
     val lineNumbers: Boolean = true,
     val wordWrap: Boolean = true,
-    val tabSize: Int = 4,
-    val lineHeight: Float = 1.7f,
-    val editorPadding: Int = 24,
-    val codeBlockFontSize: Int = 13,
-    val codeSpanFontSize: Int = 13
+    val tabSize: Int = EditorDefaults.DEFAULT_TAB_SIZE,
+    val lineHeight: Float = EditorDefaults.DEFAULT_LINE_HEIGHT,
+    val editorPadding: Int = EditorDefaults.DEFAULT_EDITOR_PADDING,
+    val codeBlockFontSize: Int = EditorDefaults.DEFAULT_CODE_BLOCK_FONT_SIZE,
+    val codeSpanFontSize: Int = EditorDefaults.DEFAULT_CODE_SPAN_FONT_SIZE
 )
 
 @Serializable
 data class UISettings(
-    val ribbonWidth: Int = 48,
-    val sidebarMinWidth: Int = 200,
-    val sidebarDefaultWidth: Int = 280,
-    val sidebarMaxWidth: Int = 400,
-    val tabHeight: Int = 36,
-    val tabPadding: Int = 12,
-    val tabCornerRadius: Int = 6,
-    val panelBorderWidth: Int = 1,
-    val panelPadding: Int = 8,
-    val tabFontSize: Int = 13,
-    val tabLabelFontSize: Int = 11,
-    val fileExplorerFontSize: Int = 14
+    val ribbonWidth: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_RIBBON_WIDTH,
+    val sidebarMinWidth: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_SIDEBAR_MIN_WIDTH,
+    val sidebarDefaultWidth: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_SIDEBAR_DEFAULT_WIDTH,
+    val sidebarMaxWidth: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_SIDEBAR_MAX_WIDTH,
+    val tabHeight: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_TAB_HEIGHT,
+    val tabPadding: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_TAB_PADDING,
+    val tabCornerRadius: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_TAB_CORNER_RADIUS,
+    val panelBorderWidth: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_PANEL_BORDER_WIDTH,
+    val panelPadding: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_PANEL_PADDING,
+    val tabFontSize: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_TAB_FONT_SIZE,
+    val tabLabelFontSize: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_TAB_LABEL_FONT_SIZE,
+    val fileExplorerFontSize: Int = org.krypton.krypton.config.UiDefaults.DEFAULT_FILE_EXPLORER_FONT_SIZE
 )
 
 @Serializable
@@ -60,7 +61,7 @@ data class ColorSettings(
 @Serializable
 data class AppSettings(
     val recentFolders: List<String> = emptyList(),
-    val autosaveIntervalSeconds: Int = 60,
+    val autosaveIntervalSeconds: Int = EditorDefaults.DEFAULT_AUTOSAVE_INTERVAL_SECONDS,
     val telemetryEnabled: Boolean = false
 )
 
@@ -72,11 +73,11 @@ enum class VectorBackend {
 
 @Serializable
 data class RagSettings(
-    val vectorBackend: VectorBackend = VectorBackend.SQLITE_BRUTE_FORCE,
-    val llamaBaseUrl: String = "http://localhost:11434",
-    val embeddingBaseUrl: String = "http://localhost:11434",
+    val vectorBackend: VectorBackend = org.krypton.krypton.config.RagDefaults.DEFAULT_VECTOR_BACKEND,
+    val llamaBaseUrl: String = org.krypton.krypton.config.RagDefaults.DEFAULT_LLAMA_BASE_URL,
+    val embeddingBaseUrl: String = org.krypton.krypton.config.RagDefaults.DEFAULT_EMBEDDING_BASE_URL,
     val ragEnabled: Boolean = true,
-    val topK: Int = 5
+    val topK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_TOP_K
 )
 
 @Serializable
