@@ -6,7 +6,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 
 /**
- * Helper function to parse hex color string to Color
+ * Alpha values for color overlays and selections.
+ */
+private object ColorAlpha {
+    const val PRIMARY_CONTAINER = 0.2f
+    const val SELECTION_ACCENT = 0.3f
+    const val BLOCKQUOTE_BORDER = 0.6f
+}
+
+/**
+ * Helper function to parse hex color string to Color.
  */
 fun parseHexColor(hex: String): Color {
     val cleanHex = hex.removePrefix("#").trim()
@@ -15,10 +24,10 @@ fun parseHexColor(hex: String): Color {
         when (cleanHex.length) {
             6 -> Color(colorInt or 0xFF000000.toInt())
             8 -> Color(colorInt)
-            else -> CatppuccinMochaColors.Base // Default fallback
+            else -> CatppuccinMochaColors.Base
         }
     } catch (e: Exception) {
-        CatppuccinMochaColors.Base // Default fallback on error
+        CatppuccinMochaColors.Base
     }
 }
 
@@ -93,7 +102,7 @@ class AppThemeColors(private val settings: Settings? = null) {
             ?: CatppuccinMochaColors.Surface1
     
     val selectionAccentColor: Color
-        get() = accentColor.copy(alpha = 0.3f)
+        get() = accentColor.copy(alpha = ColorAlpha.SELECTION_ACCENT)
     
     // Markdown-specific colors
     val codeBlockBackgroundColor: Color
@@ -121,7 +130,7 @@ class AppThemeColors(private val settings: Settings? = null) {
             ?: CatppuccinMochaColors.Mantle
     
     val blockquoteBorderColor: Color
-        get() = accentColor.copy(alpha = 0.6f)
+        get() = accentColor.copy(alpha = ColorAlpha.BLOCKQUOTE_BORDER)
 }
 
 /**
@@ -129,14 +138,14 @@ class AppThemeColors(private val settings: Settings? = null) {
  * These map directly to Catppuccin Mocha colors for a VS Code-like appearance.
  */
 data class AppColors(
-    val sidebarBackground: Color = CatppuccinMochaColors.Crust, // Sidebars use Crust
-    val sidebarActiveItem: Color = CatppuccinMochaColors.Blue.copy(alpha = 0.3f),
+    val sidebarBackground: Color = CatppuccinMochaColors.Crust,
+    val sidebarActiveItem: Color = CatppuccinMochaColors.Blue.copy(alpha = ColorAlpha.SELECTION_ACCENT),
     val sidebarBorder: Color = CatppuccinMochaColors.Surface2,
     val treeHighlight: Color = CatppuccinMochaColors.Surface1,
     val statusBarBackground: Color = CatppuccinMochaColors.Crust,
-    val ribbonBackground: Color = CatppuccinMochaColors.Base, // Ribbon uses Base (matches overall background)
+    val ribbonBackground: Color = CatppuccinMochaColors.Base,
     val hoverBackground: Color = CatppuccinMochaColors.Surface0,
-    val editorBackground: Color = CatppuccinMochaColors.Mantle // Editor uses Mantle
+    val editorBackground: Color = CatppuccinMochaColors.Mantle
 )
 
 /**
@@ -151,14 +160,14 @@ val LocalAppColors = compositionLocalOf { AppColors() }
 fun rememberAppColors(themeColors: AppThemeColors): AppColors {
     return remember(themeColors) {
         AppColors(
-            sidebarBackground = CatppuccinMochaColors.Crust, // Sidebars use Crust
+            sidebarBackground = CatppuccinMochaColors.Crust,
             sidebarActiveItem = themeColors.selectionAccentColor,
             sidebarBorder = themeColors.borderColor,
             treeHighlight = themeColors.selectionColor,
             statusBarBackground = CatppuccinMochaColors.Crust,
-            ribbonBackground = CatppuccinMochaColors.Base, // Ribbon uses Base (matches overall background)
+            ribbonBackground = CatppuccinMochaColors.Base,
             hoverBackground = themeColors.elevatedSurfaceColor,
-            editorBackground = CatppuccinMochaColors.Mantle // Editor always uses Mantle
+            editorBackground = CatppuccinMochaColors.Mantle
         )
     }
 }

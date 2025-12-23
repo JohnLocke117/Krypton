@@ -141,6 +141,27 @@ object ObsidianTheme {
     val HeadingColorSecondary: Color get() = defaultTheme.HeadingColorSecondary
 }
 
+/**
+ * Alpha value for primary container overlay.
+ */
+private const val PRIMARY_CONTAINER_ALPHA = 0.2f
+
+/**
+ * Light theme color constants (not using Catppuccin as it's a dark theme).
+ */
+private object LightThemeColors {
+    val Background = Color(0xFFFAFAFA)
+    val OnBackground = Color(0xFF1A1A1A)
+    val Surface = Color(0xFFFFFFFF)
+    val SurfaceVariant = Color(0xFFF5F5F5)
+    val OnSurfaceVariant = Color(0xFF4A4A4A)
+    val SurfaceContainerHighest = Color(0xFFE0E0E0)
+    val Outline = Color(0xFFCCCCCC)
+    val OutlineVariant = Color(0xFFE5E5E5)
+    val Error = Color(0xFFBA1A1A)
+    val OnError = Color.White
+}
+
 fun buildColorSchemeFromSettings(settings: Settings): ColorScheme {
     val themeColors = AppThemeColors(settings)
     val theme = settings.editor.theme.lowercase()
@@ -149,37 +170,37 @@ fun buildColorSchemeFromSettings(settings: Settings): ColorScheme {
         theme == "light" -> lightColorScheme(
             primary = themeColors.accentColor,
             onPrimary = CatppuccinMochaColors.Base,
-            primaryContainer = themeColors.accentColor.copy(alpha = 0.2f),
+            primaryContainer = themeColors.accentColor.copy(alpha = PRIMARY_CONTAINER_ALPHA),
             onPrimaryContainer = themeColors.accentColor,
             
             secondary = themeColors.accentColor,
             onSecondary = CatppuccinMochaColors.Base,
             
-            background = Color(0xFFFAFAFA),
-            onBackground = Color(0xFF1A1A1A),
+            background = LightThemeColors.Background,
+            onBackground = LightThemeColors.OnBackground,
             
-            surface = Color(0xFFFFFFFF),
-            onSurface = Color(0xFF1A1A1A),
-            surfaceVariant = Color(0xFFF5F5F5),
-            onSurfaceVariant = Color(0xFF4A4A4A),
-            surfaceContainerHighest = Color(0xFFE0E0E0),
+            surface = LightThemeColors.Surface,
+            onSurface = LightThemeColors.OnBackground,
+            surfaceVariant = LightThemeColors.SurfaceVariant,
+            onSurfaceVariant = LightThemeColors.OnSurfaceVariant,
+            surfaceContainerHighest = LightThemeColors.SurfaceContainerHighest,
             
-            outline = Color(0xFFCCCCCC),
-            outlineVariant = Color(0xFFE5E5E5),
+            outline = LightThemeColors.Outline,
+            outlineVariant = LightThemeColors.OutlineVariant,
             
-            error = Color(0xFFBA1A1A),
-            onError = Color.White
+            error = LightThemeColors.Error,
+            onError = LightThemeColors.OnError
         )
         else -> darkColorScheme(
             primary = themeColors.accentColor,
             onPrimary = CatppuccinMochaColors.Base,
-            primaryContainer = themeColors.accentColor.copy(alpha = 0.2f),
+            primaryContainer = themeColors.accentColor.copy(alpha = PRIMARY_CONTAINER_ALPHA),
             onPrimaryContainer = themeColors.accentColor,
             
             secondary = themeColors.accentColor,
             onSecondary = CatppuccinMochaColors.Base,
             
-            background = CatppuccinMochaColors.Base, // Overall background always uses Base
+            background = CatppuccinMochaColors.Base,
             onBackground = themeColors.textPrimaryColor,
             
             surface = themeColors.surfaceColor,
