@@ -41,6 +41,13 @@ object AppDimens {
     /** Height of separator/divider between sections (1px) */
     const val SidebarSeparatorHeight = 1
     
+    // Sidebar section bars
+    /** Fixed height for top and bottom sidebar bars (40px) */
+    const val SidebarSectionHeight = 40
+    
+    /** Vertical spacing between items within sidebar bars (8px) */
+    const val SidebarItemSpacing = 8
+    
     // Ribbon spacing
     /** Ribbon unit size (32px) - represents one vertical slot, equals icon size (24px) + top padding (4px) + bottom padding (4px) */
     const val RibbonUnit = 32

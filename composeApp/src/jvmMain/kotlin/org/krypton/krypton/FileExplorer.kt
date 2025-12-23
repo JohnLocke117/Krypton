@@ -7,8 +7,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +25,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,228 +125,119 @@ fun FileExplorerContent(
         }
     }
 
+    // Click-outside detection for canceling editing
+    val isEditing = state.editingMode != null
+    
     Column(
         modifier = modifier
             .fillMaxSize()
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(ObsidianTheme.PanelPadding)
-        ) {
-            // Open Folder Button and Recent Folders - only show when no folder is open
-            if (state.currentDirectory == null) {
-                Button(
-                    onClick = { onFolderSelected(null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = theme.Accent
-                    )
-                ) {
-                    Text(
-                        text = "Open Folder",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = theme.TextPrimary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                
-                // Recent Folders List
-                if (recentFolders.isNotEmpty()) {
-                    Text(
-                        text = "Recent Folders",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = theme.TextSecondary,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    
-                    recentFolders.forEach { folderPath ->
-                        RecentFolderButton(
-                            path = folderPath,
-                            theme = theme,
-                            onClick = {
-                                try {
-                                    val path = java.nio.file.Paths.get(folderPath)
-                                    val file = path.toFile()
-                                    if (file.exists() && file.isDirectory) {
-                                        onRecentFolderSelected(path)
-                                    }
-                                } catch (e: Exception) {
-                                    // Invalid path, skip
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                    }
-                    
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-            }
-
-            // Icon buttons row (New File and Search)
-            if (state.currentDirectory != null) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // New File icon button
-                    PanelIconButton(
-                        icon = Res.drawable.file_copy,
-                        contentDescription = "New File",
-                        onClick = { state.startCreatingNewFile() },
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    // Search icon button
-                    PanelIconButton(
-                        icon = Res.drawable.search,
-                        contentDescription = "Search",
-                        onClick = { state.updateActiveRibbonButton(RibbonButton.Search) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // New File Input (when creating)
-            if (state.isCreatingNewFile) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
+            .then(
+                if (isEditing) {
+                    Modifier.clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
                     ) {
-                        OutlinedTextField(
-                            value = state.newFileName,
-                            onValueChange = { state.updateNewFileName(it) },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { 
-                                Text(
-                                    "File name...",
-                                    style = MaterialTheme.typography.bodyMedium
-                                ) 
-                            },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.small,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            TextButton(
-                                onClick = { state.cancelCreatingNewFile() }
-                            ) {
-                                Text("Cancel")
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (state.newFileName.isNotBlank()) {
-                                        state.createNewFile()
-                                        // Rebuild tree after creating file
-                                        state.currentDirectory?.let { dir ->
-                                            fileTree = FileTreeBuilder.buildTree(dir)
-                                            treeVersion++ // Trigger recomposition
-                                        }
-                                    }
-                                },
-                                enabled = state.newFileName.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Text("Create")
-                            }
-                        }
+                        // Cancel editing when clicking on empty space
+                        state.cancelEditing()
                     }
+                } else {
+                    Modifier
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // Separator between action buttons and file tree
-            if (fileTree != null) {
-                Divider(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(theme.SidebarSeparatorHeight),
-                    color = theme.Border
+            )
+            .padding(ObsidianTheme.PanelPadding)
+            .verticalScroll(rememberScrollState())
+    ) {
+        // Open Folder Button and Recent Folders - only show when no folder is open
+        if (state.currentDirectory == null) {
+            Button(
+                onClick = { onFolderSelected(null) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = theme.Accent
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+            ) {
+                Text(
+                    text = "Open Folder",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = theme.TextPrimary
+                )
             }
 
-            // File Tree
-            if (fileTree != null) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    key(treeVersion) { // Force recomposition when tree changes
-                        TreeItem(
-                            node = fileTree!!,
-                            depth = 0,
-                            activeTabPaths = state.documents.mapNotNull { it.path }.toSet(),
-                            state = state,
-                            theme = theme,
-                            onFileClick = { path ->
-                                if (FileManager.isFile(path)) {
-                                    AppLogger.action("FileExplorer", "FileOpened", path.toString())
-                                    state.openTab(path)
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Recent Folders List
+            if (recentFolders.isNotEmpty()) {
+                Text(
+                    text = "Recent Folders",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = theme.TextSecondary,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                recentFolders.forEach { folderPath ->
+                    RecentFolderButton(
+                        path = folderPath,
+                        theme = theme,
+                        onClick = {
+                            try {
+                                val path = java.nio.file.Paths.get(folderPath)
+                                val file = path.toFile()
+                                if (file.exists() && file.isDirectory) {
+                                    onRecentFolderSelected(path)
                                 }
-                            },
-                            onFolderToggle = { node ->
-                                node.toggleExpanded()
-                                treeVersion++ // Trigger recomposition
-                            },
-                            onTreeRefresh = { refreshTree() }
-                        )
-                    }
-                }
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val colorScheme = MaterialTheme.colorScheme
-                    Text(
-                        text = "No folder selected\n\nClick 'Open Folder' to browse",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .padding(16.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            } catch (e: Exception) {
+                                // Invalid path, skip
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
+                
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
 
-        // Bottom Strip with Current Folder Name and Settings - only show when folder is open
-        if (state.currentDirectory != null) {
-            FolderNameBar(
-                folderName = state.currentDirectory!!.fileName.toString(),
-                onFolderClick = { /* Will be handled by FolderMenu */ },
-                onSettingsClick = { state.openSettingsDialog() },
-                onFolderSelected = onFolderSelected,
-                onCloseFolder = { state.closeFolder() },
-                theme = theme,
-                modifier = Modifier.fillMaxWidth()
-            )
+        // File Tree
+        if (fileTree != null) {
+            key(treeVersion) { // Force recomposition when tree changes
+                TreeItem(
+                    node = fileTree!!,
+                    depth = 0,
+                    activeTabPaths = setOfNotNull(
+                        state.documents.getOrNull(state.activeTabIndex)?.path
+                    ),
+                    state = state,
+                    theme = theme,
+                    onFileClick = { path ->
+                        if (FileManager.isFile(path)) {
+                            AppLogger.action("FileExplorer", "FileOpened", path.toString())
+                            state.openTab(path)
+                        }
+                    },
+                    onFolderToggle = { node ->
+                        node.toggleExpanded()
+                        treeVersion++ // Trigger recomposition
+                    },
+                    onTreeRefresh = { refreshTree() }
+                )
+            }
+        } else if (state.currentDirectory == null) {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                val colorScheme = MaterialTheme.colorScheme
+                Text(
+                    text = "No folder selected\n\nClick 'Open Folder' to browse",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .padding(16.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -355,6 +257,12 @@ fun TreeItem(
 ) {
     val isSelected = activeTabPaths.contains(node.path)
     val indent = theme.SidebarIndentPerLevel * depth
+    
+    // Check if this item is being edited
+    val isRenaming = state.editingMode == FileTreeEditMode.Renaming && state.editingItemPath == node.path
+    val isCreatingInThisParent = node.isDirectory && 
+        state.editingParentPath == node.path && 
+        (state.editingMode == FileTreeEditMode.CreatingFile || state.editingMode == FileTreeEditMode.CreatingFolder)
     
     // Determine parent path for "New" operations
     val parentPath = if (node.isDirectory) {
@@ -384,22 +292,42 @@ fun TreeItem(
         ) {
             val appColors = LocalAppColors.current
             val colorScheme = MaterialTheme.colorScheme
+            val interactionSource = remember { MutableInteractionSource() }
+            val isHovered by interactionSource.collectIsHoveredAsState()
+            
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(theme.SidebarItemHeight)
-                    .background(
-                        if (isSelected) {
-                            appColors.sidebarActiveItem
+                    .hoverable(interactionSource = interactionSource)
+                    .clip(
+                        if (isSelected || isHovered || isRenaming) RoundedCornerShape(6.dp) else RoundedCornerShape(0.dp)
+                    )
+                    .then(
+                        if (isRenaming) {
+                            Modifier.border(
+                                width = 1.dp,
+                                color = colorScheme.primary,
+                                shape = RoundedCornerShape(6.dp)
+                            )
                         } else {
-                            androidx.compose.ui.graphics.Color.Transparent
+                            Modifier
                         }
                     )
-                    .clickable {
-                        if (node.isDirectory) {
-                            onFolderToggle(node)
-                        } else {
-                            onFileClick(node.path)
+                    .background(
+                        when {
+                            isSelected -> appColors.sidebarActiveItem
+                            isHovered -> appColors.hoverBackground
+                            else -> androidx.compose.ui.graphics.Color.Transparent
+                        }
+                    )
+                    .clickable(enabled = !isRenaming) {
+                        if (!isRenaming) {
+                            if (node.isDirectory) {
+                                onFolderToggle(node)
+                            } else {
+                                onFileClick(node.path)
+                            }
                         }
                     }
                     .padding(
@@ -411,8 +339,7 @@ fun TreeItem(
             ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(theme.SidebarIconTextSpacing)
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 // Chevron for folders
                 if (node.isDirectory) {
@@ -423,6 +350,8 @@ fun TreeItem(
                         contentDescription = if (node.isExpanded) "Expanded" else "Collapsed",
                         modifier = Modifier.size(18.dp)
                     )
+                    // Reduced spacing between chevron and folder icon (2dp instead of 6dp)
+                    Spacer(modifier = Modifier.width(2.dp))
                 } else {
                     Spacer(modifier = Modifier.width(18.dp))
                 }
@@ -439,71 +368,67 @@ fun TreeItem(
                     contentDescription = if (node.isDirectory) "Folder" else "File",
                     modifier = Modifier.size(18.dp)
                 )
+                
+                // Spacing between icon and text
+                Spacer(modifier = Modifier.width(theme.SidebarIconTextSpacing))
 
-                // Name
-                val colorScheme = MaterialTheme.colorScheme
-                Text(
-                    text = node.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isSelected) {
-                        colorScheme.primary
-                    } else {
-                        colorScheme.onSurface
-                    },
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Name - show TextField if renaming, otherwise Text
+                if (isRenaming) {
+                    InlineTreeTextField(
+                        initialName = node.name,
+                        onConfirm = { newName ->
+                            state.confirmRename(node.path, newName)
+                            onTreeRefresh()
+                        },
+                        onCancel = {
+                            state.cancelEditing()
+                        },
+                        isSelected = isSelected,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    val colorScheme = MaterialTheme.colorScheme
+                    Text(
+                        text = node.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isSelected) {
+                            androidx.compose.ui.graphics.Color.White
+                        } else {
+                            colorScheme.onSurface
+                        },
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             }
-        }
-        
-        // Inline editor for create/rename
-        if (state.renamingPath == node.path) {
-            InlineNameEditor(
-                initialName = state.renamingName,
-                onConfirm = { newName: String ->
-                    state.confirmRename(node.path, newName)
-                    onTreeRefresh()
-                },
-                onCancel = {
-                    state.cancelRenaming()
-                },
-                indent = indent + theme.SidebarChevronWidth + theme.SidebarIconTextSpacing,
-                theme = theme
-            )
-        } else if (state.creatingNewFileParentPath == node.path && node.isDirectory) {
-            InlineNameEditor(
-                initialName = "",
-                onConfirm = { name: String ->
-                    state.confirmCreateFile(name, node.path)
-                    onTreeRefresh()
-                },
-                onCancel = {
-                    state.cancelCreatingNewFile()
-                },
-                indent = indent + theme.SidebarChevronWidth + theme.SidebarIconTextSpacing,
-                theme = theme,
-                placeholder = "File name..."
-            )
-        } else if (state.creatingNewFolderParentPath == node.path && node.isDirectory) {
-            InlineNameEditor(
-                initialName = "",
-                onConfirm = { name: String ->
-                    state.confirmCreateFolder(name, node.path)
-                    onTreeRefresh()
-                },
-                onCancel = {
-                    state.cancelCreatingNewFolder()
-                },
-                indent = indent + theme.SidebarChevronWidth + theme.SidebarIconTextSpacing,
-                theme = theme,
-                placeholder = "Folder name..."
-            )
         }
 
             // Children (if expanded)
         if (node.isDirectory && node.isExpanded) {
+            // Show temporary create row if creating in this parent
+            if (isCreatingInThisParent) {
+                val isCreatingFile = state.editingMode == FileTreeEditMode.CreatingFile
+                TemporaryCreateRow(
+                    isFile = isCreatingFile,
+                    depth = depth + 1,
+                    indent = indent,
+                    theme = theme,
+                    onConfirm = { name ->
+                        if (isCreatingFile) {
+                            state.confirmCreateFile(name, node.path)
+                        } else {
+                            state.confirmCreateFolder(name, node.path)
+                        }
+                        onTreeRefresh()
+                    },
+                    onCancel = {
+                        state.cancelEditing()
+                    }
+                )
+            }
+            
             node.children.forEach { child ->
                 TreeItem(
                     node = child,
@@ -565,32 +490,40 @@ private fun RecentFolderButton(
 }
 
 @Composable
-private fun InlineNameEditor(
+private fun InlineTreeTextField(
     initialName: String,
     onConfirm: (String) -> Unit,
     onCancel: () -> Unit,
-    indent: androidx.compose.ui.unit.Dp,
-    theme: ObsidianThemeValues,
-    placeholder: String = "Name..."
+    placeholder: String = "Name...",
+    isSelected: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     var name by remember { mutableStateOf(initialName) }
     val focusRequester = remember { FocusRequester() }
+    val colorScheme = MaterialTheme.colorScheme
+    
+    // Use white text if selected, otherwise use onSurface
+    val textColor = if (isSelected) {
+        Color.White
+    } else {
+        colorScheme.onSurface
+    }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
+        // Select all text for easy replacement
+        name = initialName
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(
-                start = indent + theme.SidebarHorizontalPadding,
-                end = theme.SidebarHorizontalPadding,
-                top = theme.SidebarVerticalPadding,
-                bottom = theme.SidebarVerticalPadding
+    Box(modifier = modifier) {
+        if (name.isEmpty()) {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodyMedium,
+                color = textColor.copy(alpha = 0.6f)
             )
-    ) {
-        OutlinedTextField(
+        }
+        BasicTextField(
             value = name,
             onValueChange = { name = it },
             modifier = Modifier
@@ -611,14 +544,81 @@ private fun InlineNameEditor(
                         else -> false
                     }
                 },
-            placeholder = { Text(placeholder) },
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
             singleLine = true,
-            shape = MaterialTheme.shapes.small,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(textColor),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (name.isNotBlank()) {
+                        onConfirm(name)
+                    }
+                }
             )
         )
+    }
+}
+
+@Composable
+private fun TemporaryCreateRow(
+    isFile: Boolean,
+    depth: Int,
+    indent: androidx.compose.ui.unit.Dp,
+    theme: ObsidianThemeValues,
+    onConfirm: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
+    val childIndent = theme.SidebarIndentPerLevel * depth
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(theme.SidebarItemHeight)
+            .clip(RoundedCornerShape(6.dp))
+            .border(
+                width = 1.dp,
+                color = colorScheme.primary,
+                shape = RoundedCornerShape(6.dp)
+            )
+            .background(Color.Transparent)
+            .padding(
+                start = childIndent + theme.SidebarHorizontalPadding,
+                end = theme.SidebarHorizontalPadding,
+                top = theme.SidebarVerticalPadding,
+                bottom = theme.SidebarVerticalPadding
+            )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Spacer for chevron (folders have chevron, files don't, but we show icon)
+            Spacer(modifier = Modifier.width(18.dp))
+            
+            // Icon
+            Image(
+                painter = painterResource(
+                    if (isFile) Res.drawable.description else Res.drawable.folder
+                ),
+                contentDescription = if (isFile) "File" else "Folder",
+                modifier = Modifier.size(18.dp)
+            )
+            
+            // Spacing between icon and text
+            Spacer(modifier = Modifier.width(theme.SidebarIconTextSpacing))
+            
+            // TextField for name input
+            InlineTreeTextField(
+                initialName = "",
+                onConfirm = onConfirm,
+                onCancel = onCancel,
+                placeholder = if (isFile) "File name..." else "Folder name...",
+                isSelected = false,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 

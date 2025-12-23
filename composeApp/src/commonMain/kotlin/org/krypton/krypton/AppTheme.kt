@@ -144,7 +144,7 @@ data class AppColors(
     val treeHighlight: Color = CatppuccinMochaColors.Surface1,
     val statusBarBackground: Color = CatppuccinMochaColors.Crust,
     val ribbonBackground: Color = CatppuccinMochaColors.Base,
-    val hoverBackground: Color = CatppuccinMochaColors.Surface0,
+    val hoverBackground: Color = CatppuccinMochaColors.Surface1,
     val editorBackground: Color = CatppuccinMochaColors.Mantle
 )
 

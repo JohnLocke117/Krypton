@@ -74,6 +74,8 @@ class ObsidianThemeValues(private val settings: Settings) {
     val SidebarIconTextSpacing: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarIconTextSpacing.dp
     val SidebarChevronWidth: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarChevronWidth.dp
     val SidebarSeparatorHeight: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarSeparatorHeight.dp
+    val SidebarSectionHeight: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarSectionHeight.dp
+    val SidebarItemSpacing: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarItemSpacing.dp
     
     // Markdown-specific colors
     val CodeBlockBackground: Color get() = themeColors.codeBlockBackgroundColor
@@ -130,6 +132,8 @@ object ObsidianTheme {
     val SidebarIconTextSpacing: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarIconTextSpacing
     val SidebarChevronWidth: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarChevronWidth
     val SidebarSeparatorHeight: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarSeparatorHeight
+    val SidebarSectionHeight: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarSectionHeight
+    val SidebarItemSpacing: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarItemSpacing
     val CodeBlockBackground: Color get() = defaultTheme.CodeBlockBackground
     val CodeBlockBorder: Color get() = defaultTheme.CodeBlockBorder
     val CodeSpanBackground: Color get() = defaultTheme.CodeSpanBackground

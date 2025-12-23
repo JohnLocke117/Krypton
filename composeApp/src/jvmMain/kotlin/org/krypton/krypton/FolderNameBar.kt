@@ -2,7 +2,11 @@ package org.krypton.krypton
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -47,11 +51,26 @@ fun FolderNameBar(
         ) {
             // Folder name with icon - clickable (anchor for menu)
             Box(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 8.dp)
             ) {
+                val interactionSource = remember { MutableInteractionSource() }
+                val isHovered by interactionSource.collectIsHoveredAsState()
+                
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .hoverable(interactionSource = interactionSource)
+                        .clip(RoundedCornerShape(4.dp))
+                        .then(
+                            if (isHovered) {
+                                Modifier.border(1.dp, theme.BorderVariant, RoundedCornerShape(4.dp))
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                         .clickable(onClick = { showMenu = true }),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)

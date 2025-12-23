@@ -23,6 +23,10 @@ enum class ViewMode {
     LivePreview, Compiled
 }
 
+enum class FileTreeEditMode {
+    CreatingFile, CreatingFolder, Renaming
+}
+
 data class MarkdownDocument(
     val path: Path?,
     val text: String,  // Raw Markdown source
@@ -77,6 +81,16 @@ class EditorState(
         private set
 
     var renamingName by mutableStateOf("")
+        private set
+
+    // New inline editing state
+    var editingMode by mutableStateOf<FileTreeEditMode?>(null)
+        private set
+
+    var editingItemPath by mutableStateOf<Path?>(null)
+        private set
+
+    var editingParentPath by mutableStateOf<Path?>(null)
         private set
 
     var deletingPath by mutableStateOf<Path?>(null)
@@ -574,6 +588,10 @@ class EditorState(
 
     // Context menu operations
     fun startCreatingNewFile(parentPath: Path) {
+        editingMode = FileTreeEditMode.CreatingFile
+        editingParentPath = parentPath
+        editingItemPath = null
+        // Keep legacy state for backward compatibility during transition
         isCreatingNewFile = true
         newFileName = ""
         creatingNewFileParentPath = parentPath
@@ -583,6 +601,10 @@ class EditorState(
     }
 
     fun startCreatingNewFolder(parentPath: Path) {
+        editingMode = FileTreeEditMode.CreatingFolder
+        editingParentPath = parentPath
+        editingItemPath = null
+        // Keep legacy state for backward compatibility during transition
         isCreatingNewFolder = true
         newFolderName = ""
         creatingNewFolderParentPath = parentPath
@@ -592,6 +614,10 @@ class EditorState(
     }
 
     fun startRenamingItem(path: Path) {
+        editingMode = FileTreeEditMode.Renaming
+        editingItemPath = path
+        editingParentPath = null
+        // Keep legacy state for backward compatibility during transition
         renamingPath = path
         renamingName = path.fileName.toString()
         // Cancel any other operations
@@ -599,15 +625,27 @@ class EditorState(
         isCreatingNewFolder = false
     }
 
-    fun cancelRenaming() {
+    fun cancelEditing() {
+        editingMode = null
+        editingItemPath = null
+        editingParentPath = null
+        // Clear legacy state
         renamingPath = null
         renamingName = ""
-    }
-
-    fun cancelCreatingNewFolder() {
+        isCreatingNewFile = false
+        newFileName = ""
+        creatingNewFileParentPath = null
         isCreatingNewFolder = false
         newFolderName = ""
         creatingNewFolderParentPath = null
+    }
+
+    fun cancelRenaming() {
+        cancelEditing()
+    }
+
+    fun cancelCreatingNewFolder() {
+        cancelEditing()
     }
 
     fun confirmCreateFile(name: String, parentPath: Path) {
@@ -621,9 +659,7 @@ class EditorState(
                 AppLogger.e("FileExplorer", "Failed to create file: $newFile")
             }
         }
-        isCreatingNewFile = false
-        newFileName = ""
-        creatingNewFileParentPath = null
+        cancelEditing()
     }
 
     fun confirmCreateFolder(name: String, parentPath: Path) {
@@ -636,9 +672,7 @@ class EditorState(
                 AppLogger.e("FileExplorer", "Failed to create folder: $newFolder")
             }
         }
-        isCreatingNewFolder = false
-        newFolderName = ""
-        creatingNewFolderParentPath = null
+        cancelEditing()
     }
 
     fun confirmRename(oldPath: Path, newName: String) {
@@ -662,8 +696,7 @@ class EditorState(
                 }
             }
         }
-        renamingPath = null
-        renamingName = ""
+        cancelEditing()
     }
 
     fun deleteItem(path: Path) {
