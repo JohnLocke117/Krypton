@@ -51,7 +51,7 @@ fun ChatPanel(
         // Header bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = theme.SurfaceContainer
+            color = org.krypton.krypton.CatppuccinMochaColors.Crust
         ) {
             Row(
                 modifier = Modifier
@@ -182,7 +182,7 @@ fun ChatPanel(
         // Input area
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = theme.SurfaceContainer
+            color = org.krypton.krypton.CatppuccinMochaColors.Crust
         ) {
             Column(
                 modifier = Modifier
@@ -286,7 +286,7 @@ private fun ChatMessageItem(
                     color = if (isUser) {
                         theme.Accent.copy(alpha = 0.2f)
                     } else {
-                        theme.SurfaceContainer
+                        org.krypton.krypton.CatppuccinMochaColors.Crust
                     },
                     shape = RoundedCornerShape(12.dp)
                 )

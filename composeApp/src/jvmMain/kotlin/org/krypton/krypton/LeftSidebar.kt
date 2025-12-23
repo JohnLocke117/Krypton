@@ -37,8 +37,7 @@ fun LeftSidebar(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(animatedWidth)
-                .background(appColors.sidebarBackground)
-                .border(ObsidianTheme.PanelBorderWidth, appColors.sidebarBorder, RoundedCornerShape(0.dp))
+                .background(CatppuccinMochaColors.Crust)
         ) {
             when (state.activeRibbonButton) {
                 RibbonButton.Files -> {

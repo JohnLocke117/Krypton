@@ -63,13 +63,11 @@ fun RightSidebar(
         visible = state.rightSidebarVisible,
         modifier = modifier.width(animatedWidth)
     ) {
-        Surface(
+        Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(animatedWidth)
-                .background(appColors.sidebarBackground)
-                .border(theme.PanelBorderWidth, appColors.sidebarBorder, RoundedCornerShape(0.dp)),
-            color = appColors.sidebarBackground
+                .background(CatppuccinMochaColors.Crust)
         ) {
             when (state.activeRightPanel) {
                 RightPanelType.Outline -> {
@@ -133,7 +131,7 @@ private fun OutlinePanel(
         // Header bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = appColors.sidebarBackground // Crust for sidebar header
+            color = CatppuccinMochaColors.Crust
         ) {
             Row(
                 modifier = Modifier

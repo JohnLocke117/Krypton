@@ -29,7 +29,7 @@ fun ResizableSplitter(
                 if (isDragging) {
                     theme.Accent.copy(alpha = 0.5f)
                 } else {
-                    Color.Transparent
+                    theme.BorderVariant.copy(alpha = 0.3f)
                 }
             )
             .pointerInput(Unit) {

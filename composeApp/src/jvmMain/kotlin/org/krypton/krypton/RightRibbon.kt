@@ -31,7 +31,7 @@ fun RightRibbon(
         modifier = modifier
             .fillMaxHeight()
             .width(ObsidianTheme.RibbonWidth)
-            .background(appColors.ribbonBackground),
+            .background(CatppuccinMochaColors.Base),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

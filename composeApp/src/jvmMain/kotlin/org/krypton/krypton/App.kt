@@ -1,10 +1,13 @@
 package org.krypton.krypton
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -134,7 +137,7 @@ fun App() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(CatppuccinMochaColors.Base)
                     .onKeyEvent { handleKeyboardShortcut(it, state) }
             ) {
                 AppContent(
@@ -178,85 +181,100 @@ private fun AppContent(
             modifier = Modifier.fillMaxHeight()
         )
 
-        // Left Sidebar
-        LeftSidebar(
-            state = state,
-            onFolderSelected = {
-                openFolderDialog { selectedPath ->
-                    handleFolderSelection(selectedPath, state, settingsRepository)
-                }
-            },
-            theme = theme,
-            settingsRepository = settingsRepository,
-            modifier = Modifier.fillMaxHeight()
-        )
-
-        // Left Resizable Splitter
-        if (state.leftSidebarVisible) {
-            ResizableSplitter(
-                onDrag = { deltaPx ->
-                    val deltaDp = with(density) { deltaPx.toDp() }
-                    val newWidth = state.leftSidebarWidth + deltaDp
-                    state.updateLeftSidebarWidth(
-                        newWidth,
-                        minWidth = settings.ui.sidebarMinWidth.dp,
-                        maxWidth = settings.ui.sidebarMaxWidth.dp
-                    )
-                },
-                theme = theme
-            )
-        }
-
-        // Center Editor Area
-        val appColors = LocalAppColors.current
-        Column(
+        // Workspace Card - wraps the three panes
+        Surface(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .background(appColors.editorBackground) // Mantle for editor area
+                .padding(12.dp)
+                .border(1.dp, theme.BorderVariant, RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.Transparent,
+            tonalElevation = 2.dp
         ) {
-            TabBar(
-                state = state,
-                settings = settings,
-                theme = theme,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Row(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Left Sidebar
+                LeftSidebar(
+                    state = state,
+                    onFolderSelected = {
+                        openFolderDialog { selectedPath ->
+                            handleFolderSelection(selectedPath, state, settingsRepository)
+                        }
+                    },
+                    theme = theme,
+                    settingsRepository = settingsRepository,
+                    modifier = Modifier.fillMaxHeight()
+                )
 
-            TextEditor(
-                state = state,
-                settingsRepository = settingsRepository,
-                onOpenFolder = {
-                    openFolderDialog { selectedPath ->
-                        handleFolderSelection(selectedPath, state, settingsRepository)
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Right Resizable Splitter
-        if (state.rightSidebarVisible) {
-            ResizableSplitter(
-                onDrag = { deltaPx ->
-                    val deltaDp = with(density) { deltaPx.toDp() }
-                    val newWidth = state.rightSidebarWidth - deltaDp
-                    state.updateRightSidebarWidth(
-                        newWidth,
-                        minWidth = settings.ui.sidebarMinWidth.dp,
-                        maxWidth = settings.ui.sidebarMaxWidth.dp
+                // Left Resizable Splitter
+                if (state.leftSidebarVisible) {
+                    ResizableSplitter(
+                        onDrag = { deltaPx ->
+                            val deltaDp = with(density) { deltaPx.toDp() }
+                            val newWidth = state.leftSidebarWidth + deltaDp
+                            state.updateLeftSidebarWidth(
+                                newWidth,
+                                minWidth = settings.ui.sidebarMinWidth.dp,
+                                maxWidth = settings.ui.sidebarMaxWidth.dp
+                            )
+                        },
+                        theme = theme
                     )
-                },
-                theme = theme
-            )
-        }
+                }
 
-        // Right Sidebar
-        RightSidebar(
-            state = state,
-            theme = theme,
-            chatService = chatService,
-            modifier = Modifier.fillMaxHeight()
-        )
+                // Center Editor Area
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(CatppuccinMochaColors.Base)
+                ) {
+                    TabBar(
+                        state = state,
+                        settings = settings,
+                        theme = theme,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    TextEditor(
+                        state = state,
+                        settingsRepository = settingsRepository,
+                        onOpenFolder = {
+                            openFolderDialog { selectedPath ->
+                                handleFolderSelection(selectedPath, state, settingsRepository)
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Right Resizable Splitter
+                if (state.rightSidebarVisible) {
+                    ResizableSplitter(
+                        onDrag = { deltaPx ->
+                            val deltaDp = with(density) { deltaPx.toDp() }
+                            val newWidth = state.rightSidebarWidth - deltaDp
+                            state.updateRightSidebarWidth(
+                                newWidth,
+                                minWidth = settings.ui.sidebarMinWidth.dp,
+                                maxWidth = settings.ui.sidebarMaxWidth.dp
+                            )
+                        },
+                        theme = theme
+                    )
+                }
+
+                // Right Sidebar
+                RightSidebar(
+                    state = state,
+                    theme = theme,
+                    chatService = chatService,
+                    modifier = Modifier.fillMaxHeight()
+                )
+            }
+        }
 
         // Right Ribbon
         RightRibbon(
