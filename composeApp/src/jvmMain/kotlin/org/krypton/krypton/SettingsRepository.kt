@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.settings.SettingsPersistence as ISettingsPersistence
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,15 +13,17 @@ interface SettingsRepository {
     suspend fun reloadFromDisk()
 }
 
-class SettingsRepositoryImpl : SettingsRepository {
+class SettingsRepositoryImpl(
+    private val persistence: ISettingsPersistence = SettingsPersistence
+) : SettingsRepository {
     private val mutex = Mutex()
-    private val settingsPath = SettingsPersistence.getSettingsFilePath()
+    private val settingsPath = persistence.getSettingsFilePath()
     
     private val _settingsFlow = MutableStateFlow<Settings>(loadInitialSettings())
     override val settingsFlow: StateFlow<Settings> = _settingsFlow.asStateFlow()
 
     private fun loadInitialSettings(): Settings {
-        val loaded = SettingsPersistence.loadSettingsFromFile(settingsPath)
+        val loaded = persistence.loadSettingsFromFile(settingsPath)
         return if (loaded != null) {
             val migrated = migrateSettings(loaded)
             val validated = validateSettings(migrated)
@@ -33,7 +36,7 @@ class SettingsRepositoryImpl : SettingsRepository {
         } else {
             // File doesn't exist, create default settings
             val defaultSettings = Settings()
-            SettingsPersistence.saveSettingsToFile(settingsPath, defaultSettings)
+            persistence.saveSettingsToFile(settingsPath, defaultSettings)
             defaultSettings
         }
     }
@@ -47,7 +50,7 @@ class SettingsRepositoryImpl : SettingsRepository {
             
             if (validation.isValid) {
                 _settingsFlow.value = migrated
-                SettingsPersistence.saveSettingsToFile(settingsPath, migrated)
+                persistence.saveSettingsToFile(settingsPath, migrated)
             } else {
                 // Validation failed, don't update
                 throw IllegalArgumentException("Settings validation failed: ${validation.errors.joinToString()}")
@@ -57,7 +60,7 @@ class SettingsRepositoryImpl : SettingsRepository {
 
     override suspend fun reloadFromDisk() {
         mutex.withLock {
-            val loaded = SettingsPersistence.loadSettingsFromFile(settingsPath)
+            val loaded = persistence.loadSettingsFromFile(settingsPath)
             if (loaded != null) {
                 val migrated = migrateSettings(loaded)
                 val validation = validateSettings(migrated)

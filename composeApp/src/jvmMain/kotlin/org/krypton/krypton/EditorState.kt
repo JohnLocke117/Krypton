@@ -3,7 +3,6 @@ package org.krypton.krypton
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.nio.file.Path
 
@@ -31,13 +30,15 @@ data class MarkdownDocument(
 )
 
 @Composable
-fun rememberEditorState(): EditorState {
-    return remember {
-        EditorState()
+fun rememberEditorState(coroutineScope: CoroutineScope = rememberCoroutineScope()): EditorState {
+    return remember(coroutineScope) {
+        EditorState(coroutineScope)
     }
 }
 
-class EditorState {
+class EditorState(
+    private val coroutineScope: CoroutineScope
+) {
     // Optional callback for auto-indexing on save
     var onFileSaved: ((String) -> Unit)? = null
     
@@ -92,8 +93,8 @@ class EditorState {
             val updated = (listOf(pathString) + recent)
                 .distinct()
                 .take(5)
-            // Use a coroutine scope to call suspend function
-            CoroutineScope(Dispatchers.IO).launch {
+            // Use the provided coroutine scope to call suspend function
+            coroutineScope.launch {
                 settingsRepository.update { settings ->
                     settings.copy(
                         app = settings.app.copy(recentFolders = updated)

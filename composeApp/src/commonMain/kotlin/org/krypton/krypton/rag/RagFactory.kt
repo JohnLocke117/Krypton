@@ -11,8 +11,8 @@ data class RagConfig(
     val vectorBackend: VectorBackend,
     val llamaBaseUrl: String,
     val embeddingBaseUrl: String,
-    val llamaModel: String = "llama3.2:1b",
-    val embeddingModel: String = "nomic-embed-text:v1.5"
+    val llamaModel: String = RagConstants.DEFAULT_LLAMA_MODEL,
+    val embeddingModel: String = RagConstants.DEFAULT_EMBEDDING_MODEL
 )
 
 /**

@@ -1,11 +1,12 @@
 package org.krypton.krypton
 
+import org.krypton.krypton.files.FileOperations
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 
-object FileManager {
-    fun listFiles(directory: Path): List<Path> {
+object FileManager : FileOperations {
+    override fun listFiles(directory: Path): List<Path> {
         return try {
             if (Files.exists(directory) && Files.isDirectory(directory)) {
                 Files.list(directory)
@@ -28,7 +29,7 @@ object FileManager {
         }
     }
 
-    fun readFile(file: Path): String? {
+    override fun readFile(file: Path): String? {
         return try {
             if (Files.exists(file) && Files.isRegularFile(file)) {
                 Files.readString(file)
@@ -40,7 +41,7 @@ object FileManager {
         }
     }
 
-    fun writeFile(file: Path, content: String): Boolean {
+    override fun writeFile(file: Path, content: String): Boolean {
         return try {
             Files.writeString(file, content, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
             true
@@ -49,7 +50,7 @@ object FileManager {
         }
     }
 
-    fun createFile(file: Path): Boolean {
+    override fun createFile(file: Path): Boolean {
         return try {
             if (!Files.exists(file)) {
                 Files.createFile(file)
@@ -62,11 +63,11 @@ object FileManager {
         }
     }
 
-    fun isDirectory(path: Path): Boolean {
+    override fun isDirectory(path: Path): Boolean {
         return Files.isDirectory(path)
     }
 
-    fun isFile(path: Path): Boolean {
+    override fun isFile(path: Path): Boolean {
         return Files.isRegularFile(path)
     }
 }

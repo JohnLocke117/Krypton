@@ -1,7 +1,10 @@
 package org.krypton.krypton.chat
 
 import org.krypton.krypton.rag.RagService
-import java.util.UUID
+import org.krypton.krypton.util.IdGenerator
+import org.krypton.krypton.util.TimeProvider
+import org.krypton.krypton.util.createIdGenerator
+import org.krypton.krypton.util.createTimeProvider
 
 /**
  * Chat service that conditionally uses RAG or direct LLM.
@@ -12,7 +15,9 @@ import java.util.UUID
 class RagChatService(
     private val baseChatService: ChatService,
     private val ragService: RagService?,
-    private var ragEnabled: Boolean = true
+    private var ragEnabled: Boolean = true,
+    private val idGenerator: IdGenerator = createIdGenerator(),
+    private val timeProvider: TimeProvider = createTimeProvider()
 ) : ChatService {
     
     override suspend fun sendMessage(
@@ -21,10 +26,10 @@ class RagChatService(
     ): List<ChatMessage> {
         // Create user message
         val userMsg = ChatMessage(
-            id = UUID.randomUUID().toString(),
+            id = idGenerator.generateId(),
             role = ChatRole.USER,
             content = userMessage,
-            timestamp = System.currentTimeMillis()
+            timestamp = timeProvider.currentTimeMillis()
         )
         
         // If RAG is enabled and available, use it
@@ -33,10 +38,10 @@ class RagChatService(
                 val answer = ragService.ask(userMessage)
                 
                 val assistantMsg = ChatMessage(
-                    id = UUID.randomUUID().toString(),
+                    id = idGenerator.generateId(),
                     role = ChatRole.ASSISTANT,
                     content = answer,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = timeProvider.currentTimeMillis()
                 )
                 
                 return history + userMsg + assistantMsg

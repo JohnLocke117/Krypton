@@ -1,5 +1,7 @@
 package org.krypton.krypton.rag
 
+import org.krypton.krypton.util.Logger
+import org.krypton.krypton.util.createLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -12,7 +14,8 @@ class Indexer(
     private val fileSystem: NoteFileSystem,
     private val chunker: MarkdownChunker,
     private val embedder: Embedder,
-    private val vectorStore: VectorStore
+    private val vectorStore: VectorStore,
+    private val logger: Logger = createLogger("Indexer")
 ) {
     /**
      * Performs a full reindex of all markdown files.
@@ -32,8 +35,7 @@ class Indexer(
                     indexFile(filePath)
                 } catch (e: Exception) {
                     // Log error but continue with other files
-                    // TODO: Add proper logging
-                    println("Failed to index file $filePath: ${e.message}")
+                    logger.error("Failed to index file $filePath: ${e.message}", e)
                 }
             }
         } catch (e: Exception) {
