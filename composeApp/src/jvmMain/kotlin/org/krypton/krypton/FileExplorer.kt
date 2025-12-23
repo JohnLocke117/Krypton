@@ -1,9 +1,12 @@
 package org.krypton.krypton
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,6 +68,32 @@ fun FileExplorerContent(
 ) {
     var fileTree by remember { mutableStateOf<FileTreeNode?>(null) }
     var treeVersion by remember { mutableStateOf(0) } // Force recomposition on tree changes
+
+    // Helper function to refresh tree
+    fun refreshTree() {
+        state.currentDirectory?.let { dir ->
+            fileTree = FileTreeBuilder.buildTree(dir)?.apply {
+                isExpanded = true
+            }
+            treeVersion++
+        }
+    }
+
+    // Delete confirmation dialog
+    val deletingPath = state.deletingPath
+    if (deletingPath != null) {
+        DeleteConfirmationDialog(
+            path = deletingPath,
+            onConfirm = {
+                state.confirmDelete()
+                // Refresh tree after deletion
+                refreshTree()
+            },
+            onDismiss = {
+                state.cancelDelete()
+            }
+        )
+    }
 
     // Rebuild tree when directory changes
     LaunchedEffect(state.currentDirectory) {
@@ -228,6 +262,7 @@ fun FileExplorerContent(
                             node = fileTree!!,
                             depth = 0,
                             activeTabPaths = state.documents.mapNotNull { it.path }.toSet(),
+                            state = state,
                             onFileClick = { path ->
                                 if (FileManager.isFile(path)) {
                                     state.openTab(path)
@@ -236,7 +271,8 @@ fun FileExplorerContent(
                             onFolderToggle = { node ->
                                 node.toggleExpanded()
                                 treeVersion++ // Trigger recomposition
-                            }
+                            },
+                            onTreeRefresh = { refreshTree() }
                         )
                     }
                 }
@@ -272,38 +308,66 @@ fun FileExplorerContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TreeItem(
     node: FileTreeNode,
     depth: Int,
     activeTabPaths: Set<Path>,
+    state: EditorState,
     onFileClick: (Path) -> Unit,
     onFolderToggle: (FileTreeNode) -> Unit,
+    onTreeRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSelected = activeTabPaths.contains(node.path)
     val indent = (depth * 16).dp
+    
+    // Determine parent path for "New" operations
+    val parentPath = if (node.isDirectory) {
+        node.path
+    } else {
+        node.path.parent
+    }
 
     Column(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    if (isSelected) {
-                        ObsidianTheme.SelectionAccent
-                    } else {
-                        androidx.compose.ui.graphics.Color.Transparent
+        ContextMenuArea(
+            items = {
+                listOf(
+                    ContextMenuItem("New File") {
+                        parentPath?.let { state.startCreatingNewFile(it) }
+                    },
+                    ContextMenuItem("New Folder") {
+                        parentPath?.let { state.startCreatingNewFolder(it) }
+                    },
+                    ContextMenuItem("Rename") {
+                        state.startRenamingItem(node.path)
+                    },
+                    ContextMenuItem("Delete") {
+                        state.deleteItem(node.path)
                     }
                 )
-                .clickable {
-                    if (node.isDirectory) {
-                        onFolderToggle(node)
-                    } else {
-                        onFileClick(node.path)
-                    }
-                }
-                .padding(start = indent, end = 8.dp, top = 2.dp, bottom = 2.dp)
+            }
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        if (isSelected) {
+                            ObsidianTheme.SelectionAccent
+                        } else {
+                            androidx.compose.ui.graphics.Color.Transparent
+                        }
+                    )
+                    .clickable {
+                        if (node.isDirectory) {
+                            onFolderToggle(node)
+                        } else {
+                            onFileClick(node.path)
+                        }
+                    }
+                    .padding(start = indent, end = 8.dp, top = 2.dp, bottom = 2.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -351,6 +415,48 @@ fun TreeItem(
                     fontSize = 14.sp
                 )
             }
+            }
+        }
+        
+        // Inline editor for create/rename
+        if (state.renamingPath == node.path) {
+            InlineNameEditor(
+                initialName = state.renamingName,
+                onConfirm = { newName: String ->
+                    state.confirmRename(node.path, newName)
+                    onTreeRefresh()
+                },
+                onCancel = {
+                    state.cancelRenaming()
+                },
+                indent = indent + 24.dp
+            )
+        } else if (state.creatingNewFileParentPath == node.path && node.isDirectory) {
+            InlineNameEditor(
+                initialName = "",
+                onConfirm = { name: String ->
+                    state.confirmCreateFile(name, node.path)
+                    onTreeRefresh()
+                },
+                onCancel = {
+                    state.cancelCreatingNewFile()
+                },
+                indent = indent + 24.dp,
+                placeholder = "File name..."
+            )
+        } else if (state.creatingNewFolderParentPath == node.path && node.isDirectory) {
+            InlineNameEditor(
+                initialName = "",
+                onConfirm = { name: String ->
+                    state.confirmCreateFolder(name, node.path)
+                    onTreeRefresh()
+                },
+                onCancel = {
+                    state.cancelCreatingNewFolder()
+                },
+                indent = indent + 24.dp,
+                placeholder = "Folder name..."
+            )
         }
 
         // Children (if expanded)
@@ -360,8 +466,10 @@ fun TreeItem(
                     node = child,
                     depth = depth + 1,
                     activeTabPaths = activeTabPaths,
+                    state = state,
                     onFileClick = onFileClick,
-                    onFolderToggle = onFolderToggle
+                    onFolderToggle = onFolderToggle,
+                    onTreeRefresh = onTreeRefresh
                 )
             }
         }
@@ -410,6 +518,94 @@ private fun RecentFolderButton(
             )
         }
     }
+}
+
+@Composable
+private fun InlineNameEditor(
+    initialName: String,
+    onConfirm: (String) -> Unit,
+    onCancel: () -> Unit,
+    indent: androidx.compose.ui.unit.Dp,
+    placeholder: String = "Name..."
+) {
+    var name by remember { mutableStateOf(initialName) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = indent, end = 8.dp, top = 2.dp, bottom = 2.dp)
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester)
+                .onKeyEvent { event ->
+                    when (event.key) {
+                        Key.Enter -> {
+                            if (name.isNotBlank()) {
+                                onConfirm(name)
+                            }
+                            true
+                        }
+                        Key.Escape -> {
+                            onCancel()
+                            true
+                        }
+                        else -> false
+                    }
+                },
+            placeholder = { Text(placeholder) },
+            singleLine = true,
+            shape = MaterialTheme.shapes.small,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+            )
+        )
+    }
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+    path: Path,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val isDirectory = FileManager.isDirectory(path)
+    val itemName = path.fileName.toString()
+    val message = if (isDirectory) {
+        "Are you sure you want to delete the folder \"$itemName\" and all its contents?\n\nThis action cannot be undone."
+    } else {
+        "Are you sure you want to delete the file \"$itemName\"?\n\nThis action cannot be undone."
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete ${if (isDirectory) "Folder" else "File"}") },
+        text = { Text(message) },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 

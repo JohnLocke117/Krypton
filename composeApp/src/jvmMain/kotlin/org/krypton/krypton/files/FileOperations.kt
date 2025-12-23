@@ -15,5 +15,8 @@ interface FileOperations {
     fun createFile(file: Path): Boolean
     fun isDirectory(path: Path): Boolean
     fun isFile(path: Path): Boolean
+    fun renameFile(oldPath: Path, newPath: Path): Boolean
+    fun deleteFile(path: Path): Boolean
+    fun createDirectory(path: Path): Boolean
 }
 

@@ -60,6 +60,27 @@ class EditorState(
     var newFileName by mutableStateOf("")
         private set
 
+    var isCreatingNewFolder by mutableStateOf(false)
+        private set
+
+    var newFolderName by mutableStateOf("")
+        private set
+
+    var creatingNewFileParentPath by mutableStateOf<Path?>(null)
+        private set
+
+    var creatingNewFolderParentPath by mutableStateOf<Path?>(null)
+        private set
+
+    var renamingPath by mutableStateOf<Path?>(null)
+        private set
+
+    var renamingName by mutableStateOf("")
+        private set
+
+    var deletingPath by mutableStateOf<Path?>(null)
+        private set
+
     // Document management
     var documents by mutableStateOf<List<MarkdownDocument>>(emptyList())
     private set
@@ -530,6 +551,129 @@ class EditorState(
         }
         searchState = state.copy(currentMatchIndex = prevIndex)
         return true
+    }
+
+    // Context menu operations
+    fun startCreatingNewFile(parentPath: Path) {
+        isCreatingNewFile = true
+        newFileName = ""
+        creatingNewFileParentPath = parentPath
+        // Cancel any other operations
+        isCreatingNewFolder = false
+        renamingPath = null
+    }
+
+    fun startCreatingNewFolder(parentPath: Path) {
+        isCreatingNewFolder = true
+        newFolderName = ""
+        creatingNewFolderParentPath = parentPath
+        // Cancel any other operations
+        isCreatingNewFile = false
+        renamingPath = null
+    }
+
+    fun startRenamingItem(path: Path) {
+        renamingPath = path
+        renamingName = path.fileName.toString()
+        // Cancel any other operations
+        isCreatingNewFile = false
+        isCreatingNewFolder = false
+    }
+
+    fun cancelRenaming() {
+        renamingPath = null
+        renamingName = ""
+    }
+
+    fun cancelCreatingNewFolder() {
+        isCreatingNewFolder = false
+        newFolderName = ""
+        creatingNewFolderParentPath = null
+    }
+
+    fun confirmCreateFile(name: String, parentPath: Path) {
+        if (name.isNotBlank()) {
+            val newFile = parentPath.resolve(name)
+            FileManager.createFile(newFile)
+            refreshFiles()
+            openTab(newFile)
+        }
+        isCreatingNewFile = false
+        newFileName = ""
+        creatingNewFileParentPath = null
+    }
+
+    fun confirmCreateFolder(name: String, parentPath: Path) {
+        if (name.isNotBlank()) {
+            val newFolder = parentPath.resolve(name)
+            FileManager.createDirectory(newFolder)
+            refreshFiles()
+        }
+        isCreatingNewFolder = false
+        newFolderName = ""
+        creatingNewFolderParentPath = null
+    }
+
+    fun confirmRename(oldPath: Path, newName: String) {
+        if (newName.isNotBlank() && newName != oldPath.fileName.toString()) {
+            val parent = oldPath.parent
+            if (parent != null) {
+                val newPath = parent.resolve(newName)
+                if (FileManager.renameFile(oldPath, newPath)) {
+                    // Update any open tabs with the old path
+                    documents = documents.map { doc ->
+                        if (doc.path == oldPath) {
+                            doc.copy(path = newPath)
+                        } else {
+                            doc
+                        }
+                    }
+                    refreshFiles()
+                }
+            }
+        }
+        renamingPath = null
+        renamingName = ""
+    }
+
+    fun deleteItem(path: Path) {
+        deletingPath = path
+    }
+
+    fun confirmDelete() {
+        val path = deletingPath ?: return
+        val isDir = FileManager.isDirectory(path)
+        
+        // Close any open tabs for this file or files within this directory
+        if (isDir) {
+            documents = documents.filter { doc ->
+                doc.path == null || !doc.path!!.startsWith(path)
+            }
+            // Adjust active tab index if needed
+            if (documents.isEmpty()) {
+                activeTabIndex = -1
+                selectedFile = null
+                fileContent = ""
+            } else if (activeTabIndex >= documents.size) {
+                activeTabIndex = documents.size - 1
+                selectedFile = documents[activeTabIndex].path
+                fileContent = documents[activeTabIndex].text
+            }
+        } else {
+            // Close tab if this file is open
+            val indexToClose = documents.indexOfFirst { it.path == path }
+            if (indexToClose >= 0) {
+                closeTab(indexToClose)
+            }
+        }
+        
+        FileManager.deleteFile(path)
+        refreshFiles()
+        deletingPath = null
+    }
+
+    fun cancelDelete() {
+        deletingPath = null
     }
 }
 

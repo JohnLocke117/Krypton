@@ -4,6 +4,8 @@ import org.krypton.krypton.files.FileOperations
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.FileVisitResult
 
 object FileManager : FileOperations {
     override fun listFiles(directory: Path): List<Path> {
@@ -69,6 +71,60 @@ object FileManager : FileOperations {
 
     override fun isFile(path: Path): Boolean {
         return Files.isRegularFile(path)
+    }
+
+    override fun renameFile(oldPath: Path, newPath: Path): Boolean {
+        return try {
+            if (Files.exists(oldPath) && !Files.exists(newPath)) {
+                Files.move(oldPath, newPath)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    override fun deleteFile(path: Path): Boolean {
+        return try {
+            if (!Files.exists(path)) {
+                return false
+            }
+            
+            if (Files.isDirectory(path)) {
+                // Recursive deletion for directories
+                Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
+                    override fun visitFile(file: Path, attrs: java.nio.file.attribute.BasicFileAttributes): FileVisitResult {
+                        Files.delete(file)
+                        return FileVisitResult.CONTINUE
+                    }
+
+                    override fun postVisitDirectory(dir: Path, exc: java.io.IOException?): FileVisitResult {
+                        Files.delete(dir)
+                        return FileVisitResult.CONTINUE
+                    }
+                })
+            } else {
+                Files.delete(path)
+            }
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    override fun createDirectory(path: Path): Boolean {
+        return try {
+            if (!Files.exists(path)) {
+                Files.createDirectory(path)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 }
 
