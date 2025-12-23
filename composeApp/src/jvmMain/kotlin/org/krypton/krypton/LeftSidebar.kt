@@ -27,6 +27,8 @@ fun LeftSidebar(
         label = "sidebar_width"
     )
 
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
     AnimatedVisibility(
         visible = state.leftSidebarVisible,
         modifier = modifier.width(animatedWidth)
@@ -35,8 +37,8 @@ fun LeftSidebar(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(animatedWidth)
-                .background(ObsidianTheme.BackgroundElevated)
-                .border(ObsidianTheme.PanelBorderWidth, ObsidianTheme.Border, RoundedCornerShape(0.dp))
+                .background(appColors.sidebarBackground)
+                .border(ObsidianTheme.PanelBorderWidth, appColors.sidebarBorder, RoundedCornerShape(0.dp))
         ) {
             when (state.activeRibbonButton) {
                 RibbonButton.Files -> {
@@ -89,6 +91,7 @@ private fun FilesPanel(
 private fun SearchPanel(
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -97,13 +100,13 @@ private fun SearchPanel(
         Text(
             text = "Search",
             style = MaterialTheme.typography.titleMedium,
-            color = ObsidianTheme.TextPrimary
+            color = colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Search functionality coming soon...",
             style = MaterialTheme.typography.bodyMedium,
-            color = ObsidianTheme.TextSecondary
+            color = colorScheme.onSurfaceVariant
         )
     }
 }
@@ -112,6 +115,7 @@ private fun SearchPanel(
 private fun BookmarksPanel(
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -120,13 +124,13 @@ private fun BookmarksPanel(
         Text(
             text = "Bookmarks",
             style = MaterialTheme.typography.titleMedium,
-            color = ObsidianTheme.TextPrimary
+            color = colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "No bookmarks yet",
             style = MaterialTheme.typography.bodyMedium,
-            color = ObsidianTheme.TextSecondary
+            color = colorScheme.onSurfaceVariant
         )
     }
 }
@@ -135,6 +139,7 @@ private fun BookmarksPanel(
 private fun SettingsPanel(
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -143,13 +148,13 @@ private fun SettingsPanel(
         Text(
             text = "Settings",
             style = MaterialTheme.typography.titleMedium,
-            color = ObsidianTheme.TextPrimary
+            color = colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Settings panel coming soon...",
             style = MaterialTheme.typography.bodyMedium,
-            color = ObsidianTheme.TextSecondary
+            color = colorScheme.onSurfaceVariant
         )
     }
 }

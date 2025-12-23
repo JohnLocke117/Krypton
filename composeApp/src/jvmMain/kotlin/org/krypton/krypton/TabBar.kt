@@ -30,9 +30,11 @@ fun TabBar(
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = theme.BackgroundElevated
+        color = appColors.editorBackground // Mantle for tab bar (matches editor area)
     ) {
         Row(
             modifier = Modifier
@@ -72,7 +74,7 @@ fun TabBar(
                             ViewMode.Compiled -> "Compiled"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = theme.TextSecondary,
+                        color = colorScheme.onSurfaceVariant,
                         fontSize = settings.ui.tabLabelFontSize.sp
                     )
                 }
@@ -101,7 +103,7 @@ fun TabBar(
                     painter = painterResource(Res.drawable.add),
                     contentDescription = "New Tab",
                     modifier = Modifier.size(16.dp),
-                    colorFilter = ColorFilter.tint(theme.TextSecondary)
+                    colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
                 )
             }
         }
@@ -118,19 +120,21 @@ fun TabItem(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
     val fileName = doc.path?.fileName?.toString() ?: "Untitled"
     val isModified = doc.isDirty
 
     val backgroundColor = if (isActive) {
-        theme.Background
+        appColors.editorBackground // Mantle for active tab (matches editor)
     } else {
-        theme.BackgroundElevated
+        colorScheme.surfaceVariant // Surface0 for inactive tabs
     }
 
     val textColor = if (isActive) {
-        theme.TextPrimary
+        colorScheme.onSurface // Text for active tab
     } else {
-        theme.TextSecondary
+        colorScheme.onSurfaceVariant // Subtext1 for inactive tabs
     }
 
     Box(
@@ -153,7 +157,7 @@ fun TabItem(
                 contentDescription = "File",
                 modifier = Modifier.size(16.dp),
                 colorFilter = ColorFilter.tint(
-                    if (isActive) theme.Accent else theme.TextTertiary
+                    if (isActive) colorScheme.primary else colorScheme.onSurfaceVariant
                 )
             )
 
@@ -174,7 +178,7 @@ fun TabItem(
                     modifier = Modifier
                         .size(6.dp)
                         .clip(RoundedCornerShape(3.dp))
-                        .background(theme.Accent)
+                        .background(colorScheme.primary)
                 )
             }
 
@@ -190,7 +194,7 @@ fun TabItem(
                         painter = painterResource(Res.drawable.close),
                         contentDescription = "Close",
                         modifier = Modifier.size(14.dp),
-                        colorFilter = ColorFilter.tint(theme.TextSecondary)
+                        colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
                     )
                 }
             }

@@ -11,7 +11,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.Atom
+import krypton.composeapp.generated.resources.polymer
 
 @Composable
 fun WelcomeCard(
@@ -19,13 +19,14 @@ fun WelcomeCard(
     onOpenFolder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Card(
         modifier = modifier
             .widthIn(max = 600.dp)
             .padding(24.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = ObsidianTheme.BackgroundElevated
+            containerColor = colorScheme.surfaceVariant // Surface0 for welcome card
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -38,7 +39,7 @@ fun WelcomeCard(
         ) {
             // App logo/icon
             Image(
-                painter = painterResource(Res.drawable.Atom),
+                painter = painterResource(Res.drawable.polymer),
                 contentDescription = "Krypton",
                 modifier = Modifier.size(64.dp)
             )
@@ -46,14 +47,14 @@ fun WelcomeCard(
             Text(
                 text = "Welcome to Krypton",
                 style = MaterialTheme.typography.headlineMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = colorScheme.onSurface,
                 textAlign = TextAlign.Center
             )
             
             Text(
                 text = "A modern text editor with Obsidian-inspired design",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextSecondary,
+                color = colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
             
@@ -64,14 +65,14 @@ fun WelcomeCard(
                 onClick = onOpenFolder,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ObsidianTheme.Accent
+                    containerColor = colorScheme.primary
                 ),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Text(
                     text = "Open Folder",
                     style = MaterialTheme.typography.labelLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = colorScheme.onPrimary
                 )
             }
             
@@ -80,7 +81,7 @@ fun WelcomeCard(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = ObsidianTheme.TextPrimary
+                    contentColor = colorScheme.onSurface
                 )
             ) {
                 Text(

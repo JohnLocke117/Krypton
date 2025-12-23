@@ -1,5 +1,6 @@
 package org.krypton.krypton
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.painterResource
+import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.polymer
 import kotlinx.coroutines.launch
 
 @Composable
@@ -79,81 +83,72 @@ fun TextEditor(
         }
     }
 
+    val appColors = LocalAppColors.current
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(theme.Background)
+            .background(appColors.editorBackground) // Mantle - ensures entire editor area has correct background
             .padding(theme.EditorPadding)
     ) {
         // Editor area
         if (activeDocument != null) {
-            // Card wrapper for editor content
-            Card(
-                modifier = Modifier.fillMaxSize(),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = theme.BackgroundElevated
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                // Route based on view mode
-                when (activeDocument.viewMode) {
-                    ViewMode.LivePreview -> {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            MarkdownLivePreviewEditor(
-                                markdown = activeDocument.text,
-                                settings = settings,
-                                theme = theme,
-                                searchState = state.searchState,
-                                onMarkdownChange = { newText ->
-                                    state.updateTabContent(newText)
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            
-                            // Search dialog overlay
-                            state.searchState?.let { searchState ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.TopEnd
-                                ) {
-                                    SearchDialog(
-                                        state = state,
-                                        theme = theme,
-                                        onSearchUpdate = { newState ->
-                                            state.updateSearchState { newState }
-                                        },
-                                        onReplace = { newText ->
-                                            state.updateTabContent(newText)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    ViewMode.Compiled -> {
-                        MarkdownCompiledView(
+            // Route based on view mode
+            when (activeDocument.viewMode) {
+                ViewMode.LivePreview -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        MarkdownLivePreviewEditor(
                             markdown = activeDocument.text,
                             settings = settings,
                             theme = theme,
+                            searchState = state.searchState,
+                            onMarkdownChange = { newText ->
+                                state.updateTabContent(newText)
+                            },
                             modifier = Modifier.fillMaxSize()
                         )
+                        
+                        // Search dialog overlay
+                        state.searchState?.let { searchState ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.TopEnd
+                            ) {
+                                SearchDialog(
+                                    state = state,
+                                    theme = theme,
+                                    onSearchUpdate = { newState ->
+                                        state.updateSearchState { newState }
+                                    },
+                                    onReplace = { newText ->
+                                        state.updateTabContent(newText)
+                                    }
+                                )
+                            }
+                        }
                     }
+                }
+                ViewMode.Compiled -> {
+                    MarkdownCompiledView(
+                        markdown = activeDocument.text,
+                        settings = settings,
+                        theme = theme,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
         } else {
-            // Welcome card when no file is open
+            // App logo with 50% opacity when no file is open
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                WelcomeCard(
-                    onNewFile = {
-                        state.startCreatingNewFile()
-                    },
-                    onOpenFolder = onOpenFolder
+                Image(
+                    painter = painterResource(Res.drawable.polymer),
+                    contentDescription = "Krypton",
+                    modifier = Modifier.size(128.dp),
+                    alpha = 0.5f
                 )
             }
         }

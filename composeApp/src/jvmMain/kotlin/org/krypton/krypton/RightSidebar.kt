@@ -57,6 +57,8 @@ fun RightSidebar(
         label = "right_sidebar_width"
     )
 
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
     AnimatedVisibility(
         visible = state.rightSidebarVisible,
         modifier = modifier.width(animatedWidth)
@@ -65,9 +67,9 @@ fun RightSidebar(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(animatedWidth)
-                .background(theme.BackgroundElevated)
-                .border(theme.PanelBorderWidth, theme.Border, RoundedCornerShape(0.dp)),
-            color = theme.BackgroundElevated
+                .background(appColors.sidebarBackground)
+                .border(theme.PanelBorderWidth, appColors.sidebarBorder, RoundedCornerShape(0.dp)),
+            color = appColors.sidebarBackground
         ) {
             when (state.activeRightPanel) {
                 RightPanelType.Outline -> {
@@ -125,11 +127,13 @@ private fun OutlinePanel(
         }
     }
     
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
     Column(modifier = modifier) {
         // Header bar
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            color = theme.SurfaceContainer
+            color = appColors.sidebarBackground // Crust for sidebar header
         ) {
             Row(
                 modifier = Modifier
@@ -141,7 +145,7 @@ private fun OutlinePanel(
                 Text(
                     text = "Outline",
                     style = MaterialTheme.typography.titleSmall,
-                    color = theme.TextPrimary
+                    color = colorScheme.onSurface
                 )
                 Box(
                     modifier = Modifier
@@ -153,7 +157,7 @@ private fun OutlinePanel(
                         painter = painterResource(Res.drawable.close),
                         contentDescription = "Close",
                         modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(theme.TextSecondary)
+                        colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
                     )
                 }
             }

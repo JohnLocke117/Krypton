@@ -67,7 +67,7 @@ fun SettingsDialog(
                     // Header
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = ObsidianTheme.SurfaceContainer
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
                     ) {
                         Row(
                             modifier = Modifier
@@ -79,7 +79,7 @@ fun SettingsDialog(
                             Text(
                                 text = "Settings",
                                 style = MaterialTheme.typography.headlineSmall,
-                                color = ObsidianTheme.TextPrimary
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             IconButton(
                                 onClick = { state.closeSettingsDialog() }
@@ -88,7 +88,7 @@ fun SettingsDialog(
                                     painter = painterResource(Res.drawable.close),
                                     contentDescription = "Close",
                                     modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(ObsidianTheme.TextSecondary)
+                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
                                 )
                             }
                         }
@@ -105,7 +105,7 @@ fun SettingsDialog(
                             modifier = Modifier
                                 .width(200.dp)
                                 .fillMaxHeight(),
-                            color = ObsidianTheme.Background
+                            color = MaterialTheme.colorScheme.background
                         ) {
                             SettingsCategoryList(
                                 selectedCategory = state.selectedSettingsCategory,
@@ -115,7 +115,7 @@ fun SettingsDialog(
                         }
 
                         Divider(
-                            color = ObsidianTheme.Border,
+                            color = MaterialTheme.colorScheme.outline,
                             modifier = Modifier.width(1.dp)
                         )
 
@@ -124,7 +124,7 @@ fun SettingsDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .background(ObsidianTheme.BackgroundElevated)
+                                .background(MaterialTheme.colorScheme.surface)
                         ) {
                             SettingsContent(
                                 category = state.selectedSettingsCategory,
@@ -163,7 +163,7 @@ fun SettingsDialog(
                     // Footer - Action buttons
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = ObsidianTheme.SurfaceContainer
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
                     ) {
                         Row(
                             modifier = Modifier
@@ -201,7 +201,7 @@ fun SettingsDialog(
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = ObsidianTheme.Accent
+                                        containerColor = MaterialTheme.colorScheme.primary
                                     )
                                 ) {
                                     Text("Apply")
@@ -249,7 +249,7 @@ private fun SettingsCategoryItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         color = if (isSelected) {
-            ObsidianTheme.SelectionAccent
+            MaterialTheme.colorScheme.primaryContainer
         } else {
             androidx.compose.ui.graphics.Color.Transparent
         }
@@ -258,9 +258,9 @@ private fun SettingsCategoryItem(
             text = category.name,
             style = MaterialTheme.typography.bodyLarge,
             color = if (isSelected) {
-                ObsidianTheme.Accent
+                MaterialTheme.colorScheme.primary
             } else {
-                ObsidianTheme.TextPrimary
+                MaterialTheme.colorScheme.onSurface
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -289,7 +289,7 @@ private fun SettingsContent(
                 else -> category.name
             },
             style = MaterialTheme.typography.headlineSmall,
-            color = ObsidianTheme.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         when (category) {
@@ -355,18 +355,18 @@ private fun GeneralSettings(
                 Text(
                     text = "Autosave Interval",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Save changes automatically every ${settings.app.autosaveIntervalSeconds} seconds",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.app.autosaveIntervalSeconds}s",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -384,7 +384,7 @@ private fun GeneralSettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Telemetry
         Row(
@@ -396,12 +396,12 @@ private fun GeneralSettings(
                 Text(
                     text = "Telemetry",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Enable usage analytics and error reporting",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Switch(
@@ -416,26 +416,26 @@ private fun GeneralSettings(
             )
         }
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Recent folders
         Text(
             text = "Recent Folders",
             style = MaterialTheme.typography.bodyLarge,
-            color = ObsidianTheme.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         if (settings.app.recentFolders.isEmpty()) {
             Text(
                 text = "No recent folders",
                 style = MaterialTheme.typography.bodySmall,
-                color = ObsidianTheme.TextSecondary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
             settings.app.recentFolders.forEach { folder ->
                 Text(
                     text = folder,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = ObsidianTheme.TextSecondary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
@@ -464,10 +464,10 @@ private fun EditorSettingsContent(
             label = { Text("Font Family") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = ObsidianTheme.TextPrimary,
-                unfocusedTextColor = ObsidianTheme.TextPrimary,
-                focusedBorderColor = ObsidianTheme.Accent,
-                unfocusedBorderColor = ObsidianTheme.Border
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
 
@@ -481,18 +481,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.editor.fontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.editor.fontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -510,7 +510,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Tab size
         Row(
@@ -522,18 +522,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Tab Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.editor.tabSize} spaces",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.editor.tabSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -551,7 +551,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Line numbers
         Row(
@@ -563,12 +563,12 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Line Numbers",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Show line numbers in the editor",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Switch(
@@ -583,7 +583,7 @@ private fun EditorSettingsContent(
             )
         }
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Word wrap
         Row(
@@ -595,12 +595,12 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Word Wrap",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Wrap long lines in the editor",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Switch(
@@ -615,7 +615,7 @@ private fun EditorSettingsContent(
             )
         }
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Line height
         Row(
@@ -627,18 +627,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Line Height",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.editor.lineHeight}x",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = String.format("%.1f", settings.editor.lineHeight),
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -656,7 +656,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Editor padding
         Row(
@@ -668,18 +668,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Editor Padding",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.editor.editorPadding}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.editor.editorPadding}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -697,7 +697,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Code block font size
         Row(
@@ -709,18 +709,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Code Block Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.editor.codeBlockFontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.editor.codeBlockFontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -738,7 +738,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Code span font size
         Row(
@@ -750,18 +750,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Code Span Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.editor.codeSpanFontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.editor.codeSpanFontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -794,7 +794,7 @@ private fun AppearanceSettings(
         Text(
             text = "Theme",
             style = MaterialTheme.typography.bodyLarge,
-            color = ObsidianTheme.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         var expanded by remember { mutableStateOf(false) }
         val themes = listOf("dark", "light")
@@ -812,10 +812,10 @@ private fun AppearanceSettings(
                     .menuAnchor()
                     .fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = ObsidianTheme.TextPrimary,
-                    unfocusedTextColor = ObsidianTheme.TextPrimary,
-                    focusedBorderColor = ObsidianTheme.Accent,
-                    unfocusedBorderColor = ObsidianTheme.Border
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
             ExposedDropdownMenu(
@@ -852,7 +852,7 @@ private fun UISettings(
         Text(
             text = "Sidebar Widths",
             style = MaterialTheme.typography.titleMedium,
-            color = ObsidianTheme.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         
         // Sidebar default width
@@ -865,18 +865,18 @@ private fun UISettings(
                 Text(
                     text = "Sidebar Default Width",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.ui.sidebarDefaultWidth}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.ui.sidebarDefaultWidth}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -893,13 +893,13 @@ private fun UISettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Tab settings
         Text(
             text = "Tab Settings",
             style = MaterialTheme.typography.titleMedium,
-            color = ObsidianTheme.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
 
         // Tab height
@@ -912,18 +912,18 @@ private fun UISettings(
                 Text(
                     text = "Tab Height",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.ui.tabHeight}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.ui.tabHeight}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -941,7 +941,7 @@ private fun UISettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Tab font sizes
         Row(
@@ -953,18 +953,18 @@ private fun UISettings(
                 Text(
                     text = "Tab Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "${settings.ui.tabFontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.ui.tabFontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -995,12 +995,12 @@ private fun ColorSettings(
         Text(
             text = "Color customization coming soon. Edit colors directly in settings.json for now.",
             style = MaterialTheme.typography.bodyMedium,
-            color = ObsidianTheme.TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = "Color values are stored as hex strings (e.g., #202020)",
             style = MaterialTheme.typography.bodySmall,
-            color = ObsidianTheme.TextTertiary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -1013,7 +1013,7 @@ private fun KeybindingsSettings() {
         Text(
             text = "Keybindings settings coming soon...",
             style = MaterialTheme.typography.bodyMedium,
-            color = ObsidianTheme.TextSecondary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

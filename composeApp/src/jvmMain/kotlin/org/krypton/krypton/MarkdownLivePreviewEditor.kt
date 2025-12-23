@@ -80,8 +80,12 @@ fun MarkdownLivePreviewEditor(
         }
     }
     
+    val appColors = LocalAppColors.current
+    val colorScheme = MaterialTheme.colorScheme
     Row(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .background(appColors.editorBackground) // Mantle for live preview editor background
     ) {
         // Line numbers
         if (settings.editor.lineNumbers) {
@@ -97,7 +101,7 @@ fun MarkdownLivePreviewEditor(
                 modifier = Modifier
                     .width(1.dp)
                     .fillMaxHeight(),
-                color = theme.Border
+                color = colorScheme.outline
             )
         }
         
@@ -115,7 +119,7 @@ fun MarkdownLivePreviewEditor(
             textStyle = TextStyle(
                 fontFamily = fontFamily,
                 fontSize = settings.editor.fontSize.sp,
-                color = theme.TextPrimary,
+                color = colorScheme.onSurface, // Text color for editor
                 lineHeight = (settings.editor.fontSize.sp * settings.editor.lineHeight)
             )
         )

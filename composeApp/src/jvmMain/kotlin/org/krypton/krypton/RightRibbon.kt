@@ -26,11 +26,12 @@ fun RightRibbon(
     state: EditorState,
     modifier: Modifier = Modifier
 ) {
+    val appColors = LocalAppColors.current
     Column(
         modifier = modifier
             .fillMaxHeight()
             .width(ObsidianTheme.RibbonWidth)
-            .background(ObsidianTheme.BackgroundElevated),
+            .background(appColors.ribbonBackground),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

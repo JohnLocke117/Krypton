@@ -14,16 +14,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.nio.file.Path
 import java.nio.file.Paths
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.krypton.krypton.util.AppLogger
 import krypton.composeapp.generated.resources.Res
@@ -31,6 +34,7 @@ import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.chevron_right as chevronRight
 import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.description
+import krypton.composeapp.generated.resources.file_copy
 import krypton.composeapp.generated.resources.folder
 import krypton.composeapp.generated.resources.folder_open as folderOpen
 import krypton.composeapp.generated.resources.keep
@@ -171,20 +175,32 @@ fun FileExplorerContent(
                 }
             }
 
-            // New File Button
-            OutlinedButton(
-                onClick = { state.startCreatingNewFile() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = state.currentDirectory != null,
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Text(
-                    text = "New File",
-                    style = MaterialTheme.typography.labelLarge
-                )
+            // Icon buttons row (New File and Search)
+            if (state.currentDirectory != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // New File icon button
+                    PanelIconButton(
+                        icon = Res.drawable.file_copy,
+                        contentDescription = "New File",
+                        onClick = { state.startCreatingNewFile() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    // Search icon button
+                    PanelIconButton(
+                        icon = Res.drawable.search,
+                        contentDescription = "Search",
+                        onClick = { state.updateActiveRibbonButton(RibbonButton.Search) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
 
             // New File Input (when creating)
             if (state.isCreatingNewFile) {
@@ -250,6 +266,17 @@ fun FileExplorerContent(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
+            // Separator between action buttons and file tree
+            if (fileTree != null) {
+                Divider(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(theme.SidebarSeparatorHeight),
+                    color = theme.Border
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             // File Tree
             if (fileTree != null) {
                 Column(
@@ -264,6 +291,7 @@ fun FileExplorerContent(
                             depth = 0,
                             activeTabPaths = state.documents.mapNotNull { it.path }.toSet(),
                             state = state,
+                            theme = theme,
                             onFileClick = { path ->
                                 if (FileManager.isFile(path)) {
                                     AppLogger.action("FileExplorer", "FileOpened", path.toString())
@@ -284,10 +312,11 @@ fun FileExplorerContent(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
+                    val colorScheme = MaterialTheme.colorScheme
                     Text(
                         text = "No folder selected\n\nClick 'Open Folder' to browse",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = ObsidianTheme.TextSecondary,
+                        color = colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .padding(16.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -304,6 +333,7 @@ fun FileExplorerContent(
                 onSettingsClick = { state.openSettingsDialog() },
                 onFolderSelected = onFolderSelected,
                 onCloseFolder = { state.closeFolder() },
+                theme = theme,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -317,13 +347,14 @@ fun TreeItem(
     depth: Int,
     activeTabPaths: Set<Path>,
     state: EditorState,
+    theme: ObsidianThemeValues,
     onFileClick: (Path) -> Unit,
     onFolderToggle: (FileTreeNode) -> Unit,
     onTreeRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSelected = activeTabPaths.contains(node.path)
-    val indent = (depth * 16).dp
+    val indent = theme.SidebarIndentPerLevel * depth
     
     // Determine parent path for "New" operations
     val parentPath = if (node.isDirectory) {
@@ -351,12 +382,15 @@ fun TreeItem(
                 )
             }
         ) {
+            val appColors = LocalAppColors.current
+            val colorScheme = MaterialTheme.colorScheme
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(theme.SidebarItemHeight)
                     .background(
                         if (isSelected) {
-                            ObsidianTheme.SelectionAccent
+                            appColors.sidebarActiveItem
                         } else {
                             androidx.compose.ui.graphics.Color.Transparent
                         }
@@ -368,11 +402,17 @@ fun TreeItem(
                             onFileClick(node.path)
                         }
                     }
-                    .padding(start = indent, end = 8.dp, top = 2.dp, bottom = 2.dp)
+                    .padding(
+                        start = indent + theme.SidebarHorizontalPadding,
+                        end = theme.SidebarHorizontalPadding,
+                        top = theme.SidebarVerticalPadding,
+                        bottom = theme.SidebarVerticalPadding
+                    )
             ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(theme.SidebarIconTextSpacing)
             ) {
                 // Chevron for folders
                 if (node.isDirectory) {
@@ -381,10 +421,10 @@ fun TreeItem(
                             if (node.isExpanded) Res.drawable.keyboardArrowDown else Res.drawable.chevronRight
                         ),
                         contentDescription = if (node.isExpanded) "Expanded" else "Collapsed",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 } else {
-                    Spacer(modifier = Modifier.width(24.dp))
+                    Spacer(modifier = Modifier.width(18.dp))
                 }
 
                 // Icon
@@ -397,24 +437,22 @@ fun TreeItem(
                         }
                     ),
                     contentDescription = if (node.isDirectory) "Folder" else "File",
-                    modifier = Modifier
-                        .size(22.dp)
-                        .padding(end = 8.dp)
+                    modifier = Modifier.size(18.dp)
                 )
 
                 // Name
+                val colorScheme = MaterialTheme.colorScheme
                 Text(
                     text = node.name,
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isSelected) {
-                        ObsidianTheme.Accent
+                        colorScheme.primary
                     } else {
-                        ObsidianTheme.TextPrimary
+                        colorScheme.onSurface
                     },
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    fontSize = 14.sp
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             }
@@ -431,7 +469,8 @@ fun TreeItem(
                 onCancel = {
                     state.cancelRenaming()
                 },
-                indent = indent + 24.dp
+                indent = indent + theme.SidebarChevronWidth + theme.SidebarIconTextSpacing,
+                theme = theme
             )
         } else if (state.creatingNewFileParentPath == node.path && node.isDirectory) {
             InlineNameEditor(
@@ -443,7 +482,8 @@ fun TreeItem(
                 onCancel = {
                     state.cancelCreatingNewFile()
                 },
-                indent = indent + 24.dp,
+                indent = indent + theme.SidebarChevronWidth + theme.SidebarIconTextSpacing,
+                theme = theme,
                 placeholder = "File name..."
             )
         } else if (state.creatingNewFolderParentPath == node.path && node.isDirectory) {
@@ -456,12 +496,13 @@ fun TreeItem(
                 onCancel = {
                     state.cancelCreatingNewFolder()
                 },
-                indent = indent + 24.dp,
+                indent = indent + theme.SidebarChevronWidth + theme.SidebarIconTextSpacing,
+                theme = theme,
                 placeholder = "Folder name..."
             )
         }
 
-        // Children (if expanded)
+            // Children (if expanded)
         if (node.isDirectory && node.isExpanded) {
             node.children.forEach { child ->
                 TreeItem(
@@ -469,6 +510,7 @@ fun TreeItem(
                     depth = depth + 1,
                     activeTabPaths = activeTabPaths,
                     state = state,
+                    theme = theme,
                     onFileClick = onFileClick,
                     onFolderToggle = onFolderToggle,
                     onTreeRefresh = onTreeRefresh
@@ -528,6 +570,7 @@ private fun InlineNameEditor(
     onConfirm: (String) -> Unit,
     onCancel: () -> Unit,
     indent: androidx.compose.ui.unit.Dp,
+    theme: ObsidianThemeValues,
     placeholder: String = "Name..."
 ) {
     var name by remember { mutableStateOf(initialName) }
@@ -540,7 +583,12 @@ private fun InlineNameEditor(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = indent, end = 8.dp, top = 2.dp, bottom = 2.dp)
+            .padding(
+                start = indent + theme.SidebarHorizontalPadding,
+                end = theme.SidebarHorizontalPadding,
+                top = theme.SidebarVerticalPadding,
+                bottom = theme.SidebarVerticalPadding
+            )
     ) {
         OutlinedTextField(
             value = name,
@@ -570,6 +618,31 @@ private fun InlineNameEditor(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline
             )
+        )
+    }
+}
+
+@Composable
+private fun PanelIconButton(
+    icon: DrawableResource,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        val colorScheme = MaterialTheme.colorScheme
+        Image(
+            painter = painterResource(icon),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp),
+            colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
         )
     }
 }

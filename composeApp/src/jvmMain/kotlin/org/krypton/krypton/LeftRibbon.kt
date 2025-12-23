@@ -19,20 +19,19 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.folder
 import krypton.composeapp.generated.resources.left_panel_close
 import krypton.composeapp.generated.resources.left_panel_open
-import krypton.composeapp.generated.resources.search
 import krypton.composeapp.generated.resources.star
-import krypton.composeapp.generated.resources.settings
 
 @Composable
 fun LeftRibbon(
     state: EditorState,
     modifier: Modifier = Modifier
 ) {
+    val appColors = LocalAppColors.current
     Column(
         modifier = modifier
             .fillMaxHeight()
             .width(ObsidianTheme.RibbonWidth)
-            .background(ObsidianTheme.BackgroundElevated),
+            .background(appColors.ribbonBackground),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -53,13 +52,6 @@ fun LeftRibbon(
             contentDescription = "Files",
             isActive = state.activeRibbonButton == RibbonButton.Files,
             onClick = { state.updateActiveRibbonButton(RibbonButton.Files) }
-        )
-        
-        RibbonIconButton(
-            icon = Res.drawable.search,
-            contentDescription = "Search",
-            isActive = state.activeRibbonButton == RibbonButton.Search,
-            onClick = { state.updateActiveRibbonButton(RibbonButton.Search) }
         )
         
         RibbonIconButton(

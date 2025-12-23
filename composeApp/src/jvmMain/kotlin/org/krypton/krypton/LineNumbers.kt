@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,13 +45,15 @@ fun LineNumbers(
         (digits * 8 + 16).dp // ~8dp per digit + padding
     }
 
+    val appColors = LocalAppColors.current
     Box(
         modifier = modifier
             .width(lineNumberWidth)
             .fillMaxHeight()
-            .background(theme.Background)
+            .background(appColors.editorBackground) // Mantle for line numbers (matches editor)
             .verticalScroll(editorScrollState) // Sync with editor scroll
     ) {
+        val colorScheme = MaterialTheme.colorScheme
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -61,7 +64,7 @@ fun LineNumbers(
                     text = lineNumber.toString(),
                     style = TextStyle(
                         fontSize = settings.editor.fontSize.sp,
-                        color = theme.TextTertiary,
+                        color = colorScheme.onSurfaceVariant, // Secondary text color for line numbers
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     ),
                     textAlign = TextAlign.Right,

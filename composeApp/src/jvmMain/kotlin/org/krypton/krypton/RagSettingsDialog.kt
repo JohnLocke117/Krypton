@@ -26,7 +26,7 @@ fun RagSettings(
         Text(
             text = "Vector Backend",
             style = MaterialTheme.typography.bodyLarge,
-            color = ObsidianTheme.TextPrimary
+            color = MaterialTheme.colorScheme.onSurface
         )
         var expanded by remember { mutableStateOf(false) }
         val backends = VectorBackend.values()
@@ -44,10 +44,10 @@ fun RagSettings(
                     .menuAnchor()
                     .fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = ObsidianTheme.TextPrimary,
-                    unfocusedTextColor = ObsidianTheme.TextPrimary,
-                    focusedBorderColor = ObsidianTheme.Accent,
-                    unfocusedBorderColor = ObsidianTheme.Border
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                 )
             )
             ExposedDropdownMenu(
@@ -70,7 +70,7 @@ fun RagSettings(
             }
         }
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Llama Base URL
         OutlinedTextField(
@@ -85,10 +85,10 @@ fun RagSettings(
             label = { Text("Llama Base URL") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = ObsidianTheme.TextPrimary,
-                unfocusedTextColor = ObsidianTheme.TextPrimary,
-                focusedBorderColor = ObsidianTheme.Accent,
-                unfocusedBorderColor = ObsidianTheme.Border
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
 
@@ -105,14 +105,14 @@ fun RagSettings(
             label = { Text("Embedding Base URL") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = ObsidianTheme.TextPrimary,
-                unfocusedTextColor = ObsidianTheme.TextPrimary,
-                focusedBorderColor = ObsidianTheme.Accent,
-                unfocusedBorderColor = ObsidianTheme.Border
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Top-K
         Row(
@@ -124,18 +124,18 @@ fun RagSettings(
                 Text(
                     text = "Top-K",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Number of chunks to retrieve: ${settings.rag.topK}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Text(
                 text = "${settings.rag.topK}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = ObsidianTheme.TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -153,7 +153,7 @@ fun RagSettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // RAG Enabled
         Row(
@@ -165,12 +165,12 @@ fun RagSettings(
                 Text(
                     text = "RAG Enabled",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = ObsidianTheme.TextPrimary
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Enable RAG for chat responses",
                     style = MaterialTheme.typography.bodySmall,
-                    color = ObsidianTheme.TextSecondary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Switch(
@@ -185,7 +185,7 @@ fun RagSettings(
             )
         }
 
-        Divider(color = ObsidianTheme.Border)
+        Divider(color = MaterialTheme.colorScheme.outline)
 
         // Reindex Button
         Button(
@@ -196,7 +196,7 @@ fun RagSettings(
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = ObsidianTheme.Accent
+                containerColor = MaterialTheme.colorScheme.primary
             )
         ) {
             Text("Reindex Notes")

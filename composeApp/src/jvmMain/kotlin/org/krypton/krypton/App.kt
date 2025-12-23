@@ -9,6 +9,7 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import java.io.File
@@ -39,6 +40,10 @@ fun App() {
     val settings by settingsRepository.settingsFlow.collectAsState()
     val colorScheme = buildColorSchemeFromSettings(settings)
     val theme = rememberObsidianTheme(settings)
+    
+    // Create theme colors and app colors
+    val themeColors = remember(settings) { AppThemeColors(settings) }
+    val appColors = rememberAppColors(themeColors)
 
     MaterialTheme(
         colorScheme = colorScheme,
@@ -53,8 +58,14 @@ fun App() {
             titleMedium = MaterialTheme.typography.titleMedium.copy(fontFamily = ubuntuFontFamily),
             titleSmall = MaterialTheme.typography.titleSmall.copy(fontFamily = ubuntuFontFamily),
             bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = ubuntuFontFamily),
-            bodyMedium = MaterialTheme.typography.bodyMedium.copy(fontFamily = ubuntuFontFamily),
-            bodySmall = MaterialTheme.typography.bodySmall.copy(fontFamily = ubuntuFontFamily),
+            bodyMedium = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = ubuntuFontFamily,
+                fontSize = AppTypography.BaseFontSize.sp
+            ),
+            bodySmall = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = ubuntuFontFamily,
+                fontSize = AppTypography.BaseFontSize.sp
+            ),
             labelLarge = MaterialTheme.typography.labelLarge.copy(fontFamily = ubuntuFontFamily),
             labelMedium = MaterialTheme.typography.labelMedium.copy(fontFamily = ubuntuFontFamily),
             labelSmall = MaterialTheme.typography.labelSmall.copy(fontFamily = ubuntuFontFamily)
@@ -119,29 +130,31 @@ fun App() {
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(theme.Background)
-                .onKeyEvent { handleKeyboardShortcut(it, state) }
-        ) {
-            AppContent(
-                state = state,
-                settings = settings,
-                theme = theme,
-                chatService = chatService,
-                settingsRepository = settingsRepository
-            )
-            
-            AppDialogs(
-                state = state,
-                settings = settings,
-                theme = theme,
-                settingsRepository = settingsRepository,
-                ragComponents = ragComponents,
-                coroutineScope = coroutineScope,
-                logger = logger
-            )
+        CompositionLocalProvider(LocalAppColors provides appColors) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .onKeyEvent { handleKeyboardShortcut(it, state) }
+            ) {
+                AppContent(
+                    state = state,
+                    settings = settings,
+                    theme = theme,
+                    chatService = chatService,
+                    settingsRepository = settingsRepository
+                )
+                
+                AppDialogs(
+                    state = state,
+                    settings = settings,
+                    theme = theme,
+                    settingsRepository = settingsRepository,
+                    ragComponents = ragComponents,
+                    coroutineScope = coroutineScope,
+                    logger = logger
+                )
+            }
         }
     }
 }
@@ -195,10 +208,12 @@ private fun AppContent(
         }
 
         // Center Editor Area
+        val appColors = LocalAppColors.current
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
+                .background(appColors.editorBackground) // Mantle for editor area
         ) {
             TabBar(
                 state = state,

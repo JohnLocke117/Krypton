@@ -9,23 +9,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * Helper function to parse hex color string to Color
- */
-fun parseHexColor(hex: String): Color {
-    val cleanHex = hex.removePrefix("#").trim()
-    return try {
-        val colorInt = java.lang.Long.parseLong(cleanHex, 16).toInt()
-        when (cleanHex.length) {
-            6 -> Color(colorInt or 0xFF000000.toInt())
-            8 -> Color(colorInt)
-            else -> Color(0xFF202020) // Default fallback
-        }
-    } catch (e: Exception) {
-        Color(0xFF202020) // Default fallback on error
-    }
-}
-
-/**
  * Theme values derived from Settings
  * Use this composable to get theme values that react to settings changes
  */
@@ -37,28 +20,31 @@ fun rememberObsidianTheme(settings: Settings): ObsidianThemeValues {
 }
 
 class ObsidianThemeValues(private val settings: Settings) {
-    // Colors from settings
-    val Background: Color get() = parseHexColor(settings.colors.background)
-    val BackgroundElevated: Color get() = parseHexColor(settings.colors.backgroundElevated)
-    val BackgroundHover: Color get() = parseHexColor(settings.colors.backgroundHover)
+    // Use AppThemeColors internally for backward compatibility
+    private val themeColors = AppThemeColors(settings)
     
-    val TextPrimary: Color get() = parseHexColor(settings.colors.textPrimary)
-    val TextSecondary: Color get() = parseHexColor(settings.colors.textSecondary)
-    val TextTertiary: Color get() = parseHexColor(settings.colors.textTertiary)
+    // Colors from theme (with Settings override support)
+    val Background: Color get() = themeColors.backgroundColor
+    val BackgroundElevated: Color get() = themeColors.elevatedSurfaceColor
+    val BackgroundHover: Color get() = themeColors.elevatedSurfaceColor
     
-    val Accent: Color get() = parseHexColor(settings.colors.accent)
-    val AccentHover: Color get() = parseHexColor(settings.colors.accentHover)
-    val AccentPressed: Color get() = parseHexColor(settings.colors.accentPressed)
+    val TextPrimary: Color get() = themeColors.textPrimaryColor
+    val TextSecondary: Color get() = themeColors.textSecondaryColor
+    val TextTertiary: Color get() = themeColors.textTertiaryColor
     
-    val Border: Color get() = parseHexColor(settings.colors.border)
-    val BorderVariant: Color get() = parseHexColor(settings.colors.borderVariant)
+    val Accent: Color get() = themeColors.accentColor
+    val AccentHover: Color get() = themeColors.accentHoverColor
+    val AccentPressed: Color get() = themeColors.accentPressedColor
     
-    val Surface: Color get() = parseHexColor(settings.colors.surface)
-    val SurfaceVariant: Color get() = parseHexColor(settings.colors.surfaceVariant)
-    val SurfaceContainer: Color get() = parseHexColor(settings.colors.surfaceContainer)
+    val Border: Color get() = themeColors.borderColor
+    val BorderVariant: Color get() = themeColors.borderVariantColor
     
-    val Selection: Color get() = parseHexColor(settings.colors.selection)
-    val SelectionAccent: Color get() = Accent.copy(alpha = 0.3f)
+    val Surface: Color get() = themeColors.surfaceColor
+    val SurfaceVariant: Color get() = themeColors.elevatedSurfaceColor
+    val SurfaceContainer: Color get() = themeColors.surfaceContainerColor
+    
+    val Selection: Color get() = themeColors.selectionColor
+    val SelectionAccent: Color get() = themeColors.selectionAccentColor
     
     // Spacing from settings
     val RibbonWidth: androidx.compose.ui.unit.Dp get() = settings.ui.ribbonWidth.dp
@@ -76,14 +62,27 @@ class ObsidianThemeValues(private val settings: Settings) {
     val PanelBorderWidth: androidx.compose.ui.unit.Dp get() = settings.ui.panelBorderWidth.dp
     val PanelPadding: androidx.compose.ui.unit.Dp get() = settings.ui.panelPadding.dp
     
+    // Design tokens from AppDimens
+    val IconSizeSmall: androidx.compose.ui.unit.Dp get() = AppDimens.IconSizeSmall.dp
+    val IconSizeMedium: androidx.compose.ui.unit.Dp get() = AppDimens.IconSizeMedium.dp
+    val IconSizeLarge: androidx.compose.ui.unit.Dp get() = AppDimens.IconSizeLarge.dp
+    
+    val SidebarItemHeight: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarItemHeight.dp
+    val SidebarIndentPerLevel: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarIndentPerLevel.dp
+    val SidebarHorizontalPadding: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarHorizontalPadding.dp
+    val SidebarVerticalPadding: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarVerticalPadding.dp
+    val SidebarIconTextSpacing: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarIconTextSpacing.dp
+    val SidebarChevronWidth: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarChevronWidth.dp
+    val SidebarSeparatorHeight: androidx.compose.ui.unit.Dp get() = AppDimens.SidebarSeparatorHeight.dp
+    
     // Markdown-specific colors
-    val CodeBlockBackground: Color get() = parseHexColor(settings.colors.codeBlockBackground)
-    val CodeBlockBorder: Color get() = parseHexColor(settings.colors.codeBlockBorder)
-    val CodeSpanBackground: Color get() = parseHexColor(settings.colors.codeSpanBackground)
-    val LinkColor: Color get() = parseHexColor(settings.colors.linkColor)
-    val LinkHover: Color get() = parseHexColor(settings.colors.linkHover)
-    val BlockquoteBorder: Color get() = Accent.copy(alpha = 0.6f)
-    val BlockquoteBackground: Color get() = parseHexColor(settings.colors.blockquoteBackground)
+    val CodeBlockBackground: Color get() = themeColors.codeBlockBackgroundColor
+    val CodeBlockBorder: Color get() = themeColors.codeBlockBorderColor
+    val CodeSpanBackground: Color get() = themeColors.codeSpanBackgroundColor
+    val LinkColor: Color get() = themeColors.linkColor
+    val LinkHover: Color get() = themeColors.linkHoverColor
+    val BlockquoteBorder: Color get() = themeColors.blockquoteBorderColor
+    val BlockquoteBackground: Color get() = themeColors.blockquoteBackgroundColor
     val HeadingColor: Color get() = TextPrimary
     val HeadingColorSecondary: Color get() = TextSecondary
 }
@@ -121,6 +120,16 @@ object ObsidianTheme {
     val EditorLineHeight: Float get() = defaultTheme.EditorLineHeight
     val PanelBorderWidth: androidx.compose.ui.unit.Dp get() = defaultTheme.PanelBorderWidth
     val PanelPadding: androidx.compose.ui.unit.Dp get() = defaultTheme.PanelPadding
+    val IconSizeSmall: androidx.compose.ui.unit.Dp get() = defaultTheme.IconSizeSmall
+    val IconSizeMedium: androidx.compose.ui.unit.Dp get() = defaultTheme.IconSizeMedium
+    val IconSizeLarge: androidx.compose.ui.unit.Dp get() = defaultTheme.IconSizeLarge
+    val SidebarItemHeight: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarItemHeight
+    val SidebarIndentPerLevel: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarIndentPerLevel
+    val SidebarHorizontalPadding: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarHorizontalPadding
+    val SidebarVerticalPadding: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarVerticalPadding
+    val SidebarIconTextSpacing: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarIconTextSpacing
+    val SidebarChevronWidth: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarChevronWidth
+    val SidebarSeparatorHeight: androidx.compose.ui.unit.Dp get() = defaultTheme.SidebarSeparatorHeight
     val CodeBlockBackground: Color get() = defaultTheme.CodeBlockBackground
     val CodeBlockBorder: Color get() = defaultTheme.CodeBlockBorder
     val CodeSpanBackground: Color get() = defaultTheme.CodeSpanBackground
@@ -133,18 +142,18 @@ object ObsidianTheme {
 }
 
 fun buildColorSchemeFromSettings(settings: Settings): ColorScheme {
-    val colors = ObsidianThemeValues(settings)
+    val themeColors = AppThemeColors(settings)
     val theme = settings.editor.theme.lowercase()
     
     return when {
         theme == "light" -> lightColorScheme(
-            primary = colors.Accent,
-            onPrimary = Color.White,
-            primaryContainer = colors.Accent.copy(alpha = 0.2f),
-            onPrimaryContainer = colors.Accent,
+            primary = themeColors.accentColor,
+            onPrimary = CatppuccinMochaColors.Base,
+            primaryContainer = themeColors.accentColor.copy(alpha = 0.2f),
+            onPrimaryContainer = themeColors.accentColor,
             
-            secondary = colors.Accent,
-            onSecondary = Color.White,
+            secondary = themeColors.accentColor,
+            onSecondary = CatppuccinMochaColors.Base,
             
             background = Color(0xFFFAFAFA),
             onBackground = Color(0xFF1A1A1A),
@@ -162,28 +171,28 @@ fun buildColorSchemeFromSettings(settings: Settings): ColorScheme {
             onError = Color.White
         )
         else -> darkColorScheme(
-            primary = colors.Accent,
-            onPrimary = Color.White,
-            primaryContainer = colors.Accent.copy(alpha = 0.2f),
-            onPrimaryContainer = colors.Accent,
+            primary = themeColors.accentColor,
+            onPrimary = CatppuccinMochaColors.Base,
+            primaryContainer = themeColors.accentColor.copy(alpha = 0.2f),
+            onPrimaryContainer = themeColors.accentColor,
             
-            secondary = colors.Accent,
-            onSecondary = Color.White,
+            secondary = themeColors.accentColor,
+            onSecondary = CatppuccinMochaColors.Base,
             
-            background = colors.Background,
-            onBackground = colors.TextPrimary,
+            background = CatppuccinMochaColors.Base, // Overall background always uses Base
+            onBackground = themeColors.textPrimaryColor,
             
-            surface = colors.Surface,
-            onSurface = colors.TextPrimary,
-            surfaceVariant = colors.SurfaceVariant,
-            onSurfaceVariant = colors.TextSecondary,
-            surfaceContainerHighest = colors.SurfaceContainer,
+            surface = themeColors.surfaceColor,
+            onSurface = themeColors.textPrimaryColor,
+            surfaceVariant = themeColors.elevatedSurfaceColor,
+            onSurfaceVariant = themeColors.textSecondaryColor,
+            surfaceContainerHighest = themeColors.surfaceContainerColor,
             
-            outline = colors.Border,
-            outlineVariant = colors.BorderVariant,
+            outline = themeColors.borderColor,
+            outlineVariant = themeColors.borderVariantColor,
             
-            error = Color(0xFFCF6679),
-            onError = Color.White
+            error = themeColors.errorColor,
+            onError = CatppuccinMochaColors.Base
         )
     }
 }

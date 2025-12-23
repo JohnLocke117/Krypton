@@ -33,10 +33,12 @@ fun MarkdownCompiledView(
     }
     
     val scrollState = rememberScrollState()
+    val appColors = LocalAppColors.current
     
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(appColors.editorBackground) // Mantle for compiled view background
             .padding(theme.EditorPadding)
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
