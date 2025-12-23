@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import java.nio.file.Path
 import java.nio.file.Paths
 import org.jetbrains.compose.resources.painterResource
+import org.krypton.krypton.util.AppLogger
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.chevron_right as chevronRight
@@ -265,6 +266,7 @@ fun FileExplorerContent(
                             state = state,
                             onFileClick = { path ->
                                 if (FileManager.isFile(path)) {
+                                    AppLogger.action("FileExplorer", "FileOpened", path.toString())
                                     state.openTab(path)
                                 }
                             },

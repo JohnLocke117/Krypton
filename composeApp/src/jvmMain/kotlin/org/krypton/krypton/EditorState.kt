@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.nio.file.Path
+import org.krypton.krypton.util.AppLogger
 
 enum class RibbonButton {
     Files, Search, Bookmarks, Settings
@@ -102,6 +103,9 @@ class EditorState(
         isCreatingNewFile = false
         newFileName = ""
         refreshFiles()
+        if (path != null) {
+            AppLogger.action("FileExplorer", "FolderSelected", path.toString())
+        }
     }
     
     fun changeDirectoryWithHistory(path: Path?, settingsRepository: SettingsRepository?) {
@@ -201,6 +205,7 @@ class EditorState(
             fileContent = documents[existingIndex].text
             // Ensure undo/redo manager exists
             getUndoRedoManager(existingIndex)
+            AppLogger.action("Editor", "TabSwitched", path.toString())
             return
         }
 
@@ -216,6 +221,7 @@ class EditorState(
         
         // Initialize undo/redo manager for new tab
         getUndoRedoManager(newIndex).initialize(content)
+        AppLogger.action("Editor", "TabOpened", path.toString())
     }
 
     fun closeTab(index: Int) {
@@ -225,7 +231,11 @@ class EditorState(
         val doc = documents[index]
         if (doc.isDirty && doc.path != null) {
             FileManager.writeFile(doc.path, doc.text)
+            AppLogger.action("Editor", "FileSaved", doc.path.toString())
         }
+        
+        val path = doc.path?.toString() ?: "untitled"
+        AppLogger.action("Editor", "TabClosed", path)
 
         // Remove undo/redo manager
         undoRedoManagers.remove(index)
@@ -270,6 +280,7 @@ class EditorState(
             val currentDoc = documents[activeTabIndex]
             if (currentDoc.isDirty && currentDoc.path != null) {
                 FileManager.writeFile(currentDoc.path, currentDoc.text)
+                AppLogger.action("Editor", "FileSaved", currentDoc.path.toString())
                 documents = documents.toMutableList().apply {
                     set(activeTabIndex, currentDoc.copy(isDirty = false))
                 }
@@ -279,6 +290,9 @@ class EditorState(
         activeTabIndex = index
         selectedFile = documents[index].path
         fileContent = documents[index].text
+        documents[index].path?.let { path ->
+            AppLogger.action("Editor", "TabSwitched", path.toString())
+        }
         
         // Update search matches for new document
         searchState?.let { currentState ->
@@ -384,6 +398,7 @@ class EditorState(
             val doc = documents[activeTabIndex]
             if (doc.path != null) {
                 FileManager.writeFile(doc.path, doc.text)
+                AppLogger.action("Editor", "FileSaved", doc.path.toString())
                 documents = documents.toMutableList().apply {
                     set(activeTabIndex, doc.copy(isDirty = false))
                 }
@@ -436,14 +451,17 @@ class EditorState(
 
     fun toggleLeftSidebar() {
         leftSidebarVisible = !leftSidebarVisible
+        AppLogger.action("LeftSidebar", if (leftSidebarVisible) "Opened" else "Closed")
     }
 
     fun toggleRightSidebar() {
         rightSidebarVisible = !rightSidebarVisible
+        AppLogger.action("RightSidebar", if (rightSidebarVisible) "Opened" else "Closed")
     }
 
     fun updateActiveRightPanel(type: RightPanelType) {
         activeRightPanel = type
+        AppLogger.action("RightPanel", "Switched", type.name)
         // Open sidebar if closed when switching to chat
         if (type == RightPanelType.Chat && !rightSidebarVisible) {
             rightSidebarVisible = true
@@ -460,6 +478,7 @@ class EditorState(
 
     fun updateActiveRibbonButton(button: RibbonButton) {
         activeRibbonButton = button
+        AppLogger.action("Ribbon", "ButtonClicked", button.name)
     }
 
     // Settings dialog state
@@ -594,9 +613,13 @@ class EditorState(
     fun confirmCreateFile(name: String, parentPath: Path) {
         if (name.isNotBlank()) {
             val newFile = parentPath.resolve(name)
-            FileManager.createFile(newFile)
-            refreshFiles()
-            openTab(newFile)
+            if (FileManager.createFile(newFile)) {
+                AppLogger.action("FileExplorer", "CreateFile", newFile.toString())
+                refreshFiles()
+                openTab(newFile)
+            } else {
+                AppLogger.e("FileExplorer", "Failed to create file: $newFile")
+            }
         }
         isCreatingNewFile = false
         newFileName = ""
@@ -606,8 +629,12 @@ class EditorState(
     fun confirmCreateFolder(name: String, parentPath: Path) {
         if (name.isNotBlank()) {
             val newFolder = parentPath.resolve(name)
-            FileManager.createDirectory(newFolder)
-            refreshFiles()
+            if (FileManager.createDirectory(newFolder)) {
+                AppLogger.action("FileExplorer", "CreateFolder", newFolder.toString())
+                refreshFiles()
+            } else {
+                AppLogger.e("FileExplorer", "Failed to create folder: $newFolder")
+            }
         }
         isCreatingNewFolder = false
         newFolderName = ""
@@ -620,6 +647,7 @@ class EditorState(
             if (parent != null) {
                 val newPath = parent.resolve(newName)
                 if (FileManager.renameFile(oldPath, newPath)) {
+                    AppLogger.action("FileExplorer", "Rename", "${oldPath.fileName} -> $newName")
                     // Update any open tabs with the old path
                     documents = documents.map { doc ->
                         if (doc.path == oldPath) {
@@ -629,6 +657,8 @@ class EditorState(
                         }
                     }
                     refreshFiles()
+                } else {
+                    AppLogger.e("FileExplorer", "Failed to rename: $oldPath -> $newPath")
                 }
             }
         }
@@ -667,8 +697,12 @@ class EditorState(
             }
         }
         
-        FileManager.deleteFile(path)
-        refreshFiles()
+        if (FileManager.deleteFile(path)) {
+            AppLogger.action("FileExplorer", "Delete", path.toString())
+            refreshFiles()
+        } else {
+            AppLogger.e("FileExplorer", "Failed to delete: $path")
+        }
         deletingPath = null
     }
 

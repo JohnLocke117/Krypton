@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.krypton.krypton.util.AppLogger
 
 /**
  * HTTP-based embedder that works with Ollama, Llama Stack, or similar APIs.
@@ -55,22 +56,26 @@ class HttpEmbedder(
             return@withContext emptyList()
         }
         
+        val url = "$baseUrl$apiPath"
+        AppLogger.d("HttpEmbedder", "Embedding request started: $url, model=$model, count=${texts.size}")
+        
         val embeddings = mutableListOf<FloatArray>()
         
         // Process texts one by one (some APIs may support batch, but we'll do one at a time for compatibility)
-        for (text in texts) {
+        for ((index, text) in texts.withIndex()) {
             try {
                 val request = EmbeddingRequest(
                     model = model,
                     prompt = text
                 )
                 
-                val response: EmbeddingResponse = client.post("$baseUrl$apiPath") {
+                val response: EmbeddingResponse = client.post(url) {
                     contentType(ContentType.Application.Json)
                     setBody(request)
                 }.body()
                 
                 if (response.error != null) {
+                    AppLogger.e("HttpEmbedder", "Embedding request failed: ${response.error}", null)
                     throw EmbeddingException("Embedding API returned error: ${response.error}")
                 }
                 
@@ -89,10 +94,15 @@ class HttpEmbedder(
                 }
                 
                 embeddings.add(embedding)
+                if (index == texts.size - 1) {
+                    AppLogger.i("HttpEmbedder", "Embedding request succeeded: generated ${embeddings.size} embeddings")
+                }
             } catch (e: Exception) {
                 if (e is EmbeddingException) {
+                    AppLogger.e("HttpEmbedder", "Embedding request failed: ${e.message}", e)
                     throw e
                 }
+                AppLogger.e("HttpEmbedder", "Embedding request failed: ${e.message}", e)
                 throw EmbeddingException("Failed to generate embedding: ${e.message}", e)
             }
         }

@@ -25,6 +25,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.coroutinesCore)
             implementation(libs.kotlinx.serializationJson)
+            implementation(libs.kermit)
             implementation("org.jetbrains:markdown:0.5.2")
         }
         commonTest.dependencies {

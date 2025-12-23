@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.krypton.krypton.util.AppLogger
 
 /**
  * HTTP-based Llama client that works with Ollama, llama.cpp, or similar APIs.
@@ -54,6 +55,9 @@ class HttpLlamaClient(
     )
     
     override suspend fun complete(prompt: String): String = withContext(Dispatchers.IO) {
+        val url = "$baseUrl$apiPath"
+        AppLogger.d("HttpLlamaClient", "Request started: $url, model=$model")
+        
         try {
             val request = GenerateRequest(
                 model = model,
@@ -61,14 +65,17 @@ class HttpLlamaClient(
                 stream = false
             )
             
-            val httpResponse = client.post("$baseUrl$apiPath") {
+            val httpResponse = client.post(url) {
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
             
             if (httpResponse.status.value !in 200..299) {
+                AppLogger.e("HttpLlamaClient", "Request failed: status=${httpResponse.status.value}", null)
                 throw LlamaClientException("LLM API returned error: ${httpResponse.status}")
             }
+            
+            AppLogger.i("HttpLlamaClient", "Request succeeded: status=${httpResponse.status.value}")
             
             // Ollama returns application/x-ndjson (newline-delimited JSON)
             val json = Json {
@@ -112,8 +119,10 @@ class HttpLlamaClient(
             
             trimmedResponse
         } catch (e: LlamaClientException) {
+            AppLogger.e("HttpLlamaClient", "Request failed: ${e.message}", e)
             throw e
         } catch (e: Exception) {
+            AppLogger.e("HttpLlamaClient", "Request failed: ${e.message}", e)
             throw LlamaClientException("Failed to generate completion: ${e.message}", e)
         }
     }

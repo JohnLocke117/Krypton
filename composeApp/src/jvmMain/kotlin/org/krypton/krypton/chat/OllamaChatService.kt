@@ -18,6 +18,7 @@ import org.krypton.krypton.util.IdGenerator
 import org.krypton.krypton.util.TimeProvider
 import org.krypton.krypton.util.createIdGenerator
 import org.krypton.krypton.util.createTimeProvider
+import org.krypton.krypton.util.AppLogger
 
 @Serializable
 private data class OllamaGenerateRequest(
@@ -57,6 +58,8 @@ class OllamaChatService(
         history: List<ChatMessage>,
         userMessage: String
     ): List<ChatMessage> = withContext(Dispatchers.IO) {
+        AppLogger.action("Chat", "MessageSent", "model=$model, length=${userMessage.length}")
+        
         try {
             val userMsg = createUserMessage(userMessage)
             val prompt = buildPrompt(history + userMsg)
@@ -67,10 +70,13 @@ class OllamaChatService(
             validateResponse(response)
             
             val assistantMsg = createAssistantMessage(response.response.trim())
+            AppLogger.i("Chat", "ResponseReceived: length=${response.response.length}")
             history + userMsg + assistantMsg
         } catch (e: ChatServiceException) {
+            AppLogger.e("Chat", "ChatError: ${e.message}", e)
             throw e
         } catch (e: Exception) {
+            AppLogger.e("Chat", "ChatError: ${e.message}", e)
             throw ChatServiceException(
                 "Could not reach Ollama. Please make sure `ollama serve` is running. Error: ${e.message}",
                 e
