@@ -23,7 +23,6 @@ import org.krypton.krypton.ObsidianThemeValues
 fun ChatPanel(
     chatService: ChatService,
     theme: ObsidianThemeValues,
-    onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var chatState by remember { mutableStateOf(ChatState()) }
@@ -48,66 +47,43 @@ fun ChatPanel(
     }
 
     Column(modifier = modifier) {
-        // Header bar
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = org.krypton.krypton.CatppuccinMochaColors.Crust
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        // RAG toggle (moved from header to content area)
+        if (ragChatService != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = org.krypton.krypton.CatppuccinMochaColors.Crust
             ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Start,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Chat",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = theme.TextPrimary
-                    )
-                    if (ragChatService != null) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "RAG",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (ragEnabled) theme.Accent else theme.TextSecondary
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "RAG",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (ragEnabled) theme.Accent else theme.TextSecondary
+                        )
+                        Switch(
+                            checked = ragEnabled,
+                            onCheckedChange = {
+                                ragEnabled = it
+                                ragChatService.setRagEnabled(it)
+                            },
+                            modifier = Modifier.size(32.dp, 18.dp),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = theme.Accent,
+                                checkedTrackColor = theme.Accent.copy(alpha = 0.5f),
+                                uncheckedThumbColor = theme.TextSecondary,
+                                uncheckedTrackColor = theme.SurfaceVariant
                             )
-                            Switch(
-                                checked = ragEnabled,
-                                onCheckedChange = {
-                                    ragEnabled = it
-                                    ragChatService.setRagEnabled(it)
-                                },
-                                modifier = Modifier.size(32.dp, 18.dp),
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = theme.Accent,
-                                    checkedTrackColor = theme.Accent.copy(alpha = 0.5f),
-                                    uncheckedThumbColor = theme.TextSecondary,
-                                    uncheckedTrackColor = theme.SurfaceVariant
-                                )
-                            )
-                        }
+                        )
                     }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clickable(onClick = onClose),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(Res.drawable.close),
-                        contentDescription = "Close",
-                        modifier = Modifier.size(16.dp),
-                        colorFilter = ColorFilter.tint(theme.TextSecondary)
-                    )
                 }
             }
         }
