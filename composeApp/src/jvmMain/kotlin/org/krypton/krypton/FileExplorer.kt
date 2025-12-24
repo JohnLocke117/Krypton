@@ -10,11 +10,13 @@ import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -234,13 +236,13 @@ fun FileExplorerContent(
         .fillMaxSize()
         .then(
             if (isEditing) {
-                Modifier.clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) {
-                    // Cancel editing when clicking on empty space
-                    state.cancelEditing()
-                    state.clearValidationError()
+                // Use pointerInput to only respond to actual pointer clicks, not keyboard events
+                Modifier.pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        // Cancel editing when clicking on empty space (only pointer clicks, not keyboard)
+                        state.cancelEditing()
+                        state.clearValidationError()
+                    }
                 }
             } else {
                 Modifier.clickable(
