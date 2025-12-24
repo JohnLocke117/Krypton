@@ -9,6 +9,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -64,22 +68,28 @@ private fun RenderBlock(block: BlockNode, settings: Settings, theme: ObsidianThe
             }
             
             Text(
-                text = block.text,
+                text = if (block.inlineNodes.isNotEmpty()) {
+                    buildAnnotatedStringFromInlineNodes(block.inlineNodes, settings, theme)
+                } else {
+                    AnnotatedString(block.text)
+                },
                 style = typography.copy(
                     color = theme.HeadingColor,
                     fontWeight = FontWeight.Bold
                 ),
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
             )
         }
         
         is BlockNode.Paragraph -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start
-            ) {
-                RenderInlineNodes(block.inlineNodes, settings, theme)
-            }
+            Text(
+                text = buildAnnotatedStringFromInlineNodes(block.inlineNodes, settings, theme),
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
         
         is BlockNode.CodeBlock -> {
@@ -213,47 +223,42 @@ private fun RenderInlineNodes(nodes: List<InlineNode>, settings: Settings, theme
                 Text(
                     text = node.content,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
+                    color = theme.TextPrimary,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             is InlineNode.Strong -> {
                 Text(
-                    text = node.inlineNodes.joinToString("") { 
-                        when (it) {
-                            is InlineNode.Text -> it.content
-                            else -> ""
-                        }
-                    },
+                    text = buildAnnotatedStringFromInlineNodes(node.inlineNodes, settings, theme),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontWeight = FontWeight.Bold
                     ),
-                    color = theme.TextPrimary
+                    color = theme.TextPrimary,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             is InlineNode.Emphasis -> {
                 Text(
-                    text = node.inlineNodes.joinToString("") {
-                        when (it) {
-                            is InlineNode.Text -> it.content
-                            else -> ""
-                        }
-                    },
+                    text = buildAnnotatedStringFromInlineNodes(node.inlineNodes, settings, theme),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontStyle = FontStyle.Italic
                     ),
-                    color = theme.TextPrimary
+                    color = theme.TextPrimary,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             is InlineNode.Code -> {
                 Surface(
-                    modifier = Modifier.padding(horizontal = 4.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .fillMaxWidth(),
                     shape = RoundedCornerShape(4.dp),
                     color = theme.CodeSpanBackground
                 ) {
                     Text(
                         text = node.code,
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontFamily = FontFamily.Monospace,
                             fontSize = settings.editor.codeSpanFontSize.sp
                         ),
                         color = theme.TextPrimary,
@@ -267,15 +272,98 @@ private fun RenderInlineNodes(nodes: List<InlineNode>, settings: Settings, theme
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = theme.LinkColor,
                         textDecoration = TextDecoration.Underline
-                    )
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             is InlineNode.Image -> {
                 Text(
                     text = "[Image: ${node.alt}]",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = theme.TextSecondary
+                    color = theme.TextSecondary,
+                    modifier = Modifier.fillMaxWidth()
                 )
+            }
+        }
+    }
+}
+
+private fun buildAnnotatedStringFromInlineNodes(
+    nodes: List<InlineNode>,
+    settings: Settings,
+    theme: ObsidianThemeValues
+): AnnotatedString {
+    return buildAnnotatedString {
+        var lastChar: Char? = null
+        
+        nodes.forEachIndexed { index, node ->
+            when (node) {
+                is InlineNode.Text -> {
+                    append(node.content)
+                    lastChar = node.content.lastOrNull()
+                }
+                is InlineNode.Strong -> {
+                    val innerText = buildAnnotatedStringFromInlineNodes(node.inlineNodes, settings, theme).text
+                    pushStyle(
+                        style = SpanStyle(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    append(innerText)
+                    pop()
+                    lastChar = innerText.lastOrNull()
+                }
+                is InlineNode.Emphasis -> {
+                    val innerText = buildAnnotatedStringFromInlineNodes(node.inlineNodes, settings, theme).text
+                    pushStyle(
+                        style = SpanStyle(
+                            fontStyle = FontStyle.Italic
+                        )
+                    )
+                    append(innerText)
+                    pop()
+                    lastChar = innerText.lastOrNull()
+                }
+                is InlineNode.Code -> {
+                    // Add space before code span if previous content doesn't end with space
+                    if (lastChar != null && lastChar != ' ') {
+                        append(" ")
+                    }
+                    pushStyle(
+                        style = SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = settings.editor.codeSpanFontSize.sp,
+                            background = theme.CodeSpanBackground
+                        )
+                    )
+                    append(node.code)
+                    pop()
+                    // Add space after code span if next content doesn't start with space
+                    val nextNode = nodes.getOrNull(index + 1)
+                    val nextStartsWithSpace = when (nextNode) {
+                        is InlineNode.Text -> nextNode.content.firstOrNull() == ' '
+                        else -> false
+                    }
+                    if (!nextStartsWithSpace) {
+                        append(" ")
+                    }
+                    lastChar = ' '
+                }
+                is InlineNode.Link -> {
+                    pushStyle(
+                        style = SpanStyle(
+                            color = theme.LinkColor,
+                            textDecoration = TextDecoration.Underline
+                        )
+                    )
+                    append(node.text)
+                    pop()
+                    lastChar = node.text.lastOrNull()
+                }
+                is InlineNode.Image -> {
+                    append("[Image: ${node.alt}]")
+                    lastChar = ']'
+                }
             }
         }
     }

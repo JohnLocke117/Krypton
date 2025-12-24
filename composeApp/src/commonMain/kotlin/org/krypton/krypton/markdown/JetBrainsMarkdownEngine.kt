@@ -139,7 +139,9 @@ class JetBrainsMarkdownEngine : MarkdownEngine {
                     // Check if this is a text-like node (no children, has text content)
                     if (node.children.isEmpty()) {
                         val text = markdown.substring(node.startOffset, node.endOffset)
-                        if (text.isNotEmpty() && text.isNotBlank() && !isMarkdownSyntax(text)) {
+                        // Allow whitespace-only nodes to preserve spaces after punctuation
+                        // Only filter out empty strings and pure markdown syntax
+                        if (text.isNotEmpty() && !isMarkdownSyntax(text)) {
                             inlineNodes.add(InlineNode.Text(text))
                         }
                     } else {

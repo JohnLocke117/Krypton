@@ -5,6 +5,9 @@ import org.krypton.krypton.core.domain.editor.ViewMode
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,9 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.description
+import krypton.composeapp.generated.resources.edit_document
+import krypton.composeapp.generated.resources.read_only
 import java.nio.file.Path
 
 @Composable
@@ -37,81 +41,80 @@ fun TabBar(
     
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
+    
+    val activeDoc = if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+        documents[activeTabIndex]
+    } else {
+        null
+    }
+    
+    val currentViewMode = activeDoc?.viewMode ?: ViewMode.LivePreview
+    
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = appColors.editorBackground // Mantle for tab bar (matches editor area)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            // Tabs
-            documents.forEachIndexed { index, doc ->
-                TabItem(
-                    doc = doc,
-                    isActive = index == activeTabIndex,
-                    settings = settings,
-                    theme = theme,
-                    onClick = { state.switchTab(index) },
-                    onClose = { state.closeTab(index) }
-                )
-            }
-
-            // View Mode Toggle (only show when a tab is active)
-            if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
-                val activeDoc = documents[activeTabIndex]
-                val currentViewMode = activeDoc.viewMode
-                Box(
+        Column {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Row(
                     modifier = Modifier
-                        .height(theme.TabHeight)
-                        .clip(RoundedCornerShape(theme.TabCornerRadius))
-                        .background(theme.SurfaceContainer)
-                        .clickable { state.toggleViewMode() }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Start
                 ) {
-                    Text(
-                        text = when (currentViewMode) {
-                            ViewMode.LivePreview -> "Live"
-                            ViewMode.Compiled -> "Compiled"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colorScheme.onSurfaceVariant,
-                        fontSize = settings.ui.tabLabelFontSize.sp
-                    )
+                    // Tabs
+                    documents.forEachIndexed { index, doc ->
+                        TabItem(
+                            doc = doc,
+                            isActive = index == activeTabIndex,
+                            settings = settings,
+                            theme = theme,
+                            onClick = { state.switchTab(index) },
+                            onClose = { state.closeTab(index) }
+                        )
+                    }
                 }
-            }
-
-            // New Tab Button
-            Box(
-                modifier = Modifier
-                    .size(theme.TabHeight)
-                    .clip(RoundedCornerShape(theme.TabCornerRadius))
-                    .background(theme.SurfaceContainer)
-                    .clickable {
-                        openFolderDialog { selectedPath ->
-                            selectedPath?.let { path ->
-                                val file = path.toFile()
-                                if (file.isFile) {
-                                    state.openTab(path)
-                                }
-                            }
+                
+                // View mode icon at the end of tabs line (only show when a tab is active)
+                if (activeDoc != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .height(theme.TabHeight)
+                            .padding(end = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(theme.TabHeight)
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { state.toggleViewMode() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(
+                                    when (currentViewMode) {
+                                        ViewMode.LivePreview -> Res.drawable.edit_document
+                                        ViewMode.Compiled -> Res.drawable.read_only
+                                    }
+                                ),
+                                contentDescription = when (currentViewMode) {
+                                    ViewMode.LivePreview -> "Live Preview"
+                                    ViewMode.Compiled -> "Compiled"
+                                },
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+                            )
                         }
                     }
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(Res.drawable.add),
-                    contentDescription = "New Tab",
-                    modifier = Modifier.size(16.dp),
-                    colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
-                )
+                }
             }
+            
+            // Divider below tabs
+            Divider(
+                modifier = Modifier.fillMaxWidth(),
+                color = theme.BorderVariant
+            )
         }
     }
 }
@@ -130,11 +133,17 @@ fun TabItem(
     val colorScheme = MaterialTheme.colorScheme
     val fileName = doc.path?.let { java.nio.file.Paths.get(it).fileName.toString() } ?: "Untitled"
     val isModified = doc.isDirty
+    
+    // Hover state for inactive tabs
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
 
     val backgroundColor = if (isActive) {
         appColors.editorBackground // Mantle for active tab (matches editor)
+    } else if (isHovered) {
+        CatppuccinMochaColors.Mantle // Mantle for hovered inactive tabs (lighter than Crust)
     } else {
-        colorScheme.surfaceVariant // Surface0 for inactive tabs
+        CatppuccinMochaColors.Crust // Crust for inactive tabs
     }
 
     val textColor = if (isActive) {
@@ -147,7 +156,7 @@ fun TabItem(
         modifier = modifier
             .widthIn(min = 120.dp, max = 240.dp)
             .height(theme.TabHeight)
-            .clip(RoundedCornerShape(theme.TabCornerRadius))
+            .hoverable(interactionSource = interactionSource)
             .background(backgroundColor)
             .clickable(onClick = onClick)
             .padding(horizontal = theme.TabPadding, vertical = 8.dp)
@@ -188,21 +197,19 @@ fun TabItem(
                 )
             }
 
-            // Close button (show when active or when there are multiple tabs)
-            if (isActive) {
-                Box(
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clickable(onClick = onClose),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(Res.drawable.close),
-                        contentDescription = "Close",
-                        modifier = Modifier.size(14.dp),
-                        colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
-                    )
-                }
+            // Close button (show on all tabs)
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clickable(onClick = onClose),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.close),
+                    contentDescription = "Close",
+                    modifier = Modifier.size(14.dp),
+                    colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+                )
             }
         }
     }

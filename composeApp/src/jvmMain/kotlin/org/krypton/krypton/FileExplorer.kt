@@ -388,13 +388,18 @@ fun FileExplorerContent(
                         
                         key(treeVersion) { // Force recomposition when tree changes
                             // Display only the children of the root folder, not the root folder itself (VS Code behavior)
+                            // Compute active tab path from activeTabIndex
+                            val activeTabPath = if (activeTabIndex >= 0 && activeTabIndex < documents.size) {
+                                documents[activeTabIndex].path?.let { java.nio.file.Paths.get(it) }
+                            } else {
+                                null
+                            }
+                            
                             fileTree!!.children.forEach { child ->
                                 TreeItem(
                                     node = child,
                                     depth = 0,
-                                    activeTabPaths = documents.mapNotNull { doc -> 
-                                        doc.path?.let { java.nio.file.Paths.get(it) }
-                                    }.toSet(),
+                                    activeTabPath = activeTabPath,
                                     state = state,
                                     theme = theme,
                                     onFileClick = { path ->
@@ -477,7 +482,7 @@ private fun getFileIcon(path: Path): DrawableResource {
 fun TreeItem(
     node: FileTreeNode,
     depth: Int,
-    activeTabPaths: Set<Path>,
+    activeTabPath: Path?,
     state: org.krypton.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
     onFileClick: (Path) -> Unit,
@@ -485,7 +490,7 @@ fun TreeItem(
     onTreeRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isSelected = activeTabPaths.contains(node.path)
+    val isSelected = activeTabPath == node.path
     val indent = theme.SidebarIndentPerLevel * depth
     
     // Check if this item is being edited
@@ -680,7 +685,7 @@ fun TreeItem(
                 TreeItem(
                     node = child,
                     depth = depth + 1,
-                    activeTabPaths = activeTabPaths,
+                    activeTabPath = activeTabPath,
                     state = state,
                     theme = theme,
                     onFileClick = onFileClick,
