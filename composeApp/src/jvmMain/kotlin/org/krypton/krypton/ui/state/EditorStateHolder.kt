@@ -43,7 +43,7 @@ class EditorStateHolder(
     private val _leftSidebarWidth = MutableStateFlow(280.0)
     val leftSidebarWidth: StateFlow<Double> = _leftSidebarWidth.asStateFlow()
     
-    private val _rightSidebarWidth = MutableStateFlow(280.0)
+    private val _rightSidebarWidth = MutableStateFlow(400.0) // Default to max width
     val rightSidebarWidth: StateFlow<Double> = _rightSidebarWidth.asStateFlow()
     
     private val _activeRibbonButton = MutableStateFlow(RibbonButton.Files)
@@ -422,6 +422,8 @@ class EditorStateHolder(
         AppLogger.action("RightPanel", "Switched", type.name)
         if (!_rightSidebarVisible.value) {
             _rightSidebarVisible.value = true
+            // Set to max width when first opening
+            _rightSidebarWidth.value = 400.0 // Default max width
         }
     }
     

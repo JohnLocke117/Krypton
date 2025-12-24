@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.close
 import org.krypton.krypton.markdown.BlockNode
 import org.krypton.krypton.markdown.InlineNode
@@ -142,7 +143,7 @@ private fun RightSidebarTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Top bar is empty for now, will add icons later
@@ -158,6 +159,23 @@ private fun RightSidebarTopBar(
                         ),
                         color = colorScheme.onSurface
                     )
+                    
+                    // New chat icon
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable {
+                                chatStateHolder.clearHistory()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(Res.drawable.add),
+                            contentDescription = "New Chat",
+                            modifier = Modifier.size(20.dp),
+                            colorFilter = ColorFilter.tint(colorScheme.onSurface)
+                        )
+                    }
                 }
             }
         }

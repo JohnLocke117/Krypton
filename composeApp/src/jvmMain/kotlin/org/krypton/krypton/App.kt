@@ -298,17 +298,29 @@ private fun AppContent(
 
                     // Right Resizable Splitter
                     if (rightSidebarVisible) {
+                        var dragStartWidth by remember(rightSidebarWidth) { mutableStateOf(rightSidebarWidth) }
+                        var totalDragDp by remember { mutableStateOf(0.0) }
+                        
                         ResizableSplitter(
                             onDrag = { deltaPx ->
-                                val deltaDp = with(density) { deltaPx.toDp() }
-                                val newWidth = rightSidebarWidth - deltaDp.value
+                                val deltaDp = with(density) { deltaPx.toDp().value }
+                                totalDragDp += deltaDp
+                                // For right panel, dragging left (negative delta) increases width
+                                val newWidth = dragStartWidth - totalDragDp
                                 editorStateHolder.updateRightSidebarWidth(
                                     newWidth,
                                     minWidth = settings.ui.sidebarMinWidth.toDouble(),
                                     maxWidth = settings.ui.sidebarMaxWidth.toDouble()
                                 )
                             },
-                            theme = theme
+                            theme = theme,
+                            onDragStart = {
+                                dragStartWidth = rightSidebarWidth
+                                totalDragDp = 0.0
+                            },
+                            onDragEnd = {
+                                totalDragDp = 0.0
+                            }
                         )
                     }
 
