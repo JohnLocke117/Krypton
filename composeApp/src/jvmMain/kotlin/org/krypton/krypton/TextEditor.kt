@@ -88,7 +88,7 @@ fun TextEditor(
         modifier = modifier
             .fillMaxSize()
             .background(appColors.editorBackground) // Mantle - ensures entire editor area has correct background
-            .padding(theme.EditorPadding)
+            .padding(top = theme.EditorPadding, start = theme.EditorPadding, end = theme.EditorPadding)
     ) {
         // Editor area
         val currentActiveDocument = activeDocument

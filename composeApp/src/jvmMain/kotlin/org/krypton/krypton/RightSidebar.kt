@@ -145,16 +145,21 @@ private fun RightSidebarTopBar(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = when (activeRightPanel) {
-                    RightPanelType.Outline -> "Outline"
-                    RightPanelType.Chat -> "Chat"
-                },
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold
-                ),
-                color = colorScheme.onSurface
-            )
+            // Top bar is empty for now, will add icons later
+            when (activeRightPanel) {
+                RightPanelType.Outline -> {
+                    // Empty for now
+                }
+                RightPanelType.Chat -> {
+                    Text(
+                        text = "Chat",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colorScheme.onSurface
+                    )
+                }
+            }
         }
     }
 }

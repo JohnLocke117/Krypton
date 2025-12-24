@@ -115,7 +115,7 @@ fun MarkdownLivePreviewEditor(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxSize()
-                .padding(theme.EditorPadding)
+                .padding(top = theme.EditorPadding, start = theme.EditorPadding, end = theme.EditorPadding)
                 .verticalScroll(scrollState),
             textStyle = TextStyle(
                 fontFamily = fontFamily,

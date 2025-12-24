@@ -43,7 +43,7 @@ fun MarkdownCompiledView(
         modifier = modifier
             .fillMaxSize()
             .background(appColors.editorBackground) // Mantle for compiled view background
-            .padding(theme.EditorPadding)
+            .padding(top = theme.EditorPadding, start = theme.EditorPadding, end = theme.EditorPadding)
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {

@@ -18,9 +18,9 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.chat
+import krypton.composeapp.generated.resources.outline
 import krypton.composeapp.generated.resources.right_panel_close
 import krypton.composeapp.generated.resources.right_panel_open
-import krypton.composeapp.generated.resources.settings
 
 @Composable
 fun RightRibbon(
@@ -43,23 +43,23 @@ fun RightRibbon(
                     onClick = { state.toggleRightSidebar() }
                 )
             },
-            // Slot 1: Chat icon
+            // Slot 1: Outline icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.outline,
+                    contentDescription = "Outline",
+                    isActive = activeRightPanel == RightPanelType.Outline,
+                    onClick = { state.updateActiveRightPanel(RightPanelType.Outline) },
+                    cardFacingEdge = CardFacingEdge.Start
+                )
+            },
+            // Slot 2: Chat icon
             {
                 RibbonIconButton(
                     icon = Res.drawable.chat,
                     contentDescription = "Chat",
                     isActive = activeRightPanel == RightPanelType.Chat,
                     onClick = { state.updateActiveRightPanel(RightPanelType.Chat) },
-                    cardFacingEdge = CardFacingEdge.Start
-                )
-            },
-            // Slot 2: Settings icon
-            {
-                RibbonIconButton(
-                    icon = Res.drawable.settings,
-                    contentDescription = "Settings",
-                    isActive = false,
-                    onClick = { state.openSettingsDialog() },
                     cardFacingEdge = CardFacingEdge.Start
                 )
             }

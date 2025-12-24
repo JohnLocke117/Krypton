@@ -420,7 +420,7 @@ class EditorStateHolder(
     fun updateActiveRightPanel(type: RightPanelType) {
         _activeRightPanel.value = type
         AppLogger.action("RightPanel", "Switched", type.name)
-        if (type == RightPanelType.Chat && !_rightSidebarVisible.value) {
+        if (!_rightSidebarVisible.value) {
             _rightSidebarVisible.value = true
         }
     }
