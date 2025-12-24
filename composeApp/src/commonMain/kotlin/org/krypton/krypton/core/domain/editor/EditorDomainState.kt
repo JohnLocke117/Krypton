@@ -40,6 +40,12 @@ data class EditorDomainState(
     val selectedFile: String? = null,
     
     /**
+     * Path of the last clicked node in the file explorer (for determining where to create new files/folders).
+     * This can be a file or folder path. If null, creation happens at root.
+     */
+    val selectedExplorerNode: String? = null,
+    
+    /**
      * File tree editing mode (creating file, creating folder, or renaming).
      */
     val editingMode: FileTreeEditMode? = null,
@@ -62,7 +68,12 @@ data class EditorDomainState(
     /**
      * Whether to show the recent folders dialog.
      */
-    val showRecentFoldersDialog: Boolean = false
+    val showRecentFoldersDialog: Boolean = false,
+    
+    /**
+     * Validation error message for file/folder operations (e.g., duplicate name).
+     */
+    val validationError: String? = null
 ) {
     /**
      * Gets the active document, if any.

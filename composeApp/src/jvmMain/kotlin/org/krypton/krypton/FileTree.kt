@@ -77,32 +77,5 @@ object FileTreeBuilder {
         }
     }
     
-    fun findNode(root: FileTreeNode, targetPath: Path): FileTreeNode? {
-        if (root.path == targetPath) {
-            return root
-        }
-        
-        for (child in root.children) {
-            val found = findNode(child, targetPath)
-            if (found != null) {
-                return found
-            }
-        }
-        
-        return null
-    }
-    
-    fun expandPath(root: FileTreeNode, targetPath: Path) {
-        // Find the node for the target path
-        val targetNode = findNode(root, targetPath) ?: return
-        
-        // Expand all parent nodes up to root
-        var currentPath = targetPath
-        while (currentPath != root.path && currentPath.parent != null) {
-            currentPath = currentPath.parent
-            val node = findNode(root, currentPath)
-            node?.isExpanded = true
-        }
-    }
 }
 

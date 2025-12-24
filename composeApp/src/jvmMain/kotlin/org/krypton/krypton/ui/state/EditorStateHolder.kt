@@ -73,6 +73,30 @@ class EditorStateHolder(
     val editingParentPath: StateFlow<Path?> = domainState.map { it.editingParentPath?.let { Paths.get(it) } }.stateIn(coroutineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
     val deletingPath: StateFlow<Path?> = domainState.map { it.deletingPath?.let { Paths.get(it) } }.stateIn(coroutineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
     val showRecentFoldersDialog: StateFlow<Boolean> = domainState.map { it.showRecentFoldersDialog }.stateIn(coroutineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
+    val validationError: StateFlow<String?> = domainState.map { it.validationError }.stateIn(coroutineScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, null)
+    
+    // Tree refresh trigger - increments when tree needs to be refreshed (e.g., after file/folder operations)
+    private val _treeRefreshTrigger = MutableStateFlow(0L)
+    val treeRefreshTrigger: StateFlow<Long> = _treeRefreshTrigger.asStateFlow()
+    
+    /**
+     * Triggers a tree refresh by incrementing the refresh trigger.
+     * Call this after file/folder create/delete/rename operations.
+     */
+    fun triggerTreeRefresh() {
+        _treeRefreshTrigger.value = System.currentTimeMillis()
+    }
+    
+    // Collapse all trigger - increments when all folders should be collapsed
+    private val _collapseAllTrigger = MutableStateFlow(0L)
+    val collapseAllTrigger: StateFlow<Long> = _collapseAllTrigger.asStateFlow()
+    
+    /**
+     * Triggers collapse all by incrementing the collapse all trigger.
+     */
+    fun triggerCollapseAll() {
+        _collapseAllTrigger.value = System.currentTimeMillis()
+    }
     
     // UI status for error handling
     private val _status = MutableStateFlow<UiStatus>(UiStatus.Idle)
@@ -450,8 +474,75 @@ class EditorStateHolder(
         return false
     }
     
+    // File tree operations - selection management
+    /**
+     * Selects a node in the file explorer. This determines where new files/folders will be created.
+     */
+    fun selectExplorerNode(path: Path?) {
+        val pathString = path?.toString()
+        _domainState.value = _domainState.value.copy(
+            selectedExplorerNode = pathString
+        )
+        if (path != null) {
+            AppLogger.action("FileExplorer", "NodeSelected", path.toString())
+        }
+    }
+    
+    /**
+     * Clears the file explorer selection (e.g., when clicking on empty space).
+     * New files/folders will be created at root.
+     */
+    fun clearExplorerSelection() {
+        _domainState.value = _domainState.value.copy(
+            selectedExplorerNode = null
+        )
+        AppLogger.action("FileExplorer", "SelectionCleared", "")
+    }
+    
+    /**
+     * Computes the parent path where a new file/folder should be created based on the selected node.
+     * - If a folder is selected → returns that folder
+     * - If a file is selected → returns the file's parent folder
+     * - If nothing is selected → returns the current directory (root)
+     */
+    private fun getParentPathForCreation(): Path? {
+        val selectedNodePath = _domainState.value.selectedExplorerNode?.let { Paths.get(it) }
+        val currentDir = _domainState.value.currentDirectory?.let { Paths.get(it) }
+        
+        return when {
+            selectedNodePath == null -> {
+                // No selection, use root
+                currentDir
+            }
+            fileSystem.isDirectory(selectedNodePath.toString()) -> {
+                // Selected node is a folder, create inside it
+                selectedNodePath
+            }
+            else -> {
+                // Selected node is a file, create as sibling (in file's parent)
+                selectedNodePath.parent ?: currentDir
+            }
+        }
+    }
+    
     // File tree operations
-    fun startCreatingNewFile(parentPath: Path) {
+    /**
+     * Starts creating a new file. The parent path is determined from the selected explorer node.
+     */
+    fun startCreatingNewFile() {
+        val parentPath = getParentPathForCreation()
+        if (parentPath == null) {
+            AppLogger.e("FileExplorer", "Cannot create file: no current directory", null)
+            return
+        }
+        
+        val selectedNode = _domainState.value.selectedExplorerNode
+        AppLogger.action(
+            "FileExplorer", 
+            "StartCreatingFile", 
+            "selectedNode=$selectedNode, parentPath=${parentPath.toString()}"
+        )
+        
         _domainState.value = _domainState.value.copy(
             editingMode = org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFile,
             editingParentPath = parentPath.toString(),
@@ -459,12 +550,46 @@ class EditorStateHolder(
         )
     }
     
-    fun startCreatingNewFolder(parentPath: Path) {
+    /**
+     * Starts creating a new folder. The parent path is determined from the selected explorer node.
+     */
+    fun startCreatingNewFolder() {
+        val parentPath = getParentPathForCreation()
+        if (parentPath == null) {
+            AppLogger.e("FileExplorer", "Cannot create folder: no current directory", null)
+            return
+        }
+        
+        val selectedNode = _domainState.value.selectedExplorerNode
+        AppLogger.action(
+            "FileExplorer", 
+            "StartCreatingFolder", 
+            "selectedNode=$selectedNode, parentPath=${parentPath.toString()}"
+        )
+        
         _domainState.value = _domainState.value.copy(
             editingMode = org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder,
             editingParentPath = parentPath.toString(),
             editingItemPath = null
         )
+    }
+    
+    /**
+     * Legacy method for backward compatibility. Prefer startCreatingNewFile() instead.
+     */
+    @Deprecated("Use startCreatingNewFile() instead", ReplaceWith("startCreatingNewFile()"))
+    fun startCreatingNewFile(parentPath: Path) {
+        selectExplorerNode(parentPath)
+        startCreatingNewFile()
+    }
+    
+    /**
+     * Legacy method for backward compatibility. Prefer startCreatingNewFolder() instead.
+     */
+    @Deprecated("Use startCreatingNewFolder() instead", ReplaceWith("startCreatingNewFolder()"))
+    fun startCreatingNewFolder(parentPath: Path) {
+        selectExplorerNode(parentPath)
+        startCreatingNewFolder()
     }
     
     fun startRenamingItem(path: Path) {
@@ -486,37 +611,93 @@ class EditorStateHolder(
     fun confirmCreateFile(name: String, parentPath: Path) {
         coroutineScope.launch {
             if (name.isNotBlank()) {
-                val newFile = parentPath.resolve(name)
+                val actualParentPath = parentPath
+                val selectedNode = _domainState.value.selectedExplorerNode
+                
+                // Validate name doesn't already exist
+                val nameExists = withContext(Dispatchers.IO) {
+                    !validateNameDoesNotExist(name, actualParentPath)
+                }
+                
+                if (nameExists) {
+                    AppLogger.e("FileExplorer", 
+                        "CreateFile failed: name already exists - name=$name, parentPath=${actualParentPath.toString()}, selectedNode=$selectedNode")
+                    _domainState.value = _domainState.value.copy(
+                        validationError = "A file or folder **${name}** already exists at this location. Please choose a different name."
+                    )
+                    return@launch
+                }
+                
+                // Clear any previous validation error
+                _domainState.value = _domainState.value.copy(validationError = null)
+                
+                val newFile = actualParentPath.resolve(name)
                 val success = withContext(Dispatchers.IO) {
                     fileSystem.createFile(newFile.toString())
                 }
                 if (success) {
-                    AppLogger.action("FileExplorer", "CreateFile", newFile.toString())
+                    AppLogger.action("FileExplorer", "CreateFile", 
+                        "path=${newFile.toString()}, selectedNode=$selectedNode, parentPath=${actualParentPath.toString()}")
                     refreshFiles()
+                    triggerTreeRefresh() // Trigger tree refresh to show new file
                     openTab(newFile)
+                    cancelEditing()
                 } else {
-                    AppLogger.e("FileExplorer", "Failed to create file: $newFile", null)
+                    AppLogger.e("FileExplorer", 
+                        "Failed to create file - path=${newFile.toString()}, selectedNode=$selectedNode, parentPath=${actualParentPath.toString()}")
+                    _domainState.value = _domainState.value.copy(
+                        validationError = "Failed to create file: $name"
+                    )
                 }
+            } else {
+                cancelEditing()
             }
-            cancelEditing()
         }
     }
     
     fun confirmCreateFolder(name: String, parentPath: Path) {
         coroutineScope.launch {
             if (name.isNotBlank()) {
-                val newFolder = parentPath.resolve(name)
+                val actualParentPath = parentPath
+                val selectedNode = _domainState.value.selectedExplorerNode
+                
+                // Validate name doesn't already exist
+                val nameExists = withContext(Dispatchers.IO) {
+                    !validateNameDoesNotExist(name, actualParentPath)
+                }
+                
+                if (nameExists) {
+                    AppLogger.e("FileExplorer", 
+                        "CreateFolder failed: name already exists - name=$name, parentPath=${actualParentPath.toString()}, selectedNode=$selectedNode")
+                    _domainState.value = _domainState.value.copy(
+                        validationError = "A file or folder **${name}** already exists at this location. Please choose a different name."
+                    )
+                    return@launch
+                }
+                
+                // Clear any previous validation error
+                _domainState.value = _domainState.value.copy(validationError = null)
+                
+                val newFolder = actualParentPath.resolve(name)
                 val success = withContext(Dispatchers.IO) {
                     fileSystem.createDirectory(newFolder.toString())
                 }
                 if (success) {
-                    AppLogger.action("FileExplorer", "CreateFolder", newFolder.toString())
+                    AppLogger.action("FileExplorer", "CreateFolder", 
+                        "path=${newFolder.toString()}, selectedNode=$selectedNode, parentPath=${actualParentPath.toString()}")
                     refreshFiles()
+                    triggerTreeRefresh() // Trigger tree refresh to show new folder
+                    cancelEditing()
                 } else {
-                    AppLogger.e("FileExplorer", "Failed to create folder: $newFolder", null)
+                    AppLogger.e("FileExplorer", 
+                        "Failed to create folder - path=${newFolder.toString()}, selectedNode=$selectedNode, parentPath=${actualParentPath.toString()}")
+                    _domainState.value = _domainState.value.copy(
+                        validationError = "Failed to create folder: $name"
+                    )
                 }
+            } else {
+                cancelEditing()
             }
-            cancelEditing()
         }
     }
     
@@ -525,6 +706,21 @@ class EditorStateHolder(
             if (newName.isNotBlank() && newName != oldPath.fileName.toString()) {
                 val parent = oldPath.parent
                 if (parent != null) {
+                    // Validate new name doesn't already exist
+                    val nameExists = withContext(Dispatchers.IO) {
+                        !validateRenameNameDoesNotExist(newName, oldPath)
+                    }
+                    
+                    if (nameExists) {
+                        _domainState.value = _domainState.value.copy(
+                            validationError = "A file or folder **${newName}** already exists at this location. Please choose a different name."
+                        )
+                        return@launch
+                    }
+                    
+                    // Clear any previous validation error
+                    _domainState.value = _domainState.value.copy(validationError = null)
+                    
                     val newPath = parent.resolve(newName)
                     val success = withContext(Dispatchers.IO) {
                         fileSystem.renameFile(oldPath.toString(), newPath.toString())
@@ -543,12 +739,20 @@ class EditorStateHolder(
                         _domainState.value = _domainState.value.copy(documents = updatedDocs)
                         
                         refreshFiles()
+                        triggerTreeRefresh() // Trigger tree refresh to show renamed item
+                        cancelEditing()
                     } else {
                         AppLogger.e("FileExplorer", "Failed to rename: $oldPath -> $newPath", null)
+                        _domainState.value = _domainState.value.copy(
+                            validationError = "Failed to rename: ${oldPath.fileName} -> $newName"
+                        )
                     }
+                } else {
+                    cancelEditing()
                 }
+            } else {
+                cancelEditing()
             }
-            cancelEditing()
         }
     }
     
@@ -586,14 +790,16 @@ class EditorStateHolder(
                 }
             }
             
+            // Use moveToTrash instead of permanent delete
             val success = withContext(Dispatchers.IO) {
-                fileSystem.deleteFile(pathString)
+                fileSystem.moveToTrash(pathString)
             }
             if (success) {
-                AppLogger.action("FileExplorer", "Delete", pathString)
+                AppLogger.action("FileExplorer", "MoveToTrash", pathString)
                 refreshFiles()
+                triggerTreeRefresh() // Trigger tree refresh to remove deleted item
             } else {
-                AppLogger.e("FileExplorer", "Failed to delete: $pathString", null)
+                AppLogger.e("FileExplorer", "Failed to move to trash: $pathString", null)
             }
             _domainState.value = _domainState.value.copy(deletingPath = null)
         }
@@ -602,11 +808,36 @@ class EditorStateHolder(
     fun cancelDelete() {
         _domainState.value = _domainState.value.copy(deletingPath = null)
     }
+    
+    /**
+     * Clears any validation error.
+     */
+    fun clearValidationError() {
+        _domainState.value = _domainState.value.copy(validationError = null)
+    }
+    
+    /**
+     * Validates if a file/folder name already exists in the given parent directory.
+     */
+    private fun validateNameDoesNotExist(name: String, parentPath: Path): Boolean {
+        val newPath = parentPath.resolve(name)
+        return !fileSystem.exists(newPath.toString())
+    }
+    
+    /**
+     * Validates if a renamed file/folder name already exists (excluding the original path).
+     */
+    private fun validateRenameNameDoesNotExist(newName: String, oldPath: Path): Boolean {
+        val parent = oldPath.parent ?: return false
+        val newPath = parent.resolve(newName)
+        // Allow if it's the same path (no actual rename) or if the new path doesn't exist
+        return newPath == oldPath || !fileSystem.exists(newPath.toString())
+    }
 }
 
 // Legacy enums and types (for compatibility)
 enum class RibbonButton {
-    Files, Search, Bookmarks, Settings
+    Files, Search, Settings
 }
 
 enum class RightPanelType {

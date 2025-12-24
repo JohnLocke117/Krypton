@@ -14,6 +14,8 @@ import java.nio.file.AccessDeniedException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.InvalidPathException
 import java.io.FileNotFoundException
+import java.awt.Desktop
+import java.io.File
 
 /**
  * JVM implementation of FileSystem using java.nio.file.
@@ -200,6 +202,33 @@ class JvmFileSystem : FileSystem {
             Files.exists(Paths.get(path))
         } catch (e: Exception) {
             AppLogger.e("JvmFileSystem", "Failed to check if path exists: $path", e)
+            false
+        }
+    }
+    
+    override fun moveToTrash(path: String): Boolean {
+        return try {
+            val filePath = Paths.get(path)
+            if (!Files.exists(filePath)) {
+                AppLogger.e("JvmFileSystem", "Cannot move to trash: path does not exist: $path", null)
+                return false
+            }
+            
+            // Use Desktop API to move to trash (works on macOS, Windows, and Linux with proper desktop environment)
+            val desktop = Desktop.getDesktop()
+            val file = filePath.toFile()
+            
+            if (desktop.isSupported(Desktop.Action.MOVE_TO_TRASH)) {
+                desktop.moveToTrash(file)
+                true
+            } else {
+                // Fallback: If Desktop.moveToTrash is not supported, use permanent delete
+                // This can happen on some Linux systems without a desktop environment
+                AppLogger.e("JvmFileSystem", "Move to trash not supported, falling back to permanent delete: $path", null)
+                deleteFile(path)
+            }
+        } catch (e: Exception) {
+            AppLogger.e("JvmFileSystem", "Failed to move file to trash: $path", e)
             false
         }
     }

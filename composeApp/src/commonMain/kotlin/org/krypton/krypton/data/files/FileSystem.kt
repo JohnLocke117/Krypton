@@ -236,6 +236,35 @@ interface FileSystem {
     fun exists(path: String): Boolean
     
     /**
+     * Moves a file or directory to the system recycle bin/trash.
+     * 
+     * @param path Path to the file or directory to move to trash
+     * @return true if successful, false if path doesn't exist or on error
+     */
+    fun moveToTrash(path: String): Boolean
+    
+    /**
+     * Moves a file or directory to the system recycle bin/trash with error handling.
+     * 
+     * @param path Path to the file or directory to move to trash
+     * @return FileResult indicating success or failure
+     */
+    fun moveToTrashResult(path: String): FileResult<Boolean> {
+        return try {
+            val success = moveToTrash(path)
+            if (success) {
+                FileResult.Success(true)
+            } else if (!exists(path)) {
+                FileResult.Failure(FileError.NotFound(path))
+            } else {
+                FileResult.Failure(FileError.IoFailure(path, "Move to trash operation returned false"))
+            }
+        } catch (e: Exception) {
+            FileResult.Failure(mapExceptionToError(path, "moveToTrash", e))
+        }
+    }
+    
+    /**
      * Maps an exception to a FileError.
      * 
      * This is a default implementation that can be overridden by implementations

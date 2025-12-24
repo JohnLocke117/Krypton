@@ -21,9 +21,12 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import org.krypton.krypton.util.AppLogger
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.collapse_all
 import krypton.composeapp.generated.resources.file_copy
 import krypton.composeapp.generated.resources.folder_copy
+import krypton.composeapp.generated.resources.refresh
 import krypton.composeapp.generated.resources.search
 import java.nio.file.Path
 
@@ -91,9 +94,6 @@ fun LeftSidebar(
                     }
                     RibbonButton.Search -> {
                         SearchPanel(modifier = Modifier.fillMaxSize())
-                    }
-                    RibbonButton.Bookmarks -> {
-                        BookmarksPanel(modifier = Modifier.fillMaxSize())
                     }
                     RibbonButton.Settings -> {
                         SettingsPanel(modifier = Modifier.fillMaxSize())
@@ -169,31 +169,6 @@ private fun SearchPanel(
 }
 
 @Composable
-private fun BookmarksPanel(
-    modifier: Modifier = Modifier
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(ObsidianTheme.PanelPadding)
-            .verticalScroll(rememberScrollState())
-    ) {
-        Text(
-            text = "Bookmarks",
-            style = MaterialTheme.typography.titleMedium,
-            color = colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No bookmarks yet",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
 private fun SettingsPanel(
     modifier: Modifier = Modifier
 ) {
@@ -250,9 +225,7 @@ private fun SidebarTopBar(
                     icon = Res.drawable.file_copy,
                     contentDescription = "New File",
                     onClick = { 
-                        currentDirectory?.let { 
-                            state.startCreatingNewFile(it) 
-                        }
+                        state.startCreatingNewFile()
                     },
                     enabled = currentDirectory != null,
                     theme = theme,
@@ -264,9 +237,7 @@ private fun SidebarTopBar(
                     icon = Res.drawable.folder_copy,
                     contentDescription = "New Folder",
                     onClick = { 
-                        currentDirectory?.let { 
-                            state.startCreatingNewFolder(it) 
-                        }
+                        state.startCreatingNewFolder()
                     },
                     enabled = currentDirectory != null,
                     theme = theme,
@@ -278,6 +249,32 @@ private fun SidebarTopBar(
                     icon = Res.drawable.search,
                     contentDescription = "Search",
                     onClick = { state.updateActiveRibbonButton(RibbonButton.Search) },
+                    theme = theme,
+                    modifier = Modifier
+                )
+                
+                // Refresh icon button
+                SidebarIconButton(
+                    icon = Res.drawable.refresh,
+                    contentDescription = "Refresh",
+                    onClick = { 
+                        state.triggerTreeRefresh()
+                        AppLogger.action("FileExplorer", "ManualRefresh", "")
+                    },
+                    enabled = currentDirectory != null,
+                    theme = theme,
+                    modifier = Modifier
+                )
+                
+                // Collapse all icon button
+                SidebarIconButton(
+                    icon = Res.drawable.collapse_all,
+                    contentDescription = "Collapse All",
+                    onClick = { 
+                        state.triggerCollapseAll()
+                        AppLogger.action("FileExplorer", "CollapseAll", "")
+                    },
+                    enabled = currentDirectory != null,
                     theme = theme,
                     modifier = Modifier
                 )

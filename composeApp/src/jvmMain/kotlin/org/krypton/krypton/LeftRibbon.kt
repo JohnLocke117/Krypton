@@ -20,7 +20,6 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.folder
 import krypton.composeapp.generated.resources.left_panel_close
 import krypton.composeapp.generated.resources.left_panel_open
-import krypton.composeapp.generated.resources.star
 
 @Composable
 fun LeftRibbon(
@@ -50,16 +49,6 @@ fun LeftRibbon(
                     contentDescription = "Files",
                     isActive = activeRibbonButton == RibbonButton.Files,
                     onClick = { state.updateActiveRibbonButton(RibbonButton.Files) },
-                    cardFacingEdge = CardFacingEdge.End
-                )
-            },
-            // Slot 2: Bookmarks icon
-            {
-                RibbonIconButton(
-                    icon = Res.drawable.star,
-                    contentDescription = "Bookmarks",
-                    isActive = activeRibbonButton == RibbonButton.Bookmarks,
-                    onClick = { state.updateActiveRibbonButton(RibbonButton.Bookmarks) },
                     cardFacingEdge = CardFacingEdge.End
                 )
             }

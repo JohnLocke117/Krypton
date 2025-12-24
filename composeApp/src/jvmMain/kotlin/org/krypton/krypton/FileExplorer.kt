@@ -53,6 +53,7 @@ import krypton.composeapp.generated.resources.keyboard_arrow_down as keyboardArr
 import krypton.composeapp.generated.resources.search
 import krypton.composeapp.generated.resources.settings
 import krypton.composeapp.generated.resources.star
+import krypton.composeapp.generated.resources.unknown_document
 
 @Composable
 fun FileExplorer(
@@ -89,18 +90,84 @@ fun FileExplorerContent(
     val editingParentPath by state.editingParentPath.collectAsState()
     val documents by state.documents.collectAsState()
     val activeTabIndex by state.activeTabIndex.collectAsState()
+    val validationError by state.validationError.collectAsState()
+    val treeRefreshTrigger by state.treeRefreshTrigger.collectAsState()
+    val collapseAllTrigger by state.collapseAllTrigger.collectAsState()
     
     var fileTree by remember { mutableStateOf<FileTreeNode?>(null) }
-    var treeVersion by remember { mutableStateOf(0) } // Force recomposition on tree changes
+    var treeVersion by remember { mutableStateOf(0) }
 
-    // Helper function to refresh tree
+    // Helper function to build tree with expanded state preservation
+    fun buildTreeWithStatePreservation(dir: Path): FileTreeNode? {
+        // Collect currently expanded paths
+        val expandedPaths = mutableSetOf<Path>()
+        fileTree?.let { tree ->
+            fun collectExpandedPaths(node: FileTreeNode) {
+                if (node.isExpanded) {
+                    expandedPaths.add(node.path)
+                }
+                node.children.forEach { collectExpandedPaths(it) }
+            }
+            collectExpandedPaths(tree)
+        }
+        
+        // Build new tree
+        val newTree = FileTreeBuilder.buildTree(dir) ?: return null
+        newTree.isExpanded = true
+        
+        // Restore expanded state
+        fun restoreExpandedState(node: FileTreeNode) {
+            if (expandedPaths.contains(node.path)) {
+                node.isExpanded = true
+            }
+            node.children.forEach { restoreExpandedState(it) }
+        }
+        restoreExpandedState(newTree)
+        
+        return newTree
+    }
+
+    // Helper function to expand a folder by path in the tree
+    fun expandFolder(path: Path) {
+        fileTree?.let { tree ->
+            fun expandNode(node: FileTreeNode, targetPath: Path): Boolean {
+                if (node.path == targetPath && node.isDirectory) {
+                    node.isExpanded = true
+                    treeVersion++ // Trigger recomposition
+                    return true
+                }
+                for (child in node.children) {
+                    if (expandNode(child, targetPath)) {
+                        return true
+                    }
+                }
+                return false
+            }
+            expandNode(tree, path)
+        }
+    }
+
+    // Helper function to collapse all folders in the tree
+    fun collapseAllFolders() {
+        fileTree?.let { tree ->
+            fun collapseNode(node: FileTreeNode) {
+                if (node.isDirectory) {
+                    node.isExpanded = false
+                }
+                node.children.forEach { collapseNode(it) }
+            }
+            // Keep root expanded (it's not displayed anyway, but its children are)
+            tree.isExpanded = true
+            // Collapse all children
+            tree.children.forEach { collapseNode(it) }
+            treeVersion++ // Trigger recomposition
+        }
+    }
+
+    // Refresh tree while preserving expanded state
     fun refreshTree() {
         currentDirectory?.let { dir ->
-            // Use FileTreeBuilder which uses FileManager internally
-            // FileManager is still used by FileTreeBuilder for now
-            fileTree = FileTreeBuilder.buildTree(dir)?.apply {
-                isExpanded = true
-            }
+            fileTree = buildTreeWithStatePreservation(dir)
             treeVersion++
         }
     }
@@ -108,26 +175,21 @@ fun FileExplorerContent(
     // Delete confirmation dialog
     val currentDeletingPath = deletingPath
     if (currentDeletingPath != null) {
-        DeleteConfirmationDialog(
-            path = currentDeletingPath,
-            onConfirm = {
-                state.confirmDelete()
-                // Refresh tree after deletion
-                refreshTree()
-            },
-            onDismiss = {
-                state.cancelDelete()
-            }
-        )
+            DeleteConfirmationDialog(
+                path = currentDeletingPath,
+                onConfirm = {
+                    state.confirmDelete()
+                },
+                onDismiss = {
+                    state.cancelDelete()
+                }
+            )
     }
 
     // Rebuild tree when directory changes
     LaunchedEffect(currentDirectory) {
         currentDirectory?.let { dir ->
-            fileTree = FileTreeBuilder.buildTree(dir)?.apply {
-                // Expand root by default
-                isExpanded = true
-            }
+            fileTree = buildTreeWithStatePreservation(dir)
             treeVersion++
         } ?: run {
             fileTree = null
@@ -135,28 +197,85 @@ fun FileExplorerContent(
         }
     }
 
+    // Refresh tree when refresh trigger changes (after create/rename/delete operations)
+    LaunchedEffect(treeRefreshTrigger) {
+        if (currentDirectory != null && treeRefreshTrigger > 0) {
+            refreshTree()
+        }
+    }
+
+    // Collapse all folders when collapse all trigger changes
+    LaunchedEffect(collapseAllTrigger) {
+        if (currentDirectory != null && collapseAllTrigger > 0) {
+            collapseAllFolders()
+        }
+    }
+
+    // Auto-expand folder when creating inside it
+    LaunchedEffect(editingParentPath, editingMode, currentDirectory) {
+        if (editingParentPath != null && currentDirectory != null && editingMode != null) {
+            val parentPath = editingParentPath!!
+            val rootPath = currentDirectory
+            
+            // Only expand if it's not the root directory and we're creating something
+            if (parentPath != rootPath && 
+                (editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
+                 editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)) {
+                expandFolder(parentPath)
+            }
+        }
+    }
+
     // Click-outside detection for canceling editing
     val isEditing = editingMode != null
     
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .then(
-                if (isEditing) {
-                    Modifier.clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) {
-                        // Cancel editing when clicking on empty space
-                        state.cancelEditing()
-                    }
-                } else {
-                    Modifier
+    // Wrap Column in ContextMenuArea for empty area right-click when folder is open
+    val columnModifier = Modifier
+        .fillMaxSize()
+        .then(
+            if (isEditing) {
+                Modifier.clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    // Cancel editing when clicking on empty space
+                    state.cancelEditing()
+                    state.clearValidationError()
                 }
-            )
-            .padding(ObsidianTheme.PanelPadding)
-            .verticalScroll(rememberScrollState())
-    ) {
+            } else {
+                Modifier.clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) {
+                    // Clear selection when clicking on empty space
+                    state.clearExplorerSelection()
+                }
+            }
+        )
+        .padding(ObsidianTheme.PanelPadding)
+        .verticalScroll(rememberScrollState())
+    
+    val columnContent: @Composable () -> Unit = {
+        Column(modifier = columnModifier) {
+        // Validation error display
+        validationError?.let { error ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer
+                ),
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Text(
+                    text = error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
         // Open Folder Button and Recent Folders - only show when no folder is open
         if (currentDirectory == null) {
             Button(
@@ -210,31 +329,91 @@ fun FileExplorerContent(
         }
 
         // File Tree
-        if (fileTree != null) {
-            key(treeVersion) { // Force recomposition when tree changes
-                TreeItem(
-                    node = fileTree!!,
-                    depth = 0,
-                    activeTabPaths = documents.mapNotNull { doc -> 
-                        doc.path?.let { java.nio.file.Paths.get(it) }
-                    }.toSet(),
-                    state = state,
-                    theme = theme,
-                    onFileClick = { path ->
-                        // Use FileSystem from state holder's dependency
-                        // For now, assume it's a file if it's not a directory
-                        val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.krypton.data.files.FileSystem>()
-                        if (!fileSystem.isDirectory(path.toString())) {
-                            AppLogger.action("FileExplorer", "FileOpened", path.toString())
-                            state.openTab(path)
+        if (fileTree != null && currentDirectory != null) {
+            // Check if we're creating in the root directory
+            // editingParentPath equals currentDirectory when creating in root
+            val isCreatingInRoot = editingMode != null && 
+                editingParentPath != null && 
+                editingParentPath == currentDirectory
+            val isCreatingFileInRoot = isCreatingInRoot && 
+                editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFile
+            val isCreatingFolderInRoot = isCreatingInRoot && 
+                editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder
+            
+            // Add context menu to empty area for creating files/folders in root
+            // Wrap in Box to ensure the entire area is clickable for context menu
+            Box(modifier = Modifier.fillMaxSize()) {
+                ContextMenuArea(
+                    items = {
+                        listOf(
+                            ContextMenuItem("New File") {
+                                state.startCreatingNewFile()
+                            },
+                            ContextMenuItem("New Folder") {
+                                state.startCreatingNewFolder()
+                            }
+                            // Delete and Rename are disabled when clicking empty area
+                        )
+                    }
+                ) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Show create row at root level if creating in root
+                        if (isCreatingInRoot && editingParentPath != null) {
+                            TemporaryCreateRow(
+                                isFile = isCreatingFileInRoot,
+                                depth = 0,
+                                indent = 0.dp,
+                                theme = theme,
+                                onConfirm = { name ->
+                                    // Use editingParentPath to ensure consistency
+                                    if (isCreatingFileInRoot) {
+                                        state.confirmCreateFile(name, editingParentPath!!)
+                                    } else {
+                                        state.confirmCreateFolder(name, editingParentPath!!)
+                                    }
+                                    // Tree will refresh automatically via LaunchedEffect(files)
+                                },
+                                onCancel = {
+                                    state.cancelEditing()
+                                    state.clearValidationError()
+                                },
+                                onValueChange = {
+                                    // Clear validation error when user starts typing
+                                    state.clearValidationError()
+                                }
+                            )
                         }
-                    },
-                    onFolderToggle = { node ->
-                        node.toggleExpanded()
-                        treeVersion++ // Trigger recomposition
-                    },
-                    onTreeRefresh = { refreshTree() }
-                )
+                        
+                        key(treeVersion) { // Force recomposition when tree changes
+                            // Display only the children of the root folder, not the root folder itself (VS Code behavior)
+                            fileTree!!.children.forEach { child ->
+                                TreeItem(
+                                    node = child,
+                                    depth = 0,
+                                    activeTabPaths = documents.mapNotNull { doc -> 
+                                        doc.path?.let { java.nio.file.Paths.get(it) }
+                                    }.toSet(),
+                                    state = state,
+                                    theme = theme,
+                                    onFileClick = { path ->
+                                        // Use FileSystem from state holder's dependency
+                                        // For now, assume it's a file if it's not a directory
+                                        val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.krypton.data.files.FileSystem>()
+                                        if (!fileSystem.isDirectory(path.toString())) {
+                                            AppLogger.action("FileExplorer", "FileOpened", path.toString())
+                                            state.openTab(path)
+                                        }
+                                    },
+                                    onFolderToggle = { node ->
+                                        node.toggleExpanded()
+                                        treeVersion++ // Trigger recomposition
+                                    },
+                                    onTreeRefresh = { refreshTree() }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         } else if (currentDirectory == null) {
             Box(
@@ -252,6 +431,42 @@ fun FileExplorerContent(
                 )
             }
         }
+        }
+    }
+    
+    // Wrap in ContextMenuArea when folder is open to enable right-click on empty area
+    Box(modifier = modifier.fillMaxSize()) {
+        if (currentDirectory != null && !isEditing) {
+            ContextMenuArea(
+                items = {
+                    listOf(
+                        ContextMenuItem("New File") {
+                            state.startCreatingNewFile()
+                        },
+                        ContextMenuItem("New Folder") {
+                            state.startCreatingNewFolder()
+                        }
+                    )
+                }
+            ) {
+                columnContent()
+            }
+        } else {
+            columnContent()
+        }
+    }
+}
+
+/**
+ * Helper function to get the appropriate icon for a file based on its extension.
+ * Returns unknown_document for files that are not .md or .txt, otherwise returns description.
+ */
+private fun getFileIcon(path: Path): DrawableResource {
+    val fileName = path.fileName.toString()
+    val extension = fileName.substringAfterLast('.', "").lowercase()
+    return when (extension) {
+        "md", "txt", "markdown" -> Res.drawable.description
+        else -> Res.drawable.unknown_document
     }
 }
 
@@ -278,27 +493,26 @@ fun TreeItem(
     
     val isRenaming = editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.Renaming && 
         editingItemPath == node.path
+    
+    // Check if we're creating in this parent
     val isCreatingInThisParent = node.isDirectory && 
         editingParentPath == node.path && 
         (editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
          editingMode == org.krypton.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)
-    
-    // Determine parent path for "New" operations
-    val parentPath = if (node.isDirectory) {
-        node.path
-    } else {
-        node.path.parent
-    }
 
     Column(modifier = modifier) {
         ContextMenuArea(
             items = {
                 listOf(
                     ContextMenuItem("New File") {
-                        parentPath?.let { state.startCreatingNewFile(it) }
+                        // Select the node first, then create
+                        state.selectExplorerNode(node.path)
+                        state.startCreatingNewFile()
                     },
                     ContextMenuItem("New Folder") {
-                        parentPath?.let { state.startCreatingNewFolder(it) }
+                        // Select the node first, then create
+                        state.selectExplorerNode(node.path)
+                        state.startCreatingNewFolder()
                     },
                     ContextMenuItem("Rename") {
                         state.startRenamingItem(node.path)
@@ -342,6 +556,8 @@ fun TreeItem(
                     )
                     .clickable(enabled = !isRenaming) {
                         if (!isRenaming) {
+                            // Update selection when clicking on a node
+                            state.selectExplorerNode(node.path)
                             if (node.isDirectory) {
                                 onFolderToggle(node)
                             } else {
@@ -381,7 +597,7 @@ fun TreeItem(
                         if (node.isDirectory) {
                             if (node.isExpanded) Res.drawable.folderOpen else Res.drawable.folder
                         } else {
-                            Res.drawable.description
+                            getFileIcon(node.path)
                         }
                     ),
                     contentDescription = if (node.isDirectory) "Folder" else "File",
@@ -401,6 +617,11 @@ fun TreeItem(
                         },
                         onCancel = {
                             state.cancelEditing()
+                            state.clearValidationError()
+                        },
+                        onValueChange = {
+                            // Clear validation error when user starts typing
+                            state.clearValidationError()
                         },
                         isSelected = isSelected,
                         modifier = Modifier.weight(1f)
@@ -444,6 +665,11 @@ fun TreeItem(
                     },
                     onCancel = {
                         state.cancelEditing()
+                        state.clearValidationError()
+                    },
+                    onValueChange = {
+                        // Clear validation error when user starts typing
+                        state.clearValidationError()
                     }
                 )
             }
@@ -515,6 +741,7 @@ private fun InlineTreeTextField(
     onCancel: () -> Unit,
     placeholder: String = "Name...",
     isSelected: Boolean = false,
+    onValueChange: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var name by remember { mutableStateOf(initialName) }
@@ -544,23 +771,31 @@ private fun InlineTreeTextField(
         }
         BasicTextField(
             value = name,
-            onValueChange = { name = it },
+            onValueChange = { 
+                name = it
+                onValueChange?.invoke(it)
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
                 .onKeyEvent { event ->
+                    // Only handle Enter and Escape, let all other keys (including Space) pass through
                     when (event.key) {
                         Key.Enter -> {
                             if (name.isNotBlank()) {
                                 onConfirm(name)
                             }
-                            true
+                            true // Consume Enter
                         }
                         Key.Escape -> {
                             onCancel()
-                            true
+                            true // Consume Escape
                         }
-                        else -> false
+                        else -> {
+                            // Don't consume other keys - allow normal text input including spaces
+                            // Return false to let the key event propagate normally
+                            false
+                        }
                     }
                 },
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
@@ -585,7 +820,8 @@ private fun TemporaryCreateRow(
     indent: androidx.compose.ui.unit.Dp,
     theme: ObsidianThemeValues,
     onConfirm: (String) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onValueChange: ((String) -> Unit)? = null
 ) {
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
@@ -635,6 +871,7 @@ private fun TemporaryCreateRow(
                 onCancel = onCancel,
                 placeholder = if (isFile) "File name..." else "Folder name...",
                 isSelected = false,
+                onValueChange = onValueChange,
                 modifier = Modifier.weight(1f)
             )
         }
