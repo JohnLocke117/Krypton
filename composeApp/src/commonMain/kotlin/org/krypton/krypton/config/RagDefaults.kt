@@ -32,7 +32,27 @@ object RagDefaults {
     /**
      * Default vector backend selection.
      */
-    val DEFAULT_VECTOR_BACKEND = VectorBackend.SQLITE_BRUTE_FORCE
+    val DEFAULT_VECTOR_BACKEND = VectorBackend.CHROMADB
+    
+    /**
+     * Default base URL for ChromaDB server.
+     */
+    const val DEFAULT_CHROMA_BASE_URL = "http://localhost:8000"
+    
+    /**
+     * Default ChromaDB collection name.
+     */
+    const val DEFAULT_CHROMA_COLLECTION_NAME = "note_chunks"
+    
+    /**
+     * Default ChromaDB tenant name.
+     */
+    const val DEFAULT_CHROMA_TENANT = "default"
+    
+    /**
+     * Default ChromaDB database name.
+     */
+    const val DEFAULT_CHROMA_DATABASE = "defaultDB"
     
     /**
      * Default number of top-K chunks to retrieve during RAG queries.

@@ -6,7 +6,6 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinSerialization)
-    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
@@ -38,18 +37,8 @@ kotlin {
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinxJson)
-            implementation(libs.sqldelight.driver)
             implementation(libs.koin.core)
             implementation(libs.koin.core)
-        }
-    }
-}
-
-
-sqldelight {
-    databases {
-        create("NoteChunkDatabase") {
-            packageName.set("org.krypton.krypton.rag")
         }
     }
 }

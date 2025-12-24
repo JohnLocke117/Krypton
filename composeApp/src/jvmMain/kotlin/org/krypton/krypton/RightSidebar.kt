@@ -114,6 +114,7 @@ fun RightSidebar(
                     RightPanelType.Chat -> {
                         ChatPanel(
                             chatStateHolder = chatStateHolder,
+                            editorStateHolder = state,
                             theme = theme,
                             modifier = Modifier.fillMaxSize()
                         )

@@ -22,5 +22,13 @@ expect class NoteFileSystem(notesRoot: String?) {
      * @return File content as string, or null if file doesn't exist or can't be read
      */
     suspend fun readFile(path: String): String?
+    
+    /**
+     * Gets the last modified time of a file.
+     * 
+     * @param path File path (relative to notes root or absolute, depending on implementation)
+     * @return Last modified timestamp in milliseconds since epoch, or null if file doesn't exist
+     */
+    suspend fun getFileLastModified(path: String): Long?
 }
 

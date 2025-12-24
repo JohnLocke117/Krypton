@@ -17,5 +17,8 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
 .cursor/
 TODO.txt
+RAG_Reference.md
+rag.py

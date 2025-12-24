@@ -60,5 +60,25 @@ actual class NoteFileSystem actual constructor(
             null
         }
     }
+    
+    actual suspend fun getFileLastModified(path: String): Long? = withContext(Dispatchers.IO) {
+        val root = getRootPath() ?: return@withContext null
+        
+        try {
+            val filePath = if (Paths.get(path).isAbsolute) {
+                Paths.get(path)
+            } else {
+                root.resolve(path)
+            }
+            
+            if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+                Files.getLastModifiedTime(filePath).toMillis()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
 

@@ -67,8 +67,7 @@ data class AppSettings(
 
 @Serializable
 enum class VectorBackend {
-    SQLITE_BRUTE_FORCE,
-    SQLITE_VECTOR_EXTENSION
+    CHROMADB
 }
 
 @Serializable
@@ -76,6 +75,10 @@ data class RagSettings(
     val vectorBackend: VectorBackend = org.krypton.krypton.config.RagDefaults.DEFAULT_VECTOR_BACKEND,
     val llamaBaseUrl: String = org.krypton.krypton.config.RagDefaults.DEFAULT_LLAMA_BASE_URL,
     val embeddingBaseUrl: String = org.krypton.krypton.config.RagDefaults.DEFAULT_EMBEDDING_BASE_URL,
+    val chromaBaseUrl: String = org.krypton.krypton.config.RagDefaults.DEFAULT_CHROMA_BASE_URL,
+    val chromaCollectionName: String = org.krypton.krypton.config.RagDefaults.DEFAULT_CHROMA_COLLECTION_NAME,
+    val chromaTenant: String = org.krypton.krypton.config.RagDefaults.DEFAULT_CHROMA_TENANT,
+    val chromaDatabase: String = org.krypton.krypton.config.RagDefaults.DEFAULT_CHROMA_DATABASE,
     val ragEnabled: Boolean = true,
     val topK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_TOP_K
 )

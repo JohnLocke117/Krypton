@@ -4,8 +4,6 @@ import io.ktor.client.engine.*
 import io.ktor.client.engine.cio.*
 import org.krypton.krypton.RagSettings
 import org.krypton.krypton.config.RagDefaults
-import org.krypton.krypton.data.repository.SettingsPersistence
-import org.krypton.krypton.rag.getRagDatabasePath
 
 /**
  * Helper class for creating and managing RAG components.
@@ -21,32 +19,31 @@ object RagComponentProvider {
      * 
      * @param ragSettings RAG settings from app configuration
      * @param notesRoot Root directory containing markdown notes (null = current directory)
-     * @param settingsPersistence Settings persistence for getting database path
      * @return RagComponents if initialization succeeds, null otherwise
      */
     fun createRagComponents(
         ragSettings: RagSettings,
-        notesRoot: String?,
-        settingsPersistence: SettingsPersistence
+        notesRoot: String?
     ): RagComponents? {
         return try {
-            val dbPath = getRagDatabasePath(settingsPersistence)
             val httpEngine = CIO.create()
             
             val config = RagConfig(
                 vectorBackend = ragSettings.vectorBackend,
                 llamaBaseUrl = ragSettings.llamaBaseUrl,
                 embeddingBaseUrl = ragSettings.embeddingBaseUrl,
+                chromaBaseUrl = ragSettings.chromaBaseUrl,
+                chromaCollectionName = ragSettings.chromaCollectionName,
+                chromaTenant = ragSettings.chromaTenant,
+                chromaDatabase = ragSettings.chromaDatabase,
                 llamaModel = RagDefaults.DEFAULT_LLAMA_MODEL,
                 embeddingModel = RagDefaults.DEFAULT_EMBEDDING_MODEL
             )
             
             createRagComponents(
                 config = config,
-                dbPath = dbPath,
                 notesRoot = notesRoot,
-                httpClientEngine = httpEngine,
-                sqlDriverFactory = ::createSqlDriver
+                httpClientEngine = httpEngine
             )
         } catch (e: Exception) {
             // Log the error with context

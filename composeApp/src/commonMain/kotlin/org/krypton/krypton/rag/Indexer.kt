@@ -15,8 +15,15 @@ class Indexer(
     private val chunker: MarkdownChunker,
     private val embedder: Embedder,
     private val vectorStore: VectorStore,
-    private val logger: Logger = createLogger("Indexer")
+    private val logger: Logger = createLogger("Indexer"),
+    private val fileSystemFactory: ((String?) -> NoteFileSystem)? = null
 ) {
+    /**
+     * Optional callback to update vault metadata after indexing.
+     * Set this to track indexed files.
+     * This is a suspend function to allow async operations.
+     */
+    var onIndexingComplete: (suspend (vaultPath: String, indexedFiles: Map<String, Long>) -> Unit)? = null
     /**
      * Performs a full reindex of all markdown files.
      * 
@@ -25,21 +32,94 @@ class Indexer(
      * 2. For each file: read, chunk, embed, and upsert into vector store
      * 
      * Note: This does not clear the vector store first. Use vectorStore.clear() if needed.
+     * 
+     * @param vaultPath Optional vault path for metadata tracking. If provided, this path will be used as the root for file listing.
      */
-    suspend fun fullReindex() = withContext(Dispatchers.Default) {
+    suspend fun fullReindex(vaultPath: String? = null) = withContext(Dispatchers.Default) {
         try {
-            val files = fileSystem.listMarkdownFiles()
+            // If vaultPath is provided and we have a factory, create a new NoteFileSystem with that path
+            // Otherwise, use the existing fileSystem
+            val fileSystemToUse = if (vaultPath != null && fileSystemFactory != null) {
+                fileSystemFactory(vaultPath)
+            } else {
+                fileSystem
+            }
             
-            for (filePath in files) {
+            val files = fileSystemToUse.listMarkdownFiles()
+            logger.info("Found ${files.size} markdown files to index")
+            
+            if (files.isEmpty()) {
+                logger.warn("No markdown files found to index")
+                return@withContext
+            }
+            
+            val indexedFiles = mutableMapOf<String, Long>()
+            
+            for ((index, filePath) in files.withIndex()) {
                 try {
-                    indexFile(filePath)
+                    logger.debug("Indexing file ${index + 1}/${files.size}: $filePath")
+                    val lastModified = indexFileWithFileSystem(filePath, fileSystemToUse)
+                    if (lastModified != null) {
+                        indexedFiles[filePath] = lastModified
+                    }
                 } catch (e: Exception) {
                     // Log error but continue with other files
                     logger.error("Failed to index file $filePath: ${e.message}", e)
                 }
             }
+            
+            logger.info("Indexed ${indexedFiles.size} files successfully")
+            
+            // Update metadata if callback is set
+            if (vaultPath != null && indexedFiles.isNotEmpty()) {
+                onIndexingComplete?.invoke(vaultPath, indexedFiles)
+            }
         } catch (e: Exception) {
+            logger.error("Failed to perform full reindex: ${e.message}", e)
             throw IndexingException("Failed to perform full reindex: ${e.message}", e)
+        }
+    }
+    
+    /**
+     * Indexes only the specified files (for incremental updates).
+     * 
+     * @param filePaths List of file paths to index
+     * @param vaultPath Optional vault path for metadata tracking. If provided, this path will be used as the root for file reading.
+     */
+    suspend fun indexModifiedFiles(filePaths: List<String>, vaultPath: String? = null) = withContext(Dispatchers.Default) {
+        try {
+            // If vaultPath is provided and we have a factory, create a new NoteFileSystem with that path
+            // Otherwise, use the existing fileSystem
+            val fileSystemToUse = if (vaultPath != null && fileSystemFactory != null) {
+                fileSystemFactory(vaultPath)
+            } else {
+                fileSystem
+            }
+            
+            logger.info("Indexing ${filePaths.size} modified files")
+            val indexedFiles = mutableMapOf<String, Long>()
+            
+            for ((index, filePath) in filePaths.withIndex()) {
+                try {
+                    logger.debug("Indexing modified file ${index + 1}/${filePaths.size}: $filePath")
+                    val lastModified = indexFileWithFileSystem(filePath, fileSystemToUse)
+                    if (lastModified != null) {
+                        indexedFiles[filePath] = lastModified
+                    }
+                } catch (e: Exception) {
+                    logger.error("Failed to index file $filePath: ${e.message}", e)
+                }
+            }
+            
+            logger.info("Indexed ${indexedFiles.size} modified files successfully")
+            
+            // Update metadata if callback is set
+            if (vaultPath != null && indexedFiles.isNotEmpty()) {
+                onIndexingComplete?.invoke(vaultPath, indexedFiles)
+            }
+        } catch (e: Exception) {
+            logger.error("Failed to index modified files: ${e.message}", e)
+            throw IndexingException("Failed to index modified files: ${e.message}", e)
         }
     }
     
@@ -53,25 +133,47 @@ class Indexer(
      * 4. Upsert chunks into vector store
      * 
      * @param filePath Path to the markdown file to index
+     * @return Last modified timestamp of the file, or null if file couldn't be read
      */
-    suspend fun indexFile(filePath: String) = withContext(Dispatchers.Default) {
+    suspend fun indexFile(filePath: String): Long? = indexFileWithFileSystem(filePath, fileSystem)
+    
+    /**
+     * Indexes a single markdown file using a specific file system.
+     * 
+     * @param filePath Path to the markdown file to index
+     * @param fileSystemToUse The file system to use for reading the file
+     * @return Last modified timestamp of the file, or null if file couldn't be read
+     */
+    private suspend fun indexFileWithFileSystem(filePath: String, fileSystemToUse: NoteFileSystem): Long? = withContext(Dispatchers.Default) {
         try {
             // Read file
-            val content = fileSystem.readFile(filePath)
+            val content = fileSystemToUse.readFile(filePath)
                 ?: throw IndexingException("Could not read file: $filePath")
+            
+            // Get file modification time
+            val lastModified = fileSystemToUse.getFileLastModified(filePath)
             
             // Chunk content
             val chunks = chunker.chunk(content, filePath)
             
             if (chunks.isEmpty()) {
                 // File is empty or has no chunkable content
-                return@withContext
+                logger.debug("File $filePath has no chunkable content")
+                return@withContext lastModified
             }
             
+            logger.debug("Chunked file $filePath into ${chunks.size} chunks")
+            
             // Delete existing chunks for this file (to handle updates)
-            vectorStore.deleteByFilePath(filePath)
+            // This is best-effort - if it fails, we'll just upsert which will overwrite
+            try {
+                vectorStore.deleteByFilePath(filePath)
+            } catch (e: Exception) {
+                logger.warn("Failed to delete existing chunks for $filePath (will upsert anyway): ${e.message}")
+            }
             
             // Generate embeddings
+            logger.debug("Generating embeddings for ${chunks.size} chunks from file $filePath")
             val texts = chunks.map { it.text }
             val embeddings = embedder.embed(texts)
             
@@ -81,6 +183,8 @@ class Indexer(
                 )
             }
             
+            logger.debug("Generated ${embeddings.size} embeddings for file $filePath")
+            
             // Attach embeddings to chunks
             val chunksWithEmbeddings = chunks.zip(embeddings).map { (chunk, embedding) ->
                 chunk.copy(embedding = embedding)
@@ -88,12 +192,16 @@ class Indexer(
             
             // Upsert into vector store
             vectorStore.upsert(chunksWithEmbeddings)
+            logger.debug("Upserted ${chunksWithEmbeddings.size} chunks for file $filePath into vector store")
+            
+            return@withContext lastModified
         } catch (e: IndexingException) {
             throw e
         } catch (e: Exception) {
             throw IndexingException("Failed to index file $filePath: ${e.message}", e)
         }
     }
+    
 }
 
 /**

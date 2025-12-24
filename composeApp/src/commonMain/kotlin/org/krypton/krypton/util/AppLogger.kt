@@ -65,7 +65,8 @@ object AppLogger {
                 level = level,
                 tag = tag,
                 message = message,
-                throwable = throwable
+                throwable = throwable,
+                severity = severity
             )
             
             // Use Kermit's logging methods

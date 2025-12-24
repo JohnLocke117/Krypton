@@ -1,53 +1,42 @@
 package org.krypton.krypton.rag
 
-import app.cash.sqldelight.db.SqlDriver
-import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import io.ktor.client.engine.*
-import io.ktor.client.engine.cio.*
-import org.krypton.krypton.VectorBackend
+import org.krypton.krypton.data.rag.impl.ChromaDBVectorStore
 import org.krypton.krypton.data.rag.impl.HttpEmbedder
 import org.krypton.krypton.data.rag.impl.HttpLlamaClient
-import org.krypton.krypton.data.rag.impl.SqliteBruteForceVectorStore
-import org.krypton.krypton.data.rag.impl.SqliteVectorExtensionStore
-import org.krypton.krypton.rag.NoteChunkDatabase
-import java.io.File
+
+/**
+ * Extended RAG components with JVM-specific services.
+ */
+data class ExtendedRagComponents(
+    val base: RagComponents,
+    val healthService: ChromaDBHealthService,
+    val vaultMetadataService: VaultMetadataService,
+    val vaultSyncService: VaultSyncService
+)
 
 /**
  * JVM implementation of RAG component factory.
  */
 actual fun createRagComponents(
     config: RagConfig,
-    dbPath: String,
     notesRoot: String?,
-    httpClientEngine: HttpClientEngine,
-    sqlDriverFactory: (String) -> SqlDriver
+    httpClientEngine: HttpClientEngine
 ): RagComponents {
-    // Create database driver
-    val driver = sqlDriverFactory(dbPath)
-    
-    // Create vector store based on backend with fallback handling
-    val vectorStore = when (config.vectorBackend) {
-        VectorBackend.SQLITE_BRUTE_FORCE -> SqliteBruteForceVectorStore(driver)
-        VectorBackend.SQLITE_VECTOR_EXTENSION -> {
-            try {
-                SqliteVectorExtensionStore(driver)
-            } catch (e: Exception) {
-                // Log warning and fall back to brute force if vector extension fails
-                org.krypton.krypton.util.AppLogger.w(
-                    "RagFactory",
-                    "Failed to initialize SQLite vector extension, falling back to brute force: ${e.message}",
-                    e
-                )
-                SqliteBruteForceVectorStore(driver)
-            }
-        }
-    }
+    // Create ChromaDB vector store
+    val vectorStore = ChromaDBVectorStore(
+        baseUrl = config.chromaBaseUrl,
+        collectionName = config.chromaCollectionName,
+        httpClientEngine = httpClientEngine,
+        tenant = config.chromaTenant,
+        database = config.chromaDatabase
+    )
     
     // Create embedder
     val embedder = HttpEmbedder(
         baseUrl = config.embeddingBaseUrl,
         model = config.embeddingModel,
-        apiPath = "/api/embeddings",
+        apiPath = "/api/embed",
         httpClientEngine = httpClientEngine
     )
     
@@ -65,12 +54,13 @@ actual fun createRagComponents(
     // Create chunker
     val chunker = MarkdownChunker()
     
-    // Create indexer
+    // Create indexer with factory function for creating NoteFileSystem instances
     val indexer = Indexer(
         fileSystem = fileSystem,
         chunker = chunker,
         embedder = embedder,
-        vectorStore = vectorStore
+        vectorStore = vectorStore,
+        fileSystemFactory = { root -> NoteFileSystem(root) }
     )
     
     // Create RAG service
@@ -79,6 +69,34 @@ actual fun createRagComponents(
         vectorStore = vectorStore,
         llamaClient = llamaClient
     )
+    
+    // Create JVM-specific services
+    val healthService = ChromaDBHealthService(
+        baseUrl = config.chromaBaseUrl,
+        collectionName = config.chromaCollectionName,
+        httpClientEngine = httpClientEngine,
+        tenant = config.chromaTenant,
+        database = config.chromaDatabase
+    )
+    
+    val vaultMetadataService = VaultMetadataService(
+        baseUrl = config.chromaBaseUrl,
+        metadataCollectionName = "vault_metadata",
+        httpClientEngine = httpClientEngine,
+        tenant = config.chromaTenant,
+        database = config.chromaDatabase
+    )
+    
+    val vaultSyncService = VaultSyncService(
+        vaultMetadataService = vaultMetadataService,
+        healthService = healthService,
+        vectorStore = vectorStore
+    )
+    
+    // Set up indexer callback to update metadata
+    indexer.onIndexingComplete = { vaultPath, indexedFiles ->
+        vaultMetadataService.updateVaultMetadata(vaultPath, indexedFiles)
+    }
     
     return RagComponents(
         vectorStore = vectorStore,
@@ -90,18 +108,47 @@ actual fun createRagComponents(
 }
 
 /**
- * Creates a SQLDelight driver for JVM.
+ * Creates extended RAG components with JVM-specific services.
  */
-fun createSqlDriver(dbPath: String): SqlDriver {
-    val dbFile = File(dbPath)
-    // Ensure parent directory exists
-    dbFile.parentFile?.mkdirs()
+fun createExtendedRagComponents(
+    config: RagConfig,
+    notesRoot: String?,
+    httpClientEngine: HttpClientEngine
+): ExtendedRagComponents {
+    val base = createRagComponents(config, notesRoot, httpClientEngine)
     
-    val driver = JdbcSqliteDriver("jdbc:sqlite:$dbPath")
+    val healthService = ChromaDBHealthService(
+        baseUrl = config.chromaBaseUrl,
+        collectionName = config.chromaCollectionName,
+        httpClientEngine = httpClientEngine,
+        tenant = config.chromaTenant,
+        database = config.chromaDatabase
+    )
     
-    // Create tables (SQLDelight creates them automatically, but we can ensure schema is up to date)
-    NoteChunkDatabase.Schema.create(driver)
+    val vaultMetadataService = VaultMetadataService(
+        baseUrl = config.chromaBaseUrl,
+        metadataCollectionName = "vault_metadata",
+        httpClientEngine = httpClientEngine,
+        tenant = config.chromaTenant,
+        database = config.chromaDatabase
+    )
     
-    return driver
+    val vaultSyncService = VaultSyncService(
+        vaultMetadataService = vaultMetadataService,
+        healthService = healthService,
+        vectorStore = base.vectorStore
+    )
+    
+    // Set up indexer callback to update metadata
+    base.indexer.onIndexingComplete = { vaultPath, indexedFiles ->
+        vaultMetadataService.updateVaultMetadata(vaultPath, indexedFiles)
+    }
+    
+    return ExtendedRagComponents(
+        base = base,
+        healthService = healthService,
+        vaultMetadataService = vaultMetadataService,
+        vaultSyncService = vaultSyncService
+    )
 }
 

@@ -103,29 +103,10 @@ fun App() {
     ) {
         val coroutineScope = rememberCoroutineScope()
         
-        // Set up auto-indexing callback
+        // Auto-indexing is disabled - ingestion only happens when user explicitly enables RAG
+        // This prevents automatic ingestion on file save
         LaunchedEffect(ragComponents) {
-            ragComponents?.indexer?.let { indexer ->
-                editorStateHolder.onFileSaved = { filePath ->
-                    coroutineScope.launch {
-                        try {
-                            // Get relative path from notes root
-                            val notesRoot = editorDomainState.currentDirectory
-                            val relativePath = if (notesRoot != null && filePath.startsWith(notesRoot)) {
-                                filePath.substring(notesRoot.length + 1).replace('\\', '/')
-                            } else {
-                                filePath
-                            }
-                            indexer.indexFile(relativePath)
-                        } catch (e: Exception) {
-                            // Log error but don't block save
-                            logger.error("Auto-indexing failed for $filePath: ${e.message}", e)
-                        }
-                    }
-                }
-            } ?: run {
-                editorStateHolder.onFileSaved = null
-            }
+            editorStateHolder.onFileSaved = null
         }
         
         // Load last opened folder on startup
