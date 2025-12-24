@@ -245,17 +245,28 @@ private fun AppContent(
 
                     // Left Resizable Splitter
                     if (leftSidebarVisible) {
+                        var dragStartWidth by remember(leftSidebarWidth) { mutableStateOf(leftSidebarWidth) }
+                        var totalDragDp by remember { mutableStateOf(0.0) }
+                        
                         ResizableSplitter(
                             onDrag = { deltaPx ->
-                                val deltaDp = with(density) { deltaPx.toDp() }
-                                val newWidth = leftSidebarWidth + deltaDp.value
+                                val deltaDp = with(density) { deltaPx.toDp().value }
+                                totalDragDp += deltaDp
+                                val newWidth = dragStartWidth + totalDragDp
                                 editorStateHolder.updateLeftSidebarWidth(
                                     newWidth,
                                     minWidth = settings.ui.sidebarMinWidth.toDouble(),
                                     maxWidth = settings.ui.sidebarMaxWidth.toDouble()
                                 )
                             },
-                            theme = theme
+                            theme = theme,
+                            onDragStart = {
+                                dragStartWidth = leftSidebarWidth
+                                totalDragDp = 0.0
+                            },
+                            onDragEnd = {
+                                totalDragDp = 0.0
+                            }
                         )
                     }
 
