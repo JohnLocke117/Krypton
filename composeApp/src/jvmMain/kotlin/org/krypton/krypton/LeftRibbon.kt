@@ -20,6 +20,7 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.folder
 import krypton.composeapp.generated.resources.left_panel_close
 import krypton.composeapp.generated.resources.left_panel_open
+import krypton.composeapp.generated.resources.search
 
 @Composable
 fun LeftRibbon(
@@ -49,6 +50,16 @@ fun LeftRibbon(
                     contentDescription = "Files",
                     isActive = activeRibbonButton == RibbonButton.Files,
                     onClick = { state.updateActiveRibbonButton(RibbonButton.Files) },
+                    cardFacingEdge = CardFacingEdge.End
+                )
+            },
+            // Slot 2: Search icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.search,
+                    contentDescription = "Search",
+                    isActive = activeRibbonButton == RibbonButton.Search,
+                    onClick = { state.updateActiveRibbonButton(RibbonButton.Search) },
                     cardFacingEdge = CardFacingEdge.End
                 )
             }
