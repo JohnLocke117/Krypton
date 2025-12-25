@@ -17,12 +17,14 @@ interface ChatService {
      * 
      * @param history Current conversation history (list of previous messages)
      * @param userMessage The new user message to respond to
+     * @param retrievalMode The retrieval mode to use (default: NONE for plain chat)
      * @return Updated message list including the new user message and assistant response
      * @throws Exception if the chat service fails (network error, API error, etc.)
      */
     suspend fun sendMessage(
         history: List<ChatMessage>,
-        userMessage: String
+        userMessage: String,
+        retrievalMode: RetrievalMode = RetrievalMode.NONE
     ): List<ChatMessage>
 }
 

@@ -22,3 +22,5 @@ node_modules/
 TODO.txt
 RAG_Reference.md
 rag.py
+
+local.secrets.properties

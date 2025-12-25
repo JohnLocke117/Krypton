@@ -9,6 +9,7 @@ val allModules: List<Module> = listOf(
     appModule,
     dataModule,
     ragModule,
+    webModule,
     chatModule,
     uiModule
 )

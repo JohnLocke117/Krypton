@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import org.krypton.krypton.chat.RetrievalMode
 import org.krypton.krypton.config.ChatDefaults
 import org.krypton.krypton.util.IdGenerator
 import org.krypton.krypton.util.TimeProvider
@@ -56,8 +57,10 @@ class OllamaChatService(
 
     override suspend fun sendMessage(
         history: List<ChatMessage>,
-        userMessage: String
+        userMessage: String,
+        retrievalMode: RetrievalMode
     ): List<ChatMessage> = withContext(Dispatchers.IO) {
+        // OllamaChatService ignores retrievalMode - it's plain chat
         AppLogger.action("Chat", "MessageSent", "model=$model, length=${userMessage.length}")
         
         try {

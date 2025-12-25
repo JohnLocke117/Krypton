@@ -24,6 +24,7 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.arrow_split
 import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.database_search
+import krypton.composeapp.generated.resources.globe
 import krypton.composeapp.generated.resources.leaderboard
 import krypton.composeapp.generated.resources.rag
 import krypton.composeapp.generated.resources.send
@@ -43,6 +44,7 @@ import org.krypton.krypton.chat.IngestionPromptDialog
 import org.krypton.krypton.ui.state.EditorStateHolder
 import org.koin.core.context.GlobalContext
 import org.krypton.krypton.util.AppLogger
+import org.krypton.krypton.util.SecretsLoader
 import io.ktor.client.engine.cio.CIO
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
@@ -100,8 +102,27 @@ fun ChatPanel(
     // RAG toggle state (disabled by default)
     var ragEnabled by remember { mutableStateOf(false) }
     
+    // Web search (Tavily) toggle state (disabled by default)
+    var webEnabled by remember { mutableStateOf(false) }
+    
     // Multi-query toggle state (disabled by default)
     val koin = remember { GlobalContext.get() }
+    
+    // Tavily availability check - use SecretsLoader to check for API key
+    // The improved SecretsLoader now searches multiple paths to find the file
+    val tavilyAvailable = remember {
+        SecretsLoader.hasSecret("TAVILLY_API_KEY")
+    }
+    
+    // Compute RetrievalMode from toggles
+    val retrievalMode = remember(ragEnabled, webEnabled) {
+        when {
+            ragEnabled && webEnabled -> RetrievalMode.HYBRID
+            ragEnabled -> RetrievalMode.RAG
+            webEnabled -> RetrievalMode.WEB
+            else -> RetrievalMode.NONE
+        }
+    }
     val settingsRepository: org.krypton.krypton.data.repository.SettingsRepository = remember { koin.get() }
     var multiQueryEnabled by remember { 
         mutableStateOf(false) 
@@ -109,6 +130,9 @@ fun ChatPanel(
     
     // Reranking toggle state (disabled by default)
     var rerankingEnabled by remember { mutableStateOf(false) }
+    
+    // Error state for Tavily toggle attempts without API key
+    var tavilyError by remember { mutableStateOf<String?>(null) }
     
     // RAG pipeline selection state
     var selectedBackend by remember { mutableStateOf(VectorBackend.CHROMADB) }
@@ -202,7 +226,6 @@ fun ChatPanel(
             // ChromaDB became unavailable while RAG is enabled - disable RAG and revert to normal chat
             AppLogger.w("ChatPanel", "ChromaDB unavailable, disabling RAG mode")
             ragEnabled = false
-            ragChatService?.setRagEnabled(false)
             // Disable reranking and multi-query when RAG is disabled
             rerankingEnabled = false
             ragComponents?.ragService?.setRerankingEnabled(false)
@@ -238,7 +261,6 @@ fun ChatPanel(
                 // RAG-related error occurred - disable RAG and revert to normal chat
                 AppLogger.w("ChatPanel", "RAG error detected, disabling RAG mode: ${errorStatus.message}")
                 ragEnabled = false
-                ragChatService?.setRagEnabled(false)
                 syncStatus = SyncStatus.UNAVAILABLE // Set status to red
                 rebuildStatus = UiStatus.Error(
                     "RAG error: ${errorStatus.message}. RAG mode has been disabled. Chat has reverted to normal mode.",
@@ -394,6 +416,40 @@ fun ChatPanel(
             }
         }
         
+        // Tavily error message (non-blocking)
+        tavilyError?.let { errorMsg ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = errorMsg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = { tavilyError = null },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Dismiss")
+                    }
+                }
+            }
+        }
+        
         // Error message
         error?.let { errorMsg ->
             Surface(
@@ -535,7 +591,6 @@ fun ChatPanel(
                                         if (ragEnabled) {
                                             // Disable RAG
                                             ragEnabled = false
-                                            ragChatService.setRagEnabled(false)
                                             // Disable reranking and multi-query when RAG is disabled
                                             rerankingEnabled = false
                                             ragComponents?.ragService?.setRerankingEnabled(false)
@@ -578,7 +633,6 @@ fun ChatPanel(
                                                                         // Update UI state on main thread
                                                                         withContext(Dispatchers.Main) {
                                                                             ragEnabled = true
-                                                                            ragChatService.setRagEnabled(true)
                                                                             // Keep reranking and multi-query disabled by default
                                                                             rerankingEnabled = false
                                                                             ragComponents?.ragService?.setRerankingEnabled(false)
@@ -615,7 +669,6 @@ fun ChatPanel(
                                                 } else {
                                                     // Fallback: just enable RAG
                                                     ragEnabled = true
-                                                    ragChatService.setRagEnabled(true)
                                                     // Keep reranking and multi-query disabled by default
                                                     rerankingEnabled = false
                                                     ragComponents?.ragService?.setRerankingEnabled(false)
@@ -854,6 +907,37 @@ fun ChatPanel(
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))
                         }
+                        
+                        // Globe icon (Tavily web search) - after RAG controls
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clickable(enabled = tavilyAvailable) {
+                                    if (tavilyAvailable) {
+                                        webEnabled = !webEnabled
+                                        tavilyError = null
+                                        AppLogger.d("ChatPanel", "Web search ${if (webEnabled) "enabled" else "disabled"}")
+                                    } else {
+                                        // Show non-blocking error
+                                        tavilyError = "Tavily API key not found. Please add TAVILLY_API_KEY to local.secrets.properties"
+                                        AppLogger.w("ChatPanel", "Attempted to enable Tavily without API key")
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(Res.drawable.globe),
+                                contentDescription = "Web Search (Tavily)",
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = ColorFilter.tint(
+                                    when {
+                                        !tavilyAvailable -> theme.TextTertiary
+                                        webEnabled -> theme.Accent
+                                        else -> theme.TextSecondary
+                                    }
+                                )
+                            )
+                        }
                     }
                     
                     // Right side: Send icon
@@ -876,8 +960,8 @@ fun ChatPanel(
                                         )
                                         optimisticUserMessage = optimisticMessage
                                         
-                                        // Send message (will update messages when response arrives)
-                                        chatStateHolder.sendMessage(messageText)
+                                        // Send message with current retrieval mode
+                                        chatStateHolder.sendMessage(messageText, retrievalMode)
                                     }
                                 }
                             ),
@@ -973,7 +1057,6 @@ fun ChatPanel(
                         when (result) {
                             RagActivationResult.ENABLED -> {
                                 ragEnabled = true
-                                ragChatService?.setRagEnabled(true)
                                 // Keep reranking and multi-query disabled by default
                                 rerankingEnabled = false
                                 ragComponents?.ragService?.setRerankingEnabled(false)
@@ -1084,7 +1167,6 @@ fun ChatPanel(
                         when (result) {
                             RagActivationResult.ENABLED -> {
                                 ragEnabled = true
-                                ragChatService?.setRagEnabled(true)
                                 // Keep reranking and multi-query disabled by default
                                 rerankingEnabled = false
                                 ragComponents?.ragService?.setRerankingEnabled(false)

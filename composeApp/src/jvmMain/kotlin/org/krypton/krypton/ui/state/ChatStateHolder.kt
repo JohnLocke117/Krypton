@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.krypton.krypton.chat.ChatMessage
 import org.krypton.krypton.chat.ChatService
+import org.krypton.krypton.chat.RetrievalMode
 import org.krypton.krypton.util.AppLogger
 
 /**
@@ -43,7 +44,7 @@ class ChatStateHolder(
     /**
      * Sends a message to the chat service.
      */
-    fun sendMessage(message: String) {
+    fun sendMessage(message: String, retrievalMode: RetrievalMode = RetrievalMode.NONE) {
         if (message.isBlank()) return
         
         coroutineScope.launch {
@@ -51,11 +52,11 @@ class ChatStateHolder(
                 _isLoading.value = true
                 _status.value = UiStatus.Loading
                 
-                val updatedMessages = chatService.sendMessage(_messages.value, message)
+                val updatedMessages = chatService.sendMessage(_messages.value, message, retrievalMode)
                 _messages.value = updatedMessages
                 _status.value = UiStatus.Success
                 
-                AppLogger.i("ChatStateHolder", "Message sent successfully")
+                AppLogger.i("ChatStateHolder", "Message sent successfully with mode: $retrievalMode")
             } catch (e: Exception) {
                 val errorMsg = e.message ?: "Failed to send message"
                 _status.value = UiStatus.Error(errorMsg, recoverable = true)
