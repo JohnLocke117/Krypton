@@ -54,7 +54,8 @@ class HttpLlamaClient(
     private data class GenerateRequest(
         val model: String,
         val prompt: String,
-        val stream: Boolean = false
+        val stream: Boolean = false,
+        val temperature: Double? = null
     )
     
     @Serializable
@@ -165,6 +166,109 @@ class HttpLlamaClient(
         // Should never reach here, but handle it just in case
         throw lastException ?: LlamaClientException("Unknown error in LLM completion")
     }
+    
+    override suspend fun complete(model: String, prompt: String, temperature: Double): String = 
+        withContext(Dispatchers.IO) {
+            val url = "$baseUrl$apiPath"
+            AppLogger.d("HttpLlamaClient", "Request started: $url, model=$model, temperature=$temperature")
+            
+            var lastException: Exception? = null
+            var retryCount = 0
+            
+            while (retryCount <= maxRetries) {
+                try {
+                    val request = GenerateRequest(
+                        model = model,
+                        prompt = prompt,
+                        stream = false,
+                        temperature = temperature
+                    )
+                    
+                    val httpResponse = client.post(url) {
+                        contentType(ContentType.Application.Json)
+                        setBody(request)
+                    }
+                    
+                    if (httpResponse.status.value !in 200..299) {
+                        val errorMsg = "LLM API returned error: ${httpResponse.status}"
+                        AppLogger.e("HttpLlamaClient", errorMsg, null)
+                        throw LlamaClientException(errorMsg)
+                    }
+                    
+                    AppLogger.i("HttpLlamaClient", "Request succeeded: status=${httpResponse.status.value}")
+                    
+                    // Ollama returns application/x-ndjson (newline-delimited JSON)
+                    val json = Json {
+                        ignoreUnknownKeys = true
+                        isLenient = true
+                        coerceInputValues = true
+                    }
+                    
+                    val rawResponse: String = httpResponse.body()
+                    if (rawResponse.isBlank()) {
+                        throw LlamaClientException("LLM API returned empty response")
+                    }
+                    
+                    // Parse NDJSON format
+                    val lines = rawResponse.trim().lines().filter { it.isNotBlank() }
+                    if (lines.isEmpty()) {
+                        throw LlamaClientException("LLM API response contains no valid JSON lines")
+                    }
+                    
+                    // Accumulate response from all lines
+                    var accumulatedResponse = ""
+                    var hasError: String? = null
+                    
+                    for (line in lines) {
+                        val lineResponse = json.decodeFromString<GenerateResponse>(line)
+                        accumulatedResponse += lineResponse.response
+                        
+                        if (lineResponse.error != null) {
+                            hasError = lineResponse.error
+                        }
+                    }
+                    
+                    if (hasError != null) {
+                        throw LlamaClientException("LLM API error: $hasError")
+                    }
+                    
+                    val trimmedResponse = accumulatedResponse.trim()
+                    if (trimmedResponse.isEmpty()) {
+                        throw LlamaClientException("LLM API returned empty response text")
+                    }
+                    
+                    return@withContext trimmedResponse
+                } catch (e: LlamaClientException) {
+                    lastException = e
+                    retryCount++
+                    
+                    if (retryCount <= maxRetries) {
+                        val delayMs = initialRetryDelayMs * (1 shl (retryCount - 1)) // Exponential backoff
+                        AppLogger.w("HttpLlamaClient", "Request failed (attempt $retryCount/$maxRetries), retrying in ${delayMs}ms: ${e.message}", e)
+                        delay(delayMs)
+                    } else {
+                        AppLogger.e("HttpLlamaClient", "Request failed after $maxRetries retries: ${e.message}", e)
+                        throw e
+                    }
+                } catch (e: Exception) {
+                    lastException = e
+                    retryCount++
+                    
+                    if (retryCount <= maxRetries) {
+                        val delayMs = initialRetryDelayMs * (1 shl (retryCount - 1)) // Exponential backoff
+                        AppLogger.w("HttpLlamaClient", "Request failed (attempt $retryCount/$maxRetries), retrying in ${delayMs}ms: ${e.message}", e)
+                        delay(delayMs)
+                    } else {
+                        val errorMsg = "Failed to generate completion after $maxRetries retries: ${e.message}"
+                        AppLogger.e("HttpLlamaClient", errorMsg, e)
+                        throw LlamaClientException(errorMsg, e)
+                    }
+                }
+            }
+            
+            // Should never reach here, but handle it just in case
+            throw lastException ?: LlamaClientException("Unknown error in LLM completion")
+        }
 }
 
 /**

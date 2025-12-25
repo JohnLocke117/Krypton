@@ -24,6 +24,7 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.arrow_split
 import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.database_search
+import krypton.composeapp.generated.resources.leaderboard
 import krypton.composeapp.generated.resources.rag
 import krypton.composeapp.generated.resources.send
 import org.krypton.krypton.ObsidianThemeValues
@@ -99,12 +100,15 @@ fun ChatPanel(
     // RAG toggle state (disabled by default)
     var ragEnabled by remember { mutableStateOf(false) }
     
-    // Multi-query toggle state
+    // Multi-query toggle state (disabled by default)
     val koin = remember { GlobalContext.get() }
     val settingsRepository: org.krypton.krypton.data.repository.SettingsRepository = remember { koin.get() }
     var multiQueryEnabled by remember { 
-        mutableStateOf(settingsRepository.settingsFlow.value.rag.multiQueryEnabled) 
+        mutableStateOf(false) 
     }
+    
+    // Reranking toggle state (disabled by default)
+    var rerankingEnabled by remember { mutableStateOf(false) }
     
     // RAG pipeline selection state
     var selectedBackend by remember { mutableStateOf(VectorBackend.CHROMADB) }
@@ -199,6 +203,11 @@ fun ChatPanel(
             AppLogger.w("ChatPanel", "ChromaDB unavailable, disabling RAG mode")
             ragEnabled = false
             ragChatService?.setRagEnabled(false)
+            // Disable reranking and multi-query when RAG is disabled
+            rerankingEnabled = false
+            ragComponents?.ragService?.setRerankingEnabled(false)
+            multiQueryEnabled = false
+            AppLogger.d("ChatPanel", "Multi-Query disabled (ChromaDB unavailable)")
             rebuildStatus = UiStatus.Error(
                 "ChromaDB is unavailable. RAG mode has been disabled. Chat has reverted to normal mode.",
                 recoverable = true
@@ -527,6 +536,11 @@ fun ChatPanel(
                                             // Disable RAG
                                             ragEnabled = false
                                             ragChatService.setRagEnabled(false)
+                                            // Disable reranking and multi-query when RAG is disabled
+                                            rerankingEnabled = false
+                                            ragComponents?.ragService?.setRerankingEnabled(false)
+                                            multiQueryEnabled = false
+                                            AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
                                         } else {
                                             // Enable RAG - use activation manager
                                             coroutineScope.launch {
@@ -565,6 +579,10 @@ fun ChatPanel(
                                                                         withContext(Dispatchers.Main) {
                                                                             ragEnabled = true
                                                                             ragChatService.setRagEnabled(true)
+                                                                            // Keep reranking and multi-query disabled by default
+                                                                            rerankingEnabled = false
+                                                                            ragComponents?.ragService?.setRerankingEnabled(false)
+                                                                            multiQueryEnabled = false
                                                                             isIngesting = false
                                                                         }
                                                                         // Check sync status on IO thread, then update UI
@@ -598,6 +616,10 @@ fun ChatPanel(
                                                     // Fallback: just enable RAG
                                                     ragEnabled = true
                                                     ragChatService.setRagEnabled(true)
+                                                    // Keep reranking and multi-query disabled by default
+                                                    rerankingEnabled = false
+                                                    ragComponents?.ragService?.setRerankingEnabled(false)
+                                                    multiQueryEnabled = false
                                                 }
                                             }
                                         }
@@ -706,6 +728,8 @@ fun ChatPanel(
                                         if (ragEnabled) {
                                             val newValue = !multiQueryEnabled
                                             multiQueryEnabled = newValue
+                                            // Log the state change
+                                            AppLogger.d("ChatPanel", "Multi-Query ${if (newValue) "enabled" else "disabled"}")
                                             // Update settings
                                             coroutineScope.launch {
                                                 settingsRepository.update { currentSettings ->
@@ -734,7 +758,35 @@ fun ChatPanel(
                                 )
                             }
                             
-                            // 5. Manual re-index (fifth) - always available
+                            // 5. Reranking toggle (fifth) - visible but disabled when RAG off
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable(enabled = ragEnabled) {
+                                        if (ragEnabled) {
+                                            val newValue = !rerankingEnabled
+                                            rerankingEnabled = newValue
+                                            // Update RagService reranking state
+                                            ragComponents?.ragService?.setRerankingEnabled(newValue)
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(Res.drawable.leaderboard),
+                                    contentDescription = "Reranking",
+                                    modifier = Modifier.size(20.dp),
+                                    colorFilter = ColorFilter.tint(
+                                        if (ragEnabled && rerankingEnabled) {
+                                            theme.Accent
+                                        } else {
+                                            theme.TextSecondary.copy(alpha = if (ragEnabled) 1f else 0.5f)
+                                        }
+                                    )
+                                )
+                            }
+                            
+                            // 6. Manual re-index (sixth) - always available
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
@@ -922,6 +974,10 @@ fun ChatPanel(
                             RagActivationResult.ENABLED -> {
                                 ragEnabled = true
                                 ragChatService?.setRagEnabled(true)
+                                // Keep reranking and multi-query disabled by default
+                                rerankingEnabled = false
+                                ragComponents?.ragService?.setRerankingEnabled(false)
+                                multiQueryEnabled = false
                                 ingestionSuccess = true
                                 // Set sync status to SYNCED since ingestion just completed successfully
                                 // We trust that ingestion completed successfully, so vault is synced
@@ -1029,6 +1085,10 @@ fun ChatPanel(
                             RagActivationResult.ENABLED -> {
                                 ragEnabled = true
                                 ragChatService?.setRagEnabled(true)
+                                // Keep reranking and multi-query disabled by default
+                                rerankingEnabled = false
+                                ragComponents?.ragService?.setRerankingEnabled(false)
+                                multiQueryEnabled = false
                                 reindexSuccess = true
                                 // Set sync status to SYNCED since re-indexing just completed successfully
                                 // We trust that re-indexing completed successfully, so vault is synced

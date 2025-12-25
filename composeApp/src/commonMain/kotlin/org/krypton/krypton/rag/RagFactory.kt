@@ -21,7 +21,8 @@ data class RagConfig(
     val maxK: Int = RagDefaults.DEFAULT_MAX_K,
     val displayK: Int = RagDefaults.DEFAULT_DISPLAY_K,
     val queryRewritingEnabled: Boolean = false,
-    val multiQueryEnabled: Boolean = false
+    val multiQueryEnabled: Boolean = false,
+    val rerankerModel: String? = null
 )
 
 /**
@@ -41,10 +42,14 @@ data class RagComponents(
  * @param config RAG configuration
  * @param notesRoot Root directory containing markdown notes (null = current directory)
  * @param httpClientEngine HTTP client engine (platform-specific)
+ * @param llamaClient LlamaClient instance (optional, will be created if not provided)
+ * @param reranker Reranker instance (optional, will use NoopReranker if not provided)
  */
 expect fun createRagComponents(
     config: RagConfig,
     notesRoot: String?,
-    httpClientEngine: HttpClientEngine
+    httpClientEngine: HttpClientEngine,
+    llamaClient: LlamaClient? = null,
+    reranker: Reranker? = null
 ): RagComponents
 

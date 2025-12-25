@@ -85,7 +85,8 @@ data class RagSettings(
     val maxK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_MAX_K,
     val displayK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_DISPLAY_K,
     val queryRewritingEnabled: Boolean = false,
-    val multiQueryEnabled: Boolean = false
+    val multiQueryEnabled: Boolean = false,
+    val rerankerModel: String? = null
 )
 
 @Serializable

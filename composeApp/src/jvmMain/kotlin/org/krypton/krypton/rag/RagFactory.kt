@@ -22,7 +22,9 @@ data class ExtendedRagComponents(
 actual fun createRagComponents(
     config: RagConfig,
     notesRoot: String?,
-    httpClientEngine: HttpClientEngine
+    httpClientEngine: HttpClientEngine,
+    llamaClient: LlamaClient?,
+    reranker: Reranker?
 ): RagComponents {
     // Create ChromaDB vector store
     val vectorStore = ChromaDBVectorStore(
@@ -41,8 +43,8 @@ actual fun createRagComponents(
         httpClientEngine = httpClientEngine
     )
     
-    // Create Llama client
-    val llamaClient = HttpLlamaClient(
+    // Use provided LlamaClient or create a new one
+    val llamaClientToUse = llamaClient ?: HttpLlamaClient(
         baseUrl = config.llamaBaseUrl,
         model = config.llamaModel,
         apiPath = "/api/generate",
@@ -66,22 +68,26 @@ actual fun createRagComponents(
     
     // Create query preprocessor (optional, only if rewriting or multi-query is enabled)
     val queryPreprocessor = if (config.queryRewritingEnabled || config.multiQueryEnabled) {
-        QueryPreprocessor(llamaClient)
+        QueryPreprocessor(llamaClientToUse)
     } else {
         null
     }
+    
+    // Use provided Reranker or create NoopReranker
+    val rerankerToUse = reranker ?: NoopReranker()
     
     // Create RAG service
     val ragService = RagService(
         embedder = embedder,
         vectorStore = vectorStore,
-        llamaClient = llamaClient,
+        llamaClient = llamaClientToUse,
         similarityThreshold = config.similarityThreshold,
         maxK = config.maxK,
         displayK = config.displayK,
         queryPreprocessor = queryPreprocessor,
         queryRewritingEnabled = config.queryRewritingEnabled,
-        multiQueryEnabled = config.multiQueryEnabled
+        multiQueryEnabled = config.multiQueryEnabled,
+        reranker = rerankerToUse
     )
     
     // Create JVM-specific services
@@ -112,7 +118,7 @@ actual fun createRagComponents(
     return RagComponents(
         vectorStore = vectorStore,
         embedder = embedder,
-        llamaClient = llamaClient,
+        llamaClient = llamaClientToUse,
         indexer = indexer,
         ragService = ragService
     )

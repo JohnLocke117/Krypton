@@ -19,18 +19,23 @@ class RagService(
     private val displayK: Int = 5,
     private val queryPreprocessor: QueryPreprocessor? = null,
     private val queryRewritingEnabled: Boolean = false,
-    private val multiQueryEnabled: Boolean = false
+    private val multiQueryEnabled: Boolean = false,
+    private val reranker: Reranker = NoopReranker()
 ) {
+    // Reranking enabled flag (can be toggled at runtime)
+    @Volatile
+    private var rerankingEnabled: Boolean = true
     /**
      * Answers a question using RAG.
      * 
      * Process:
      * 1. Embed the question
      * 2. Search vector store for top-k relevant chunks (up to maxK)
-     * 3. Filter chunks by similarity threshold
-     * 4. Take top displayK chunks
-     * 5. Build a prompt with context from chunks
-     * 6. Generate answer using LLM
+     * 3. Rerank chunks using reranker (if available)
+     * 4. Filter chunks by similarity threshold
+     * 5. Take top displayK chunks
+     * 6. Build a prompt with context from chunks
+     * 7. Generate answer using LLM
      * 
      * @param question The user's question
      * @return The generated answer
@@ -81,10 +86,37 @@ class RagService(
                 vectorStore.search(questionEmbedding, maxK)
             }
             
-            // Step 2: Filter by similarity threshold
-            val filteredResults = allResults.filter { it.similarity >= similarityThreshold }
+            // Step 2: Rerank chunks (if reranking is enabled and reranker is available and not NoopReranker)
+            val rerankedResults = try {
+                if (!rerankingEnabled || reranker is NoopReranker) {
+                    // Skip reranking if disabled or using NoopReranker
+                    allResults
+                } else {
+                    AppLogger.d("RagService", "Reranking ${allResults.size} candidates")
+                    val retrievedChunks = allResults.toRetrievedChunks()
+                    val rerankedChunks = reranker.rerank(processedQuestion, retrievedChunks)
+                    
+                    // Convert back to SearchResult, preserving original NoteChunk
+                    val resultMap = allResults.associateBy { it.chunk.id }
+                    rerankedChunks.mapNotNull { retrievedChunk ->
+                        resultMap[retrievedChunk.id]?.let { originalResult ->
+                            // Update similarity with reranker score if available
+                            SearchResult(
+                                chunk = originalResult.chunk,
+                                similarity = retrievedChunk.similarity.toFloat()
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.w("RagService", "Reranking failed, using original order: ${e.message}", e)
+                allResults
+            }
             
-            // Step 3: Sort by similarity (descending) and take top displayK
+            // Step 3: Filter by similarity threshold
+            val filteredResults = rerankedResults.filter { it.similarity >= similarityThreshold }
+            
+            // Step 4: Sort by similarity (descending) and take top displayK
             val topResults = filteredResults
                 .sortedByDescending { it.similarity }
                 .take(displayK)
@@ -92,10 +124,10 @@ class RagService(
             // Log retrieval metrics
             logRetrieval(processedQuestion, allResults, filteredResults, topResults)
             
-            // Step 4: Build prompt with context (use original question for prompt)
+            // Step 5: Build prompt with context (use original question for prompt)
             val prompt = buildPrompt(question, topResults)
             
-            // Step 5: Generate answer
+            // Step 6: Generate answer
             llamaClient.complete(prompt)
         } catch (e: RagException) {
             throw e
@@ -185,6 +217,19 @@ Rules:
         // doesn't support separate system/user prompts. This can be enhanced later.
         return "$systemPrompt\n\n$userPrompt"
     }
+    
+    /**
+     * Sets whether reranking is enabled.
+     */
+    fun setRerankingEnabled(enabled: Boolean) {
+        rerankingEnabled = enabled
+        AppLogger.d("RagService", "Reranking ${if (enabled) "enabled" else "disabled"}")
+    }
+    
+    /**
+     * Gets whether reranking is currently enabled.
+     */
+    fun isRerankingEnabled(): Boolean = rerankingEnabled
 }
 
 /**
