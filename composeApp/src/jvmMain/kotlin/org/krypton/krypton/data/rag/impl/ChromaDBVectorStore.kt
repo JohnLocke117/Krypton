@@ -393,11 +393,11 @@ class ChromaDBVectorStore(
             // ChromaDB v2 API returns 201 Created for successful add operations
             if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
                 val errorBody = response.body<String>()
-                AppLogger.e("ChromaDBVectorStore", "❌ Failed to upsert chunks with metadata: ${response.status} - $errorBody")
+                AppLogger.e("ChromaDBVectorStore", "Failed to upsert chunks with metadata: ${response.status} - $errorBody")
                 throw ChromaDBException("Failed to upsert chunks: ${response.status} - $errorBody")
             }
             
-            AppLogger.i("ChromaDBVectorStore", "✅ Upserted ${chunks.size} chunks with metadata into collection '$collectionName'")
+            AppLogger.i("ChromaDBVectorStore", "Upserted ${chunks.size} chunks with metadata into collection '$collectionName'")
         } catch (e: Exception) {
             AppLogger.e("ChromaDBVectorStore", "Failed to upsert ${chunks.size} chunks with metadata", e)
             throw ChromaDBException("Failed to upsert chunks with metadata: ${e.message}", e)
@@ -656,7 +656,7 @@ class ChromaDBVectorStore(
             
             if (response.status != HttpStatusCode.OK) {
                 val errorBody = try { response.body<String>() } catch (e: Exception) { "Unable to read error body" }
-                AppLogger.e("ChromaDBVectorStore", "❌ Query failed with status ${response.status}")
+                AppLogger.e("ChromaDBVectorStore", "Query failed with status ${response.status}")
                 AppLogger.e("ChromaDBVectorStore", "Error body: $errorBody")
                 // If it's a 422 error, it might be due to dimension mismatch - clear cache and retry with detected dimension
                 if (response.status == HttpStatusCode.UnprocessableEntity && embeddingDimension == 768) {
@@ -680,7 +680,7 @@ class ChromaDBVectorStore(
             AppLogger.i("ChromaDBVectorStore", "═══════════════════════════════════════════════════════════")
             return@withContext hasData
         } catch (e: Exception) {
-            AppLogger.e("ChromaDBVectorStore", "❌ Exception in hasVaultData: ${e.message}", e)
+            AppLogger.e("ChromaDBVectorStore", "Exception in hasVaultData: ${e.message}", e)
             AppLogger.i("ChromaDBVectorStore", "Result: false (exception)")
             AppLogger.i("ChromaDBVectorStore", "═══════════════════════════════════════════════════════════")
             return@withContext false

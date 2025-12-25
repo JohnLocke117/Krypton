@@ -105,7 +105,7 @@ class RagActivationManager(
             }
             
             // Step 3: Existing data found - check sync status
-            AppLogger.i("RagActivationManager", "✅ Existing data found - checking sync status")
+            AppLogger.i("RagActivationManager", "Existing data found - checking sync status")
             val syncStatus = vaultSyncService.checkSyncStatus(vaultPath)
             AppLogger.i("RagActivationManager", "Sync status: $syncStatus")
             

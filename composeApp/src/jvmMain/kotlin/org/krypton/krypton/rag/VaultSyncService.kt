@@ -51,8 +51,17 @@ class VaultSyncService(
         
         // Check if vault is indexed
         val metadata = vaultMetadataService.getVaultMetadata(vaultPath)
+        
+        // If metadata is null, check if collection has data
+        // If collection has data but metadata is missing, we can't determine sync status accurately
+        // Return SYNCED optimistically to avoid false positives (user can manually re-index if needed)
         if (metadata == null) {
-            return@withContext SyncStatus.NOT_INDEXED
+            val hasData = vectorStore.hasVaultData(vaultPath)
+            return@withContext if (hasData) {
+                SyncStatus.SYNCED // Collection has data - assume synced (can't verify without metadata)
+            } else {
+                SyncStatus.NOT_INDEXED // No data at all
+            }
         }
         
         // Get current vault state with hashes

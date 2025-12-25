@@ -523,15 +523,16 @@ fun ChatPanel(
                                             // Enable RAG - use activation manager
                                             coroutineScope.launch {
                                                 if (ragActivationManager != null && currentVaultPath != null) {
-                                                    // Check if ingestion is needed first
-                                                    val status = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                    if (status == SyncStatus.NOT_INDEXED) {
-                                                        // Show prompt
+                                                    // First check if collection exists and has data
+                                                    val hasVaultData = extendedRagComponents?.base?.vectorStore?.hasVaultData(currentVaultPath) ?: false
+                                                    
+                                                    if (!hasVaultData) {
+                                                        // Collection doesn't exist or has no data - show prompt
                                                         showIngestionPrompt = true
                                                     } else {
-                                                        // Check if re-index is needed (OUT_OF_SYNC)
-                                                        val reindexStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                        if (reindexStatus == SyncStatus.OUT_OF_SYNC) {
+                                                        // Collection exists and has data - check sync status
+                                                        val status = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                        if (status == SyncStatus.OUT_OF_SYNC) {
                                                             // Show re-index prompt
                                                             showReindexPrompt = true
                                                         } else {
