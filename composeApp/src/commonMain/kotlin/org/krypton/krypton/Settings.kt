@@ -8,7 +8,7 @@ data class EditorSettings(
     val theme: String = EditorDefaults.DEFAULT_THEME,
     val fontFamily: String = EditorDefaults.DEFAULT_FONT_FAMILY,
     val fontSize: Int = EditorDefaults.DEFAULT_FONT_SIZE,
-    val lineNumbers: Boolean = true,
+    val lineNumbers: Boolean = false,
     val wordWrap: Boolean = true,
     val tabSize: Int = EditorDefaults.DEFAULT_TAB_SIZE,
     val lineHeight: Float = EditorDefaults.DEFAULT_LINE_HEIGHT,
@@ -80,7 +80,12 @@ data class RagSettings(
     val chromaTenant: String = org.krypton.krypton.config.RagDefaults.DEFAULT_CHROMA_TENANT,
     val chromaDatabase: String = org.krypton.krypton.config.RagDefaults.DEFAULT_CHROMA_DATABASE,
     val ragEnabled: Boolean = true,
-    val topK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_TOP_K
+    val topK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_TOP_K,
+    val similarityThreshold: Float = org.krypton.krypton.config.RagDefaults.DEFAULT_SIMILARITY_THRESHOLD,
+    val maxK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_MAX_K,
+    val displayK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_DISPLAY_K,
+    val queryRewritingEnabled: Boolean = false,
+    val multiQueryEnabled: Boolean = false
 )
 
 @Serializable

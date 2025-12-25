@@ -27,7 +27,12 @@ val ragModule = module {
                 chromaTenant = ragSettings.chromaTenant,
                 chromaDatabase = ragSettings.chromaDatabase,
                 llamaModel = RagDefaults.DEFAULT_LLAMA_MODEL,
-                embeddingModel = RagDefaults.DEFAULT_EMBEDDING_MODEL
+                embeddingModel = RagDefaults.DEFAULT_EMBEDDING_MODEL,
+                similarityThreshold = ragSettings.similarityThreshold,
+                maxK = ragSettings.maxK,
+                displayK = ragSettings.displayK,
+                queryRewritingEnabled = ragSettings.queryRewritingEnabled,
+                multiQueryEnabled = ragSettings.multiQueryEnabled
             )
             
             // Get notes root from settings (if available)

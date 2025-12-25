@@ -16,7 +16,12 @@ data class RagConfig(
     val chromaTenant: String = RagDefaults.DEFAULT_CHROMA_TENANT,
     val chromaDatabase: String = RagDefaults.DEFAULT_CHROMA_DATABASE,
     val llamaModel: String = RagDefaults.DEFAULT_LLAMA_MODEL,
-    val embeddingModel: String = RagDefaults.DEFAULT_EMBEDDING_MODEL
+    val embeddingModel: String = RagDefaults.DEFAULT_EMBEDDING_MODEL,
+    val similarityThreshold: Float = RagDefaults.DEFAULT_SIMILARITY_THRESHOLD,
+    val maxK: Int = RagDefaults.DEFAULT_MAX_K,
+    val displayK: Int = RagDefaults.DEFAULT_DISPLAY_K,
+    val queryRewritingEnabled: Boolean = false,
+    val multiQueryEnabled: Boolean = false
 )
 
 /**

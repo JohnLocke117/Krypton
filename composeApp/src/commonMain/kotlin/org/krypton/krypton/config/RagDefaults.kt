@@ -78,7 +78,17 @@ object RagDefaults {
      * Default similarity threshold for vector search (0.0 to 1.0).
      * Chunks below this threshold are filtered out.
      */
-    const val DEFAULT_SIMILARITY_THRESHOLD = 0.0f
+    const val DEFAULT_SIMILARITY_THRESHOLD = 0.25f
+    
+    /**
+     * Default maximum K for retrieval (before filtering).
+     */
+    const val DEFAULT_MAX_K = 10
+    
+    /**
+     * Default display K (number of chunks to use in prompt after filtering).
+     */
+    const val DEFAULT_DISPLAY_K = 5
     
     /**
      * Default timeout for HTTP requests to LLM API (milliseconds).
@@ -99,5 +109,46 @@ object RagDefaults {
      * Default delay between retries (milliseconds).
      */
     const val DEFAULT_RETRY_DELAY_MS = 1_000L
+    
+    /**
+     * Default batch size for embedding requests.
+     * Batching reduces HTTP overhead and speeds up indexing.
+     */
+    const val DEFAULT_EMBEDDING_BATCH_SIZE = 32
+    
+    /**
+     * Default target chunk size in tokens.
+     */
+    const val DEFAULT_CHUNK_TARGET_TOKENS = 400
+    
+    /**
+     * Default minimum chunk size in tokens.
+     */
+    const val DEFAULT_CHUNK_MIN_TOKENS = 300
+    
+    /**
+     * Default maximum chunk size in tokens.
+     */
+    const val DEFAULT_CHUNK_MAX_TOKENS = 512
+    
+    /**
+     * Default chunk overlap in tokens (10-20% of target).
+     */
+    const val DEFAULT_CHUNK_OVERLAP_TOKENS = 50
+    
+    /**
+     * Default characters per token estimation (simple approximation).
+     */
+    const val DEFAULT_CHARS_PER_TOKEN = 4
+    
+    /**
+     * Default maximum concurrent embedding requests.
+     */
+    const val DEFAULT_MAX_CONCURRENT_EMBEDS = 4
+    
+    /**
+     * Default maximum concurrent upsert operations.
+     */
+    const val DEFAULT_MAX_CONCURRENT_UPSERTS = 8
 }
 

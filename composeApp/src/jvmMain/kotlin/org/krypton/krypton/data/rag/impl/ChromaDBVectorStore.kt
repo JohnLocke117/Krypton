@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import org.krypton.krypton.rag.NoteChunk
+import org.krypton.krypton.rag.SearchResult
 import org.krypton.krypton.rag.VectorStore
 import org.krypton.krypton.util.AppLogger
 
@@ -216,7 +217,7 @@ class ChromaDBVectorStore(
         }
     }
     
-    override suspend fun search(queryEmbedding: FloatArray, topK: Int): List<NoteChunk> = 
+    override suspend fun search(queryEmbedding: FloatArray, topK: Int): List<SearchResult> = 
         withContext(Dispatchers.IO) {
             try {
                 ensureCollection()
@@ -252,8 +253,8 @@ class ChromaDBVectorStore(
                 
                 val queryResponse: QueryResponse = response.body()
                 
-                // Convert ChromaDB response to NoteChunk list
-                val chunks = mutableListOf<NoteChunk>()
+                // Convert ChromaDB response to SearchResult list with similarity scores
+                val results = mutableListOf<SearchResult>()
                 
                 if (queryResponse.ids != null && queryResponse.ids.isNotEmpty()) {
                     val ids = queryResponse.ids[0] // First query embedding results
@@ -265,25 +266,30 @@ class ChromaDBVectorStore(
                         val id = ids[i]
                         val document = documents.getOrNull(i) ?: ""
                         val metadata = metadatas.getOrNull(i) ?: buildJsonObject { }
+                        val distance = distances.getOrNull(i) ?: 1.0f
+                        
+                        // Convert ChromaDB cosine distance to similarity (1.0 - distance)
+                        // ChromaDB returns cosine distance (0 = identical, 2 = opposite)
+                        // For cosine similarity: similarity = 1.0 - distance
+                        val similarity = (1.0f - distance).coerceIn(0.0f, 1.0f)
                         
                         // Note: ChromaDB doesn't return embeddings in query results by default
-                        // We'll need to store them separately or fetch them if needed
-                        // For now, we'll create chunks without embeddings (they can be re-embedded if needed)
                         val chunk = NoteChunk(
                             id = id,
                             filePath = (metadata["filePath"] as? JsonPrimitive)?.content ?: "",
                             startLine = ((metadata["startLine"] as? JsonPrimitive)?.content)?.toIntOrNull() ?: 0,
                             endLine = ((metadata["endLine"] as? JsonPrimitive)?.content)?.toIntOrNull() ?: 0,
                             text = document,
-                            embedding = null // ChromaDB doesn't return embeddings in query results
+                            embedding = null, // ChromaDB doesn't return embeddings in query results
+                            sectionTitle = (metadata["sectionTitle"] as? JsonPrimitive)?.content
                         )
-                        chunks.add(chunk)
+                        results.add(SearchResult(chunk = chunk, similarity = similarity))
                     }
                 }
                 
                 AppLogger.d("ChromaDBVectorStore", "Query Completed Successfully")
-                AppLogger.d("ChromaDBVectorStore", "  Results Returned: ${chunks.size} chunks")
-                return@withContext chunks
+                AppLogger.d("ChromaDBVectorStore", "  Results Returned: ${results.size} chunks")
+                return@withContext results
             } catch (e: Exception) {
                 AppLogger.e("ChromaDBVectorStore", "Failed to search (query size: ${queryEmbedding.size}, topK: $topK)", e)
                 // Return empty list on error rather than crashing

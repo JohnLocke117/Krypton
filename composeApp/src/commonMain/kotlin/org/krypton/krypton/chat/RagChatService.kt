@@ -35,14 +35,15 @@ class RagChatService(
         
         // Defensive check: Never use RAG if disabled
         if (!ragEnabled || ragService == null) {
-            val reason = if (!ragEnabled) "RAG disabled" else "RAG service unavailable"
-            AppLogger.d("RagChatService", "$reason - using base chat service")
+            val reason = if (!ragEnabled) "RAG disabled - using normal chat mode" else "RAG service unavailable - using normal chat mode"
+            AppLogger.i("RagChatService", reason)
+            // Use base chat service which doesn't include note context
             return baseChatService.sendMessage(history, userMessage)
         }
         
         // RAG is enabled and available - use it
         try {
-            AppLogger.d("RagChatService", "RAG enabled - using RAG service")
+            AppLogger.d("RagChatService", "RAG enabled - using RAG service with note context")
             val answer = ragService.ask(userMessage)
             
             val assistantMsg = ChatMessage(

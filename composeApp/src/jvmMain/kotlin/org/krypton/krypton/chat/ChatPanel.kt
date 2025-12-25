@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.arrow_split
 import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.database_search
 import krypton.composeapp.generated.resources.rag
@@ -43,6 +44,7 @@ import org.koin.core.context.GlobalContext
 import org.krypton.krypton.util.AppLogger
 import io.ktor.client.engine.cio.CIO
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 
@@ -97,6 +99,13 @@ fun ChatPanel(
     // RAG toggle state (disabled by default)
     var ragEnabled by remember { mutableStateOf(false) }
     
+    // Multi-query toggle state
+    val koin = remember { GlobalContext.get() }
+    val settingsRepository: org.krypton.krypton.data.repository.SettingsRepository = remember { koin.get() }
+    var multiQueryEnabled by remember { 
+        mutableStateOf(settingsRepository.settingsFlow.value.rag.multiQueryEnabled) 
+    }
+    
     // RAG pipeline selection state
     var selectedBackend by remember { mutableStateOf(VectorBackend.CHROMADB) }
     var dropdownExpanded by remember { mutableStateOf(false) }
@@ -115,7 +124,6 @@ fun ChatPanel(
     }
     
     // Get RAG components and extended services
-    val koin = remember { GlobalContext.get() }
     val ragComponents: RagComponents? = remember {
         try {
             koin.getOrNull<RagComponents>()
@@ -510,7 +518,7 @@ fun ChatPanel(
                     ) {
                         // RAG icon (if RAG service is available)
                         if (ragChatService != null) {
-                            // RAG icon
+                            // 1. RAG toggle icon (first)
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
@@ -610,94 +618,38 @@ fun ChatPanel(
                                 )
                             }
                             
-                            // Status indicator (colored circle)
+                            // 2. Circular sync indicator (second) - outlined red circle when RAG off
                             syncStatus?.let { status ->
+                                if (ragEnabled) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                when (status) {
+                                                    SyncStatus.SYNCED -> Color(0xFF4CAF50) // Green
+                                                    SyncStatus.OUT_OF_SYNC, SyncStatus.NOT_INDEXED -> Color(0xFFFFC107) // Yellow
+                                                    SyncStatus.UNAVAILABLE -> Color(0xFFF44336) // Red
+                                                }
+                                            )
+                                    )
+                                }
+                            }
+                            if (!ragEnabled) {
+                                // Outlined red circle when RAG is off
                                 Box(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(
-                                            when (status) {
-                                                SyncStatus.SYNCED -> Color(0xFF4CAF50) // Green
-                                                SyncStatus.OUT_OF_SYNC, SyncStatus.NOT_INDEXED -> Color(0xFFFFC107) // Yellow
-                                                SyncStatus.UNAVAILABLE -> Color(0xFFF44336) // Red
-                                            }
+                                        .border(
+                                            width = 1.5.dp,
+                                            color = Color(0xFFF44336), // Red
+                                            shape = CircleShape
                                         )
                                 )
                             }
                             
-                            // Database search icon (re-ingest)
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clickable(
-                                        enabled = ragEnabled && 
-                                                 syncStatus != SyncStatus.SYNCED && 
-                                                 syncStatus != SyncStatus.UNAVAILABLE &&
-                                                 rebuildStatus !is UiStatus.Loading &&
-                                                 !isIngesting,
-                                        onClick = {
-                                            if (ragEnabled && currentVaultPath != null && extendedRagComponents != null) {
-                                                // Use ingestionScope for long-running operation
-                                                ingestionScope.launch {
-                                                    try {
-                                                        withContext(Dispatchers.Main) {
-                                                        rebuildStatus = UiStatus.Loading
-                                                            isIngesting = true
-                                                        }
-                                                        
-                                                        val filesToReindex = extendedRagComponents.vaultSyncService.getFilesToReindex(currentVaultPath)
-                                                        if (filesToReindex.isNotEmpty()) {
-                                                            extendedRagComponents.base.indexer.indexModifiedFiles(filesToReindex, currentVaultPath)
-                                                        } else {
-                                                            extendedRagComponents.base.indexer.fullReindex(currentVaultPath)
-                                                        }
-                                                        
-                                                        // Update sync status on IO thread, then update UI
-                                                        val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
-                                                        withContext(Dispatchers.Main) {
-                                                            syncStatus = newSyncStatus
-                                                        rebuildStatus = UiStatus.Success
-                                                            isIngesting = false
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        withContext(Dispatchers.Main) {
-                                                        rebuildStatus = UiStatus.Error(
-                                                            e.message ?: "Failed to rebuild vector database",
-                                                            recoverable = true
-                                                        )
-                                                            isIngesting = false
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(Res.drawable.database_search),
-                                    contentDescription = "Rebuild Vector Database",
-                                    modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(
-                                        when {
-                                            !ragEnabled || 
-                                            syncStatus == SyncStatus.SYNCED || 
-                                            syncStatus == SyncStatus.UNAVAILABLE ||
-                                            rebuildStatus is UiStatus.Loading ||
-                                            isIngesting -> theme.TextSecondary
-                                            else -> Color.White // White when enabled
-                                        }
-                                    )
-                                )
-                            }
-                            
-                            // Status indicator before dropdown (if not already shown)
-                            if (syncStatus == null) {
-                                Spacer(modifier = Modifier.size(8.dp))
-                            }
-                            
-                            // RAG Pipeline Dropdown
+                            // 3. DB dropdown (third) - reduced opacity when RAG off
                             ExposedDropdownMenuBox(
                                 expanded = dropdownExpanded && ragEnabled,
                                 onExpandedChange = { if (ragEnabled) dropdownExpanded = it }
@@ -716,7 +668,7 @@ fun ChatPanel(
                                     Text(
                                         text = getBackendDisplayName(selectedBackend),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (ragEnabled) theme.TextPrimary else theme.TextSecondary,
+                                        color = if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f),
                                         modifier = Modifier.padding(horizontal = 4.dp)
                                     )
                                 }
@@ -744,6 +696,108 @@ fun ChatPanel(
                                         )
                                     )
                                 }
+                            }
+                            
+                            // 4. Multi-query option (fourth) - visible but disabled when RAG off
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable(enabled = ragEnabled) {
+                                        if (ragEnabled) {
+                                            val newValue = !multiQueryEnabled
+                                            multiQueryEnabled = newValue
+                                            // Update settings
+                                            coroutineScope.launch {
+                                                settingsRepository.update { currentSettings ->
+                                                    currentSettings.copy(
+                                                        rag = currentSettings.rag.copy(
+                                                            multiQueryEnabled = newValue
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(Res.drawable.arrow_split),
+                                    contentDescription = "Multi-Query",
+                                    modifier = Modifier.size(20.dp),
+                                    colorFilter = ColorFilter.tint(
+                                        if (ragEnabled && multiQueryEnabled) {
+                                            theme.Accent
+                                        } else {
+                                            theme.TextSecondary.copy(alpha = if (ragEnabled) 1f else 0.5f)
+                                        }
+                                    )
+                                )
+                            }
+                            
+                            // 5. Manual re-index (fifth) - always available
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clickable(
+                                        enabled = currentVaultPath != null && 
+                                                 extendedRagComponents != null &&
+                                                 syncStatus != SyncStatus.UNAVAILABLE &&
+                                                 rebuildStatus !is UiStatus.Loading &&
+                                                 !isIngesting,
+                                        onClick = {
+                                            if (currentVaultPath != null && extendedRagComponents != null) {
+                                                // Use ingestionScope for long-running operation
+                                                ingestionScope.launch {
+                                                    try {
+                                                        withContext(Dispatchers.Main) {
+                                                            rebuildStatus = UiStatus.Loading
+                                                            isIngesting = true
+                                                        }
+                                                        
+                                                        // Get existing metadata to enable incremental indexing
+                                                        val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
+                                                        val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
+                                                        
+                                                        extendedRagComponents.base.indexer.fullReindex(
+                                                            vaultPath = currentVaultPath,
+                                                            existingFileHashes = existingHashes
+                                                        )
+                                                        
+                                                        // Update sync status on IO thread, then update UI
+                                                        val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
+                                                        withContext(Dispatchers.Main) {
+                                                            syncStatus = newSyncStatus
+                                                            rebuildStatus = UiStatus.Success
+                                                            isIngesting = false
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        withContext(Dispatchers.Main) {
+                                                            rebuildStatus = UiStatus.Error(
+                                                                e.message ?: "Failed to rebuild vector database",
+                                                                recoverable = true
+                                                            )
+                                                            isIngesting = false
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(Res.drawable.database_search),
+                                    contentDescription = "Rebuild Vector Database",
+                                    modifier = Modifier.size(20.dp),
+                                    colorFilter = ColorFilter.tint(
+                                        when {
+                                            syncStatus == SyncStatus.UNAVAILABLE ||
+                                            rebuildStatus is UiStatus.Loading ||
+                                            isIngesting -> theme.TextSecondary
+                                            else -> theme.TextPrimary
+                                        }
+                                    )
+                                )
                             }
                         } else {
                             Spacer(modifier = Modifier.size(24.dp))

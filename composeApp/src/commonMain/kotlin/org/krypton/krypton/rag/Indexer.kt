@@ -1,8 +1,14 @@
 package org.krypton.krypton.rag
 
+import org.krypton.krypton.config.RagDefaults
 import org.krypton.krypton.util.Logger
 import org.krypton.krypton.util.createLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
@@ -30,12 +36,17 @@ open class Indexer(
      * This will:
      * 1. List all .md files
      * 2. For each file: read, chunk, embed, and upsert into vector store
+     * 3. Skip files with unchanged hashes if existing metadata is provided
      * 
      * Note: This does not clear the vector store first. Use vectorStore.clear() if needed.
      * 
      * @param vaultPath Optional vault path for metadata tracking. If provided, this path will be used as the root for file listing.
+     * @param existingFileHashes Optional map of existing file hashes. Files with matching hashes will be skipped.
      */
-    suspend fun fullReindex(vaultPath: String? = null) = withContext(Dispatchers.Default) {
+    suspend fun fullReindex(
+        vaultPath: String? = null,
+        existingFileHashes: Map<String, String>? = null
+    ) = withContext(Dispatchers.Default) {
         try {
             // If vaultPath is provided and we have a factory, create a new NoteFileSystem with that path
             // Otherwise, use the existing fileSystem
@@ -53,23 +64,71 @@ open class Indexer(
                 return@withContext
             }
             
+            // Filter out unchanged files if existing hashes are provided
+            val filesToIndex = if (existingFileHashes != null && vaultPath != null) {
+                files.filter { filePath ->
+                    // Compute hash for file
+                    val currentHash = try {
+                        computeFileHash(filePath, vaultPath, fileSystemToUse)
+                    } catch (e: Exception) {
+                        logger.warn("Failed to compute hash for $filePath, will index: ${e.message}")
+                        "" // Index if hash computation fails
+                    }
+                    
+                    val existingHash = existingFileHashes[filePath]
+                    val shouldIndex = existingHash == null || currentHash != existingHash
+                    
+                    if (!shouldIndex) {
+                        logger.debug("Skipping unchanged file: $filePath")
+                    }
+                    
+                    shouldIndex
+                }
+            } else {
+                files
+            }
+            
+            val filesSkipped = files.size - filesToIndex.size
+            if (filesSkipped > 0) {
+                logger.info("Skipping $filesSkipped unchanged files")
+            }
+            
             // Hash-only tracking (no timestamps)
             val indexedFileHashes = mutableMapOf<String, String>()
             
-            for ((index, filePath) in files.withIndex()) {
-                try {
-                    logger.debug("Indexing file ${index + 1}/${files.size}: $filePath")
-                    val result = indexFileWithFileSystem(filePath, fileSystemToUse, vaultPath)
-                    if (result != null && result.hash.isNotEmpty()) {
-                        indexedFileHashes[filePath] = result.hash
+            // Process files in parallel with concurrency limit
+            val maxConcurrentFiles = 4 // Limit concurrent file processing
+            val semaphore = Semaphore(maxConcurrentFiles)
+            
+            coroutineScope {
+                val results = filesToIndex.map { filePath ->
+                    async {
+                        semaphore.withPermit {
+                            try {
+                                logger.debug("Indexing file: $filePath")
+                                val result = indexFileWithFileSystem(filePath, fileSystemToUse, vaultPath)
+                                if (result != null && result.hash.isNotEmpty()) {
+                                    indexedFileHashes[filePath] = result.hash
+                                }
+                                result
+                            } catch (e: Exception) {
+                                // Log error but continue with other files
+                                logger.error("Failed to index file $filePath: ${e.message}", e)
+                                null
+                            }
+                        }
                     }
-                } catch (e: Exception) {
-                    // Log error but continue with other files
-                    logger.error("Failed to index file $filePath: ${e.message}", e)
+                }.awaitAll()
+            }
+            
+            // Also include skipped files in the final hash map (for metadata update)
+            existingFileHashes?.forEach { (filePath, hash) ->
+                if (!indexedFileHashes.containsKey(filePath)) {
+                    indexedFileHashes[filePath] = hash
                 }
             }
             
-            logger.info("Indexed ${indexedFileHashes.size} files successfully")
+            logger.info("Indexed ${indexedFileHashes.size - filesSkipped} files successfully (skipped $filesSkipped unchanged)")
             
             // Update metadata if callback is set (pass empty map for indexedFiles - hash-only tracking)
             if (vaultPath != null && indexedFileHashes.isNotEmpty()) {
@@ -187,10 +246,22 @@ open class Indexer(
                 logger.warn("Failed to delete existing chunks for $filePath (will upsert anyway): ${e.message}")
             }
             
-            // Generate embeddings
+            // Generate embeddings in batches
             logger.debug("Generating embeddings for ${chunks.size} chunks from file $filePath")
             val texts = chunks.map { it.text }
-            val embeddings = embedder.embed(texts)
+            val maxBatchSize = RagDefaults.DEFAULT_EMBEDDING_BATCH_SIZE
+            
+            // Batch chunks for embedding to reduce HTTP overhead
+            val batches = texts.chunked(maxBatchSize)
+            val allEmbeddings = mutableListOf<FloatArray>()
+            
+            for ((batchIndex, batch) in batches.withIndex()) {
+                logger.debug("Embedding batch ${batchIndex + 1}/${batches.size} (${batch.size} chunks)")
+                val batchEmbeddings = embedder.embed(batch, EmbeddingTaskType.SEARCH_DOCUMENT)
+                allEmbeddings.addAll(batchEmbeddings)
+            }
+            
+            val embeddings = allEmbeddings
             
             if (embeddings.size != chunks.size) {
                 throw IndexingException(

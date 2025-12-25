@@ -64,11 +64,24 @@ actual fun createRagComponents(
         fileSystemFactory = { root -> NoteFileSystem(root) }
     )
     
+    // Create query preprocessor (optional, only if rewriting or multi-query is enabled)
+    val queryPreprocessor = if (config.queryRewritingEnabled || config.multiQueryEnabled) {
+        QueryPreprocessor(llamaClient)
+    } else {
+        null
+    }
+    
     // Create RAG service
     val ragService = RagService(
         embedder = embedder,
         vectorStore = vectorStore,
-        llamaClient = llamaClient
+        llamaClient = llamaClient,
+        similarityThreshold = config.similarityThreshold,
+        maxK = config.maxK,
+        displayK = config.displayK,
+        queryPreprocessor = queryPreprocessor,
+        queryRewritingEnabled = config.queryRewritingEnabled,
+        multiQueryEnabled = config.multiQueryEnabled
     )
     
     // Create JVM-specific services

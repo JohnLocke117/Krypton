@@ -16,9 +16,9 @@ interface VectorStore {
      * 
      * @param queryEmbedding The embedding vector to search for
      * @param topK Number of results to return
-     * @return List of NoteChunk objects, ordered by similarity (most similar first)
+     * @return List of SearchResult objects with chunks and similarity scores, ordered by similarity (most similar first)
      */
-    suspend fun search(queryEmbedding: FloatArray, topK: Int): List<NoteChunk>
+    suspend fun search(queryEmbedding: FloatArray, topK: Int): List<SearchResult>
     
     /**
      * Clears all chunks from the vector store.

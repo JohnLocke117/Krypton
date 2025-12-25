@@ -51,22 +51,30 @@ class HttpEmbedder(
         val error: String? = null
     )
     
-    override suspend fun embed(texts: List<String>): List<FloatArray> = withContext(Dispatchers.IO) {
+    override suspend fun embed(texts: List<String>, taskType: EmbeddingTaskType): List<FloatArray> = withContext(Dispatchers.IO) {
         if (texts.isEmpty()) {
             return@withContext emptyList()
         }
         
+        // Prefix texts based on task type for Nomic embedding models
+        val prefixedTexts = texts.map { text ->
+            when (taskType) {
+                EmbeddingTaskType.SEARCH_DOCUMENT -> "search_document: $text"
+                EmbeddingTaskType.SEARCH_QUERY -> "search_query: $text"
+            }
+        }
+        
         val url = "$baseUrl$apiPath"
-        AppLogger.d("HttpEmbedder", "Embedding request started: $url, model=$model, count=${texts.size}")
+        AppLogger.d("HttpEmbedder", "Embedding request started: $url, model=$model, taskType=$taskType, count=${texts.size}")
         
         val embeddings = mutableListOf<FloatArray>()
         
         // Process texts one by one (some APIs may support batch, but we'll do one at a time for compatibility)
-        for ((index, text) in texts.withIndex()) {
+        for ((index, prefixedText) in prefixedTexts.withIndex()) {
             try {
                 val request = EmbeddingRequest(
                     model = model,
-                    prompt = text
+                    prompt = prefixedText
                 )
                 
                 val response: EmbeddingResponse = client.post(url) {

@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.krypton.krypton.rag.Embedder
+import org.krypton.krypton.rag.EmbeddingTaskType
 import org.krypton.krypton.util.AppLogger
 import kotlin.time.Duration.Companion.seconds
 
@@ -63,23 +64,31 @@ class HttpEmbedder(
         val error: String? = null
     )
     
-    override suspend fun embed(texts: List<String>): List<FloatArray> = withContext(Dispatchers.IO) {
+    override suspend fun embed(texts: List<String>, taskType: EmbeddingTaskType): List<FloatArray> = withContext(Dispatchers.IO) {
         if (texts.isEmpty()) {
             return@withContext emptyList()
         }
         
+        // Prefix texts based on task type for Nomic embedding models
+        val prefixedTexts = texts.map { text ->
+            when (taskType) {
+                EmbeddingTaskType.SEARCH_DOCUMENT -> "search_document: $text"
+                EmbeddingTaskType.SEARCH_QUERY -> "search_query: $text"
+            }
+        }
+        
         val url = "$baseUrl$apiPath"
-        AppLogger.d("HttpEmbedder", "Embedding request started: $url, model=$model, count=${texts.size}")
+        AppLogger.d("HttpEmbedder", "Embedding request started: $url, model=$model, taskType=$taskType, count=${texts.size}")
         
         var lastException: Exception? = null
         var retryCount = 0
         
         while (retryCount <= maxRetries) {
             try {
-                // Send batch request with all texts
+                // Send batch request with all texts (prefixed)
                 val request = EmbeddingRequest(
                     model = model,
-                    input = texts
+                    input = prefixedTexts
                 )
                 
                 val response: EmbeddingResponse = client.post(url) {

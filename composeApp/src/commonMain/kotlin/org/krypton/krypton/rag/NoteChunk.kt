@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
  * @param endLine Ending line number (1-indexed, inclusive)
  * @param text The chunk text content
  * @param embedding Optional embedding vector for this chunk
+ * @param sectionTitle Optional section title (heading path like "filePath#H1 > H2")
  */
 @Serializable
 data class NoteChunk(
@@ -19,7 +20,8 @@ data class NoteChunk(
     val startLine: Int,
     val endLine: Int,
     val text: String,
-    val embedding: FloatArray? = null
+    val embedding: FloatArray? = null,
+    val sectionTitle: String? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
