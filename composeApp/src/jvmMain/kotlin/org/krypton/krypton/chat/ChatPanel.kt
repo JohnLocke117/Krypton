@@ -40,6 +40,7 @@ import org.krypton.krypton.chat.RagActivationResult
 import org.krypton.krypton.chat.IngestionPromptDialog
 import org.krypton.krypton.ui.state.EditorStateHolder
 import org.koin.core.context.GlobalContext
+import org.krypton.krypton.util.AppLogger
 import io.ktor.client.engine.cio.CIO
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
@@ -56,6 +57,7 @@ fun ChatPanel(
     val messages by chatStateHolder.messages.collectAsState()
     val isLoading by chatStateHolder.isLoading.collectAsState()
     val error by chatStateHolder.error.collectAsState()
+    val chatStatus by chatStateHolder.status.collectAsState()
     
     var inputText by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
@@ -153,6 +155,9 @@ fun ChatPanel(
         }
     }
     
+    // Re-index prompt dialog state
+    var showReindexPrompt by remember { mutableStateOf(false) }
+    
     // RAG activation manager
     val ragActivationManager: RagActivationManager? = remember(extendedRagComponents) {
         extendedRagComponents?.let {
@@ -160,13 +165,17 @@ fun ChatPanel(
                 healthService = it.healthService,
                 vaultSyncService = it.vaultSyncService,
                 indexer = it.base.indexer,
-                vaultMetadataService = it.vaultMetadataService
+                vaultMetadataService = it.vaultMetadataService,
+                vectorStore = it.base.vectorStore
             )
         }
     }
     
     // Sync status state
     var syncStatus by remember { mutableStateOf<SyncStatus?>(null) }
+    
+    // Track when ingestion last completed to prevent immediate re-check
+    var lastIngestionCompleteTime by remember { mutableStateOf<Long?>(null) }
     
     // Ingestion prompt dialog state
     var showIngestionPrompt by remember { mutableStateOf(false) }
@@ -175,30 +184,84 @@ fun ChatPanel(
     // Get current vault path
     val currentVaultPath = editorStateHolder?.currentDirectory?.value?.toString()
     
-    // Check sync status periodically and on vault change
-    LaunchedEffect(currentVaultPath, extendedRagComponents) {
-        if (extendedRagComponents != null && currentVaultPath != null) {
+    // Monitor sync status and disable RAG if ChromaDB becomes unavailable
+    LaunchedEffect(syncStatus, ragEnabled) {
+        if (syncStatus == SyncStatus.UNAVAILABLE && ragEnabled) {
+            // ChromaDB became unavailable while RAG is enabled - disable RAG and revert to normal chat
+            AppLogger.w("ChatPanel", "ChromaDB unavailable, disabling RAG mode")
+            ragEnabled = false
+            ragChatService?.setRagEnabled(false)
+            rebuildStatus = UiStatus.Error(
+                "ChromaDB is unavailable. RAG mode has been disabled. Chat has reverted to normal mode.",
+                recoverable = true
+            )
+            System.err.println("✗ ChromaDB unavailable - RAG mode disabled")
+        }
+    }
+    
+    // Monitor chat errors and disable RAG if error occurs while RAG is enabled
+    LaunchedEffect(chatStatus, ragEnabled) {
+        val errorStatus = chatStatus as? UiStatus.Error
+        if (errorStatus != null && ragEnabled) {
+            val errorMessage = errorStatus.message.lowercase()
+            // Check if error is RAG-related (ChromaDB, vector store, embedding, RAG, etc.)
+            val isRagError = errorMessage.contains("chromadb", ignoreCase = true) ||
+                            errorMessage.contains("vector", ignoreCase = true) ||
+                            errorMessage.contains("embedding", ignoreCase = true) ||
+                            errorMessage.contains("rag", ignoreCase = true) ||
+                            errorMessage.contains("retrieval", ignoreCase = true) ||
+                            errorMessage.contains("index", ignoreCase = true) ||
+                            errorMessage.contains("collection", ignoreCase = true) ||
+                            errorMessage.contains("database", ignoreCase = true) ||
+                            errorMessage.contains("connection", ignoreCase = true) ||
+                            errorMessage.contains("unavailable", ignoreCase = true) ||
+                            errorMessage.contains("unreachable", ignoreCase = true)
+            
+            if (isRagError) {
+                // RAG-related error occurred - disable RAG and revert to normal chat
+                AppLogger.w("ChatPanel", "RAG error detected, disabling RAG mode: ${errorStatus.message}")
+                ragEnabled = false
+                ragChatService?.setRagEnabled(false)
+                syncStatus = SyncStatus.UNAVAILABLE // Set status to red
+                rebuildStatus = UiStatus.Error(
+                    "RAG error: ${errorStatus.message}. RAG mode has been disabled. Chat has reverted to normal mode.",
+                    recoverable = true
+                )
+                System.err.println("✗ RAG error - RAG mode disabled: ${errorStatus.message}")
+            }
+        }
+    }
+    
+    // Check sync status on vault change and watch for file system events
+    LaunchedEffect(currentVaultPath, extendedRagComponents, ragEnabled) {
+        if (extendedRagComponents != null && currentVaultPath != null && ragEnabled) {
+            // Initial sync status check
             try {
                 val status = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
                 syncStatus = status
             } catch (e: Exception) {
                 syncStatus = SyncStatus.UNAVAILABLE
             }
-        } else {
-            syncStatus = null
-        }
-        
-        // Check periodically (every 30 seconds)
-        while (true) {
-            kotlinx.coroutines.delay(30_000)
-            if (extendedRagComponents != null && currentVaultPath != null) {
+            
+            // Watch for file system events
+            val watcher = extendedRagComponents.vaultWatcher
+            val events = watcher.watch(currentVaultPath)
+            
+            events.collect { event ->
                 try {
+                    // On file system event, check sync status
                     val status = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
                     syncStatus = status
+                    AppLogger.d("ChatPanel", "File system event: ${event.type} for ${event.relativePath}, sync status: $status")
                 } catch (e: Exception) {
+                    AppLogger.w("ChatPanel", "Error checking sync status after file event: ${e.message}")
                     syncStatus = SyncStatus.UNAVAILABLE
                 }
             }
+        } else {
+            syncStatus = null
+            // Stop watcher if RAG is disabled or vault changes
+            extendedRagComponents?.vaultWatcher?.stop()
         }
     }
     
@@ -466,46 +529,57 @@ fun ChatPanel(
                                                         // Show prompt
                                                         showIngestionPrompt = true
                                                     } else {
-                                                        // No prompt needed, activate directly
-                                                        // Use ingestionScope for long-running operations
-                                                        ingestionScope.launch {
-                                                            val result = ragActivationManager.activateRag(
-                                                                vaultPath = currentVaultPath,
-                                                                onIngestionNeeded = { false }, // Already checked
-                                                                onIngestionProgress = { filePath, progress ->
-                                                                    withContext(Dispatchers.Main) {
-                                                                        isIngesting = true
+                                                        // Check if re-index is needed (OUT_OF_SYNC)
+                                                        val reindexStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                        if (reindexStatus == SyncStatus.OUT_OF_SYNC) {
+                                                            // Show re-index prompt
+                                                            showReindexPrompt = true
+                                                        } else {
+                                                            // No prompt needed, activate directly
+                                                            // Use ingestionScope for long-running operations
+                                                            ingestionScope.launch {
+                                                                val result = ragActivationManager.activateRag(
+                                                                    vaultPath = currentVaultPath,
+                                                                    onIngestionNeeded = { false }, // Already checked
+                                                                    onReindexNeeded = { false }, // Not needed
+                                                                    onIngestionProgress = { filePath, progress ->
+                                                                        withContext(Dispatchers.Main) {
+                                                                            isIngesting = true
+                                                                        }
                                                                     }
-                                                                }
-                                                            )
+                                                                )
                                                             
-                                                            // Handle result
-                                                            when (result) {
-                                                                RagActivationResult.ENABLED -> {
-                                                                    // Update UI state on main thread
-                                                                    withContext(Dispatchers.Main) {
-                                                                        ragEnabled = true
-                                                                        ragChatService.setRagEnabled(true)
-                                                                        isIngesting = false
+                                                                // Handle result
+                                                                when (result) {
+                                                                    RagActivationResult.ENABLED -> {
+                                                                        // Update UI state on main thread
+                                                                        withContext(Dispatchers.Main) {
+                                                                            ragEnabled = true
+                                                                            ragChatService.setRagEnabled(true)
+                                                                            isIngesting = false
+                                                                        }
+                                                                        // Check sync status on IO thread, then update UI
+                                                                        val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                                        withContext(Dispatchers.Main) {
+                                                                            syncStatus = newSyncStatus
+                                                                        }
                                                                     }
-                                                                    // Check sync status on IO thread, then update UI
-                                                                    val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                                    withContext(Dispatchers.Main) {
-                                                                        syncStatus = newSyncStatus
+                                                                    RagActivationResult.CANCELLED -> {
+                                                                        withContext(Dispatchers.Main) {
+                                                                            isIngesting = false
+                                                                        }
                                                                     }
-                                                                }
-                                                                RagActivationResult.CANCELLED -> {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        isIngesting = false
-                                                                    }
-                                                                }
-                                                                RagActivationResult.ERROR -> {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        rebuildStatus = UiStatus.Error(
-                                                                            "Failed to activate RAG. Please check ChromaDB connection.",
-                                                                            recoverable = true
-                                                                        )
-                                                                        isIngesting = false
+                                                                    RagActivationResult.ERROR -> {
+                                                                        withContext(Dispatchers.Main) {
+                                                                            val errorMsg = "Failed to activate RAG. Please check ChromaDB connection."
+                                                                            rebuildStatus = UiStatus.Error(
+                                                                                errorMsg,
+                                                                                recoverable = true
+                                                                            )
+                                                                            isIngesting = false
+                                                                            // Log to console in red
+                                                                            System.err.println("✗ $errorMsg")
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -725,8 +799,16 @@ fun ChatPanel(
     var ingestionError by remember { mutableStateOf<String?>(null) }
     var ingestionSuccess by remember { mutableStateOf(false) }
     
+    // Re-index prompt dialog state
+    var userWantsToReindex by remember { mutableStateOf(false) }
+    var reindexError by remember { mutableStateOf<String?>(null) }
+    var reindexSuccess by remember { mutableStateOf(false) }
+    
     // Show dialog if prompt is requested OR if ingestion is in progress/complete
     val showDialog = showIngestionPrompt || isIngesting || ingestionSuccess || ingestionError != null
+    
+    // Show re-index dialog if prompt is requested OR if re-indexing is in progress/complete
+    val showReindexDialog = showReindexPrompt || isIngesting || reindexSuccess || reindexError != null
     
     if (showDialog) {
         IngestionPromptDialog(
@@ -768,6 +850,7 @@ fun ChatPanel(
                     val result = ragActivationManager.activateRag(
                         vaultPath = currentVaultPath,
                         onIngestionNeeded = { true }, // User already confirmed
+                        onReindexNeeded = { true }, // Not used in this flow
                         onIngestionProgress = { filePath, progress ->
                             // Update UI with progress
                             withContext(Dispatchers.Main) {
@@ -786,15 +869,25 @@ fun ChatPanel(
                                 ragChatService?.setRagEnabled(true)
                                 ingestionSuccess = true
                                 // Set sync status to SYNCED since ingestion just completed successfully
+                                // We trust that ingestion completed successfully, so vault is synced
                                 syncStatus = SyncStatus.SYNCED
+                                lastIngestionCompleteTime = System.currentTimeMillis()
                                 // Auto-close after 2 seconds
                                 kotlinx.coroutines.delay(2000)
                                 showIngestionPrompt = false
                                 ingestionSuccess = false
-                                // Re-check sync status after a brief delay to ensure it's accurate
-                                kotlinx.coroutines.delay(500)
+                                // Re-check sync status after a longer delay to ensure metadata is fully persisted
+                                // Use a longer delay (2 seconds) to allow ChromaDB to fully persist metadata
+                                kotlinx.coroutines.delay(2000)
                                 val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                syncStatus = newSyncStatus ?: SyncStatus.SYNCED
+                                // Only update if the check confirms SYNCED, otherwise keep SYNCED (we just completed ingestion)
+                                if (newSyncStatus == SyncStatus.SYNCED) {
+                                    syncStatus = SyncStatus.SYNCED
+                                } else if (newSyncStatus == SyncStatus.UNAVAILABLE) {
+                                    // Only update to UNAVAILABLE if ChromaDB is actually unavailable
+                                    syncStatus = SyncStatus.UNAVAILABLE
+                                }
+                                // Otherwise, keep SYNCED since we just completed ingestion successfully
                             }
                             RagActivationResult.CANCELLED -> {
                                 ingestionError = "Ingestion was cancelled"
@@ -807,7 +900,117 @@ fun ChatPanel(
                 } catch (e: Exception) {
                     withContext(Dispatchers.Main) {
                         isIngesting = false
-                        ingestionError = "Ingestion failed: ${e.message}"
+                        val errorMsg = e.message ?: "Unknown error occurred"
+                        ingestionError = "Ingestion Pipeline Failed: $errorMsg"
+                        // Also log to console in red
+                        System.err.println("✗ Ingestion Pipeline Failed: $errorMsg")
+                    }
+                }
+            }
+        }
+    }
+    
+    // Re-index prompt dialog
+    if (showReindexDialog) {
+        IngestionPromptDialog(
+            onContinue = {
+                if (!isIngesting && !reindexSuccess && reindexError == null) {
+                    userWantsToReindex = true
+                    showReindexPrompt = false
+                    reindexError = null
+                    reindexSuccess = false
+                }
+            },
+            onCancel = {
+                if (!isIngesting) {
+                    userWantsToReindex = false
+                    showReindexPrompt = false
+                    isIngesting = false
+                    reindexError = null
+                    reindexSuccess = false
+                }
+            },
+            isIngesting = isIngesting,
+            errorMessage = reindexError,
+            success = reindexSuccess,
+            title = "Re-index Vault",
+            message = when {
+                reindexSuccess -> "Vault re-indexed successfully! All files are now up to date."
+                reindexError != null -> reindexError
+                isIngesting -> "Re-indexing vault... This may take a few minutes."
+                else -> "Some files in this vault have changed. Re-indexing will update embeddings for changed files only."
+            },
+            theme = theme
+        )
+    }
+    
+    // Handle re-indexing after user confirms
+    LaunchedEffect(userWantsToReindex) {
+        if (userWantsToReindex && ragActivationManager != null && currentVaultPath != null) {
+            userWantsToReindex = false
+            isIngesting = true
+            reindexError = null
+            reindexSuccess = false
+            
+            // Use ingestionScope for long-running operation
+            ingestionScope.launch {
+                try {
+                    val result = ragActivationManager.activateRag(
+                        vaultPath = currentVaultPath,
+                        onIngestionNeeded = { false }, // Not needed
+                        onReindexNeeded = { true }, // User already confirmed
+                        onIngestionProgress = { filePath, progress ->
+                            // Update UI with progress
+                            withContext(Dispatchers.Main) {
+                                isIngesting = true
+                            }
+                        }
+                    )
+                    
+                    // Update UI state on main thread
+                    withContext(Dispatchers.Main) {
+                        isIngesting = false
+                        when (result) {
+                            RagActivationResult.ENABLED -> {
+                                ragEnabled = true
+                                ragChatService?.setRagEnabled(true)
+                                reindexSuccess = true
+                                // Set sync status to SYNCED since re-indexing just completed successfully
+                                // We trust that re-indexing completed successfully, so vault is synced
+                                syncStatus = SyncStatus.SYNCED
+                                lastIngestionCompleteTime = System.currentTimeMillis()
+                                // Auto-close after 2 seconds
+                                kotlinx.coroutines.delay(2000)
+                                showReindexPrompt = false
+                                reindexSuccess = false
+                                // Re-check sync status after a longer delay to ensure metadata is fully persisted
+                                // Use a longer delay (2 seconds) to allow ChromaDB to fully persist metadata
+                                kotlinx.coroutines.delay(2000)
+                                val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                // Only update if the check confirms SYNCED, otherwise keep SYNCED (we just completed re-indexing)
+                                if (newSyncStatus == SyncStatus.SYNCED) {
+                                    syncStatus = SyncStatus.SYNCED
+                                } else if (newSyncStatus == SyncStatus.UNAVAILABLE) {
+                                    // Only update to UNAVAILABLE if ChromaDB is actually unavailable
+                                    syncStatus = SyncStatus.UNAVAILABLE
+                                }
+                                // Otherwise, keep SYNCED since we just completed re-indexing successfully
+                            }
+                            RagActivationResult.CANCELLED -> {
+                                reindexError = "Re-indexing was cancelled"
+                            }
+                            RagActivationResult.ERROR -> {
+                                reindexError = "Failed to re-index vault. Please check ChromaDB connection."
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        isIngesting = false
+                        val errorMsg = e.message ?: "Unknown error occurred"
+                        reindexError = "Ingestion Pipeline Failed: $errorMsg"
+                        // Also log to console in red
+                        System.err.println("✗ Ingestion Pipeline Failed: $errorMsg")
                     }
                 }
             }

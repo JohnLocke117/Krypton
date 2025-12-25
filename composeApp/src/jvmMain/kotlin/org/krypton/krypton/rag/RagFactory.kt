@@ -12,7 +12,8 @@ data class ExtendedRagComponents(
     val base: RagComponents,
     val healthService: ChromaDBHealthService,
     val vaultMetadataService: VaultMetadataService,
-    val vaultSyncService: VaultSyncService
+    val vaultSyncService: VaultSyncService,
+    val vaultWatcher: VaultWatcher
 )
 
 /**
@@ -54,8 +55,8 @@ actual fun createRagComponents(
     // Create chunker
     val chunker = MarkdownChunker()
     
-    // Create indexer with factory function for creating NoteFileSystem instances
-    val indexer = Indexer(
+    // Create JVM-specific indexer with factory function for creating NoteFileSystem instances
+    val indexer = JvmIndexer(
         fileSystem = fileSystem,
         chunker = chunker,
         embedder = embedder,
@@ -93,10 +94,7 @@ actual fun createRagComponents(
         vectorStore = vectorStore
     )
     
-    // Set up indexer callback to update metadata
-    indexer.onIndexingComplete = { vaultPath, indexedFiles ->
-        vaultMetadataService.updateVaultMetadata(vaultPath, indexedFiles)
-    }
+    // Set up indexer callback to update metadata (will be updated in createExtendedRagComponents)
     
     return RagComponents(
         vectorStore = vectorStore,
@@ -139,16 +137,20 @@ fun createExtendedRagComponents(
         vectorStore = base.vectorStore
     )
     
-    // Set up indexer callback to update metadata
-    base.indexer.onIndexingComplete = { vaultPath, indexedFiles ->
-        vaultMetadataService.updateVaultMetadata(vaultPath, indexedFiles)
+    val vaultWatcher = JvmVaultWatcher()
+    
+    // Set up indexer callback to update metadata with hashes (hash-only, no timestamps)
+    base.indexer.onIndexingComplete = { vaultPath, indexedFiles, indexedFileHashes ->
+        // Only use indexedFileHashes (hash-only tracking)
+        vaultMetadataService.updateVaultMetadata(vaultPath, indexedFileHashes)
     }
     
     return ExtendedRagComponents(
         base = base,
         healthService = healthService,
         vaultMetadataService = vaultMetadataService,
-        vaultSyncService = vaultSyncService
+        vaultSyncService = vaultSyncService,
+        vaultWatcher = vaultWatcher
     )
 }
 

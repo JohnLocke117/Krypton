@@ -31,5 +31,13 @@ interface VectorStore {
      * @param filePath Path to the file whose chunks should be deleted
      */
     suspend fun deleteByFilePath(filePath: String)
+    
+    /**
+     * Checks if the vector store has any data for the specified vault.
+     * 
+     * @param vaultPath Absolute path of the vault
+     * @return true if any documents exist for this vault, false otherwise
+     */
+    suspend fun hasVaultData(vaultPath: String): Boolean
 }
 

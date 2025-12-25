@@ -33,30 +33,33 @@ class RagChatService(
             timestamp = timeProvider.currentTimeMillis()
         )
         
-        // If RAG is enabled and available, use it
-        if (ragEnabled && ragService != null) {
-            try {
-                val answer = ragService.ask(userMessage)
-                
-                val assistantMsg = ChatMessage(
-                    id = idGenerator.generateId(),
-                    role = ChatRole.ASSISTANT,
-                    content = answer,
-                    timestamp = timeProvider.currentTimeMillis()
-                )
-                
-                return history + userMsg + assistantMsg
-            } catch (e: Exception) {
-                // If RAG fails, log error and fall back to base chat service
-                AppLogger.w(
-                    "RagChatService",
-                    "RAG query failed, falling back to base chat service: ${e.message}",
-                    e
-                )
-                return baseChatService.sendMessage(history, userMessage)
-            }
-        } else {
-            // Use base chat service
+        // Defensive check: Never use RAG if disabled
+        if (!ragEnabled || ragService == null) {
+            val reason = if (!ragEnabled) "RAG disabled" else "RAG service unavailable"
+            AppLogger.d("RagChatService", "$reason - using base chat service")
+            return baseChatService.sendMessage(history, userMessage)
+        }
+        
+        // RAG is enabled and available - use it
+        try {
+            AppLogger.d("RagChatService", "RAG enabled - using RAG service")
+            val answer = ragService.ask(userMessage)
+            
+            val assistantMsg = ChatMessage(
+                id = idGenerator.generateId(),
+                role = ChatRole.ASSISTANT,
+                content = answer,
+                timestamp = timeProvider.currentTimeMillis()
+            )
+            
+            return history + userMsg + assistantMsg
+        } catch (e: Exception) {
+            // If RAG fails, log error and fall back to base chat service
+            AppLogger.w(
+                "RagChatService",
+                "RAG query failed, falling back to base chat service: ${e.message}",
+                e
+            )
             return baseChatService.sendMessage(history, userMessage)
         }
     }

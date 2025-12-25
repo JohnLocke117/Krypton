@@ -18,6 +18,10 @@ import org.krypton.krypton.ObsidianThemeValues
  * @param onContinue Called when user clicks Continue
  * @param onCancel Called when user clicks Cancel
  * @param isIngesting Whether ingestion is currently in progress
+ * @param errorMessage Error message to display, if any
+ * @param success Whether the operation completed successfully
+ * @param title Dialog title (defaults to "Index Vault")
+ * @param message Custom message (optional, uses default if null)
  * @param theme Theme values
  */
 @Composable
@@ -27,6 +31,8 @@ fun IngestionPromptDialog(
     isIngesting: Boolean = false,
     errorMessage: String? = null,
     success: Boolean = false,
+    title: String = "Index Vault",
+    message: String? = null,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
@@ -55,14 +61,14 @@ fun IngestionPromptDialog(
             ) {
                 // Title
                 Text(
-                    text = "Index Vault",
+                    text = title,
                     style = MaterialTheme.typography.headlineSmall,
                     color = theme.TextPrimary
                 )
                 
                 // Message
                 Text(
-                    text = when {
+                    text = message ?: when {
                         success -> "Vault indexed successfully! RAG mode is now enabled."
                         errorMessage != null -> errorMessage
                         isIngesting -> "Indexing vault... This may take a few minutes."

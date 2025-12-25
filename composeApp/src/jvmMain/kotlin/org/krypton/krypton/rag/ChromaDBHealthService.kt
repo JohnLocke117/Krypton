@@ -84,10 +84,147 @@ class ChromaDBHealthService(
     }
     
     /**
+     * Ensures tenant exists, creating it if necessary.
+     * 
+     * @throws Exception if tenant creation fails
+     */
+    suspend fun ensureTenant(): Unit = withContext(Dispatchers.IO) {
+        try {
+            AppLogger.i("IngestionPipeline", "Checking if tenant '$tenant' exists...")
+            
+            // Check if tenant exists
+            val checkResponse = client.get("$baseUrl/api/v2/tenants/$tenant")
+            
+            if (checkResponse.status == HttpStatusCode.OK) {
+                AppLogger.i("IngestionPipeline", "✓ Tenant '$tenant' already exists")
+                return@withContext
+            }
+            
+            // Tenant doesn't exist, create it
+            if (checkResponse.status == HttpStatusCode.NotFound) {
+                AppLogger.i("IngestionPipeline", "Tenant '$tenant' does not exist. Creating...")
+                
+                val createRequest = CreateTenantRequest(name = tenant)
+                val createResponse = client.post("$baseUrl/api/v2/tenants") {
+                    contentType(ContentType.Application.Json)
+                    setBody(createRequest)
+                }
+                
+                if (createResponse.status == HttpStatusCode.OK || createResponse.status == HttpStatusCode.Created) {
+                    AppLogger.i("IngestionPipeline", "✓ Tenant '$tenant' created successfully")
+                } else {
+                    val errorBody = createResponse.body<String>()
+                    val errorMsg = "Failed to create tenant '$tenant': ${createResponse.status} - $errorBody"
+                    AppLogger.e("IngestionPipeline", "✗ $errorMsg")
+                    throw Exception(errorMsg)
+                }
+            } else {
+                val errorBody = checkResponse.body<String>()
+                val errorMsg = "Failed to check tenant '$tenant': ${checkResponse.status} - $errorBody"
+                AppLogger.e("IngestionPipeline", "✗ $errorMsg")
+                throw Exception(errorMsg)
+            }
+        } catch (e: Exception) {
+            val errorMsg = "Failed to ensure tenant '$tenant': ${e.message}"
+            AppLogger.e("IngestionPipeline", "✗ $errorMsg", e)
+            throw Exception(errorMsg, e)
+        }
+    }
+    
+    /**
+     * Ensures database exists in the tenant, creating it if necessary.
+     * 
+     * @throws Exception if database creation fails
+     */
+    suspend fun ensureDatabase(): Unit = withContext(Dispatchers.IO) {
+        try {
+            AppLogger.i("IngestionPipeline", "Checking if database '$database' exists in tenant '$tenant'...")
+            
+            // Check if database exists
+            val checkResponse = client.get("$baseUrl/api/v2/tenants/$tenant/databases/$database")
+            
+            if (checkResponse.status == HttpStatusCode.OK) {
+                AppLogger.i("IngestionPipeline", "✓ Database '$database' already exists in tenant '$tenant'")
+                return@withContext
+            }
+            
+            // Database doesn't exist, create it
+            if (checkResponse.status == HttpStatusCode.NotFound) {
+                AppLogger.i("IngestionPipeline", "Database '$database' does not exist in tenant '$tenant'. Creating...")
+                
+                val createRequest = CreateDatabaseRequest(name = database)
+                val createResponse = client.post("$baseUrl/api/v2/tenants/$tenant/databases") {
+                    contentType(ContentType.Application.Json)
+                    setBody(createRequest)
+                }
+                
+                if (createResponse.status == HttpStatusCode.OK || createResponse.status == HttpStatusCode.Created) {
+                    AppLogger.i("IngestionPipeline", "✓ Database '$database' created successfully in tenant '$tenant'")
+                } else {
+                    val errorBody = createResponse.body<String>()
+                    val errorMsg = "Failed to create database '$database' in tenant '$tenant': ${createResponse.status} - $errorBody"
+                    AppLogger.e("IngestionPipeline", "✗ $errorMsg")
+                    throw Exception(errorMsg)
+                }
+            } else {
+                val errorBody = checkResponse.body<String>()
+                val errorMsg = "Failed to check database '$database' in tenant '$tenant': ${checkResponse.status} - $errorBody"
+                AppLogger.e("IngestionPipeline", "✗ $errorMsg")
+                throw Exception(errorMsg)
+            }
+        } catch (e: Exception) {
+            val errorMsg = "Failed to ensure database '$database' in tenant '$tenant': ${e.message}"
+            AppLogger.e("IngestionPipeline", "✗ $errorMsg", e)
+            throw Exception(errorMsg, e)
+        }
+    }
+    
+    /**
+     * Ensures tenant and database exist before starting ingestion.
+     * This is a blocking operation - if any step fails, an exception is thrown.
+     * 
+     * @throws Exception if tenant or database creation/check fails
+     */
+    suspend fun ensureTenantAndDatabase(): Unit = withContext(Dispatchers.IO) {
+        AppLogger.i("IngestionPipeline", "═══════════════════════════════════════════════════════════")
+        AppLogger.i("IngestionPipeline", "Ensuring ChromaDB tenant and database exist...")
+        AppLogger.i("IngestionPipeline", "═══════════════════════════════════════════════════════════")
+        
+        try {
+            // Step 1: Ensure tenant exists
+            ensureTenant()
+            
+            // Step 2: Ensure database exists (only if tenant was successfully created/verified)
+            ensureDatabase()
+            
+            AppLogger.i("IngestionPipeline", "═══════════════════════════════════════════════════════════")
+            AppLogger.i("IngestionPipeline", "✓ Tenant and database verification complete")
+            AppLogger.i("IngestionPipeline", "═══════════════════════════════════════════════════════════")
+        } catch (e: Exception) {
+            AppLogger.e("IngestionPipeline", "═══════════════════════════════════════════════════════════")
+            AppLogger.e("IngestionPipeline", "✗ Ingestion Pipeline Failed: ${e.message}")
+            AppLogger.e("IngestionPipeline", "═══════════════════════════════════════════════════════════")
+            throw e
+        }
+    }
+    
+    /**
      * Closes the HTTP client.
      */
     fun close() {
         client.close()
     }
 }
+
+// ChromaDB API request models for tenant and database
+
+@Serializable
+private data class CreateTenantRequest(
+    val name: String
+)
+
+@Serializable
+private data class CreateDatabaseRequest(
+    val name: String
+)
 

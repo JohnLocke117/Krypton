@@ -8,6 +8,23 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
+ * Represents the current state of files in a vault.
+ * Uses hash-only tracking (no timestamps).
+ */
+data class VaultState(
+    val fileHashes: Map<String, String>     // filePath -> hash
+)
+
+/**
+ * Represents detected changes in a vault.
+ */
+data class VaultChanges(
+    val newFiles: List<String>,
+    val modifiedFiles: List<String>,
+    val deletedFiles: List<String>
+)
+
+/**
  * Service for detecting changes in vault files and determining sync status.
  */
 class VaultSyncService(
@@ -16,7 +33,7 @@ class VaultSyncService(
     private val vectorStore: VectorStore
 ) {
     /**
-     * Checks the sync status of a vault.
+     * Checks the sync status of a vault using hash-based detection.
      * 
      * @param vaultPath Absolute path of the vault
      * @return SyncStatus indicating the current state
@@ -38,41 +55,137 @@ class VaultSyncService(
             return@withContext SyncStatus.NOT_INDEXED
         }
         
-        // Check for changes
-        val currentFiles = getCurrentVaultFiles(vaultPath)
-        val indexedFiles = metadata.indexedFiles
+        // Get current vault state with hashes
+        val currentState = getCurrentVaultState(vaultPath)
         
-        // Check for new or modified files
-        val hasChanges = hasChanges(currentFiles, indexedFiles)
+        // Detect changes using hash-based comparison
+        val changes = detectChanges(
+            currentHashes = currentState.fileHashes,
+            indexedHashes = metadata.indexedFileHashes
+        )
         
-        return@withContext if (hasChanges) {
-            SyncStatus.OUT_OF_SYNC
-        } else {
+        return@withContext if (changes.newFiles.isEmpty() && changes.modifiedFiles.isEmpty() && changes.deletedFiles.isEmpty()) {
             SyncStatus.SYNCED
+        } else {
+            SyncStatus.OUT_OF_SYNC
         }
     }
     
     /**
-     * Gets list of modified files in the vault.
+     * Detects changes in a vault and returns structured change information.
+     * 
+     * @param vaultPath Absolute path of the vault
+     * @return VaultChanges with lists of new, modified, and deleted files
+     */
+    suspend fun detectChanges(vaultPath: String): VaultChanges = withContext(Dispatchers.IO) {
+        val metadata = vaultMetadataService.getVaultMetadata(vaultPath) ?: return@withContext VaultChanges(
+            newFiles = emptyList(),
+            modifiedFiles = emptyList(),
+            deletedFiles = emptyList()
+        )
+        
+        val currentState = getCurrentVaultState(vaultPath)
+        
+        return@withContext detectChanges(
+            currentHashes = currentState.fileHashes,
+            indexedHashes = metadata.indexedFileHashes
+        )
+    }
+    
+    /**
+     * Gets the current state of files in the vault with their hashes.
+     * 
+     * Computes SHA-256 hash for all .md files in the vault.
+     * Uses hash-only tracking (no timestamps).
+     * 
+     * @param vaultPath Absolute path of the vault
+     * @return VaultState with file hashes
+     */
+    private suspend fun getCurrentVaultState(vaultPath: String): VaultState = withContext(Dispatchers.IO) {
+        val vaultDir = File(vaultPath)
+        if (!vaultDir.exists() || !vaultDir.isDirectory) {
+            return@withContext VaultState(emptyMap())
+        }
+        
+        val fileHashes = mutableMapOf<String, String>()
+        val vaultPathObj = Paths.get(vaultPath)
+        
+        vaultDir.walkTopDown()
+            .filter { it.isFile && it.extension == "md" }
+            .forEach { file ->
+                try {
+                    val relativePath = vaultPathObj.relativize(file.toPath()).toString().replace('\\', '/')
+                    // Always compute hash for all files (hash-only tracking)
+                    val hash = FileHashUtil.computeFileHash(file)
+                    if (hash.isNotEmpty()) {
+                        fileHashes[relativePath] = hash
+                    }
+                } catch (e: Exception) {
+                    AppLogger.w("VaultSyncService", "Failed to get file info for ${file.path}: ${e.message}")
+                }
+            }
+        
+        return@withContext VaultState(fileHashes)
+    }
+    
+    /**
+     * Detects changes between current state and indexed state using hash-based comparison.
+     * 
+     * Uses hash-only tracking (no timestamps).
+     * 
+     * @param currentHashes Current file hashes (all files in vault)
+     * @param indexedHashes Indexed file hashes
+     * @return VaultChanges with detected changes
+     */
+    private fun detectChanges(
+        currentHashes: Map<String, String>,
+        indexedHashes: Map<String, String>
+    ): VaultChanges {
+        val newFiles = mutableListOf<String>()
+        val modifiedFiles = mutableListOf<String>()
+        val deletedFiles = mutableListOf<String>()
+        
+        // Check for new files (in current but not in indexed)
+        for (filePath in currentHashes.keys) {
+            if (!indexedHashes.containsKey(filePath)) {
+                newFiles.add(filePath)
+            }
+        }
+        
+        // Check for deleted files (in indexed but not in current)
+        for (filePath in indexedHashes.keys) {
+            if (!currentHashes.containsKey(filePath)) {
+                deletedFiles.add(filePath)
+            }
+        }
+        
+        // Check for modified files using hash-based comparison (source of truth)
+        // Hash comparison is reliable - if hash matches, content hasn't changed
+        for ((filePath, currentHash) in currentHashes) {
+            val indexedHash = indexedHashes[filePath]
+            if (indexedHash != null && currentHash != indexedHash) {
+                // File exists in both, but hash differs - file is modified
+                modifiedFiles.add(filePath)
+            }
+            // If hash matches or file is new (handled above), no action needed
+        }
+        
+        return VaultChanges(
+            newFiles = newFiles.distinct(),
+            modifiedFiles = modifiedFiles.distinct(),
+            deletedFiles = deletedFiles.distinct()
+        )
+    }
+    
+    /**
+     * Gets list of modified files in the vault (using hash-based detection).
      * 
      * @param vaultPath Absolute path of the vault
      * @return List of file paths (relative to vault) that have been modified
      */
     suspend fun getModifiedFiles(vaultPath: String): List<String> = withContext(Dispatchers.IO) {
-        val metadata = vaultMetadataService.getVaultMetadata(vaultPath) ?: return@withContext emptyList()
-        val indexedFiles = metadata.indexedFiles
-        val currentFiles = getCurrentVaultFiles(vaultPath)
-        
-        val modified = mutableListOf<String>()
-        
-        for ((filePath, currentModified) in currentFiles) {
-            val indexedModified = indexedFiles[filePath]
-            if (indexedModified != null && currentModified > indexedModified) {
-                modified.add(filePath)
-            }
-        }
-        
-        return@withContext modified
+        val changes = detectChanges(vaultPath)
+        return@withContext changes.modifiedFiles
     }
     
     /**
@@ -82,11 +195,8 @@ class VaultSyncService(
      * @return List of file paths (relative to vault) that are new
      */
     suspend fun getNewFiles(vaultPath: String): List<String> = withContext(Dispatchers.IO) {
-        val metadata = vaultMetadataService.getVaultMetadata(vaultPath) ?: return@withContext emptyList()
-        val indexedFiles = metadata.indexedFiles
-        val currentFiles = getCurrentVaultFiles(vaultPath)
-        
-        return@withContext currentFiles.keys.filter { !indexedFiles.containsKey(it) }
+        val changes = detectChanges(vaultPath)
+        return@withContext changes.newFiles
     }
     
     /**
@@ -96,11 +206,8 @@ class VaultSyncService(
      * @return List of file paths (relative to vault) that have been deleted
      */
     suspend fun getDeletedFiles(vaultPath: String): List<String> = withContext(Dispatchers.IO) {
-        val metadata = vaultMetadataService.getVaultMetadata(vaultPath) ?: return@withContext emptyList()
-        val indexedFiles = metadata.indexedFiles
-        val currentFiles = getCurrentVaultFiles(vaultPath)
-        
-        return@withContext indexedFiles.keys.filter { !currentFiles.containsKey(it) }
+        val changes = detectChanges(vaultPath)
+        return@withContext changes.deletedFiles
     }
     
     /**
@@ -110,67 +217,8 @@ class VaultSyncService(
      * @return List of file paths (relative to vault) that need indexing
      */
     suspend fun getFilesToReindex(vaultPath: String): List<String> = withContext(Dispatchers.IO) {
-        val modified = getModifiedFiles(vaultPath)
-        val new = getNewFiles(vaultPath)
-        return@withContext (modified + new).distinct()
-    }
-    
-    /**
-     * Gets current vault files with their modification timestamps.
-     * 
-     * @param vaultPath Absolute path of the vault
-     * @return Map of file paths (relative to vault) to their last modified timestamps
-     */
-    private suspend fun getCurrentVaultFiles(vaultPath: String): Map<String, Long> = withContext(Dispatchers.IO) {
-        val vaultDir = File(vaultPath)
-        if (!vaultDir.exists() || !vaultDir.isDirectory) {
-            return@withContext emptyMap()
-        }
-        
-        val files = mutableMapOf<String, Long>()
-        val vaultPathObj = Paths.get(vaultPath)
-        
-        vaultDir.walkTopDown()
-            .filter { it.isFile && it.extension == "md" }
-            .forEach { file ->
-                try {
-                    val relativePath = vaultPathObj.relativize(file.toPath()).toString().replace('\\', '/')
-                    val lastModified = Files.getLastModifiedTime(file.toPath()).toMillis()
-                    files[relativePath] = lastModified
-                } catch (e: Exception) {
-                    AppLogger.w("VaultSyncService", "Failed to get file info for ${file.path}: ${e.message}")
-                }
-            }
-        
-        return@withContext files
-    }
-    
-    /**
-     * Checks if there are any changes between current files and indexed files.
-     */
-    private fun hasChanges(
-        currentFiles: Map<String, Long>,
-        indexedFiles: Map<String, Long>
-    ): Boolean {
-        // Check for new files
-        if (currentFiles.keys.any { !indexedFiles.containsKey(it) }) {
-            return true
-        }
-        
-        // Check for deleted files
-        if (indexedFiles.keys.any { !currentFiles.containsKey(it) }) {
-            return true
-        }
-        
-        // Check for modified files
-        for ((filePath, currentModified) in currentFiles) {
-            val indexedModified = indexedFiles[filePath]
-            if (indexedModified != null && currentModified > indexedModified) {
-                return true
-            }
-        }
-        
-        return false
+        val changes = detectChanges(vaultPath)
+        return@withContext (changes.modifiedFiles + changes.newFiles).distinct()
     }
 }
 

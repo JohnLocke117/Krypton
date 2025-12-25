@@ -160,17 +160,22 @@ class VaultMetadataService(
     /**
      * Updates or creates metadata for a vault.
      * 
+     * Uses hash-only tracking (no timestamps).
+     * 
      * @param vaultPath Absolute path of the vault
-     * @param indexedFiles Map of file paths to their last modified timestamps
+     * @param indexedFileHashes Map of file paths to their content hashes (SHA-256)
      */
-    suspend fun updateVaultMetadata(vaultPath: String, indexedFiles: Map<String, Long>) = withContext(Dispatchers.IO) {
+    suspend fun updateVaultMetadata(
+        vaultPath: String, 
+        indexedFileHashes: Map<String, String>
+    ) = withContext(Dispatchers.IO) {
         ensureMetadataCollection()
         try {
             val normalizedPath = normalizePath(vaultPath)
             val metadata = VaultMetadata(
                 vaultPath = vaultPath,
                 lastIndexedTime = System.currentTimeMillis(),
-                indexedFiles = indexedFiles
+                indexedFileHashes = indexedFileHashes
             )
             
             val metadataJson = json.encodeToString(VaultMetadata.serializer(), metadata)
@@ -209,12 +214,14 @@ class VaultMetadataService(
     /**
      * Gets the list of indexed files for a vault.
      * 
+     * @deprecated Hash-only tracking is used now. Use getVaultMetadata() and access indexedFileHashes instead.
      * @param vaultPath Absolute path of the vault
-     * @return Map of file paths to their last modified timestamps
+     * @return Empty map (hash-only tracking, no timestamps)
      */
+    @Deprecated("Use getVaultMetadata().indexedFileHashes for hash-only tracking")
     suspend fun getIndexedFiles(vaultPath: String): Map<String, Long> = withContext(Dispatchers.IO) {
-        val metadata = getVaultMetadata(vaultPath)
-        return@withContext metadata?.indexedFiles ?: emptyMap()
+        // Hash-only tracking - return empty map
+        return@withContext emptyMap()
     }
     
     /**
