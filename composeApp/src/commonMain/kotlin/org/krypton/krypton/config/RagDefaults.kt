@@ -30,6 +30,11 @@ object RagDefaults {
     const val DEFAULT_EMBEDDING_MODEL = "nomic-embed-text:v1.5"
     
     /**
+     * Default reranker model name.
+     */
+    const val DEFAULT_RERANKER_MODEL = "xitao/bge-reranker-v2-m3"
+    
+    /**
      * Default vector backend selection.
      */
     val DEFAULT_VECTOR_BACKEND = VectorBackend.CHROMADB

@@ -86,7 +86,7 @@ data class RagSettings(
     val displayK: Int = org.krypton.krypton.config.RagDefaults.DEFAULT_DISPLAY_K,
     val queryRewritingEnabled: Boolean = false,
     val multiQueryEnabled: Boolean = false,
-    val rerankerModel: String? = null
+    val rerankerModel: String? = org.krypton.krypton.config.RagDefaults.DEFAULT_RERANKER_MODEL
 )
 
 @Serializable
