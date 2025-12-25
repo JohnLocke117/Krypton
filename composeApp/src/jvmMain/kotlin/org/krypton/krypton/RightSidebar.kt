@@ -34,6 +34,8 @@ import org.krypton.krypton.markdown.InlineNode
 import org.krypton.krypton.markdown.JetBrainsMarkdownEngine
 import org.krypton.krypton.chat.ChatPanel
 import org.krypton.krypton.ui.state.ChatStateHolder
+import org.krypton.krypton.ui.AppIconWithTooltip
+import org.krypton.krypton.ui.TooltipPosition
 
 /**
  * Recursively extract plain text from inline nodes.
@@ -162,13 +164,13 @@ private fun RightSidebarTopBar(
                     )
                     
                     // New chat icon
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable {
-                                chatStateHolder.clearHistory()
-                            },
-                        contentAlignment = Alignment.Center
+                    AppIconWithTooltip(
+                        tooltip = "New Chat",
+                        modifier = Modifier.size(24.dp),
+                        position = TooltipPosition.BELOW,
+                        onClick = {
+                            chatStateHolder.clearHistory()
+                        }
                     ) {
                         Image(
                             painter = painterResource(Res.drawable.add),

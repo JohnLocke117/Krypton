@@ -1,6 +1,8 @@
 package org.krypton.krypton
 
 import org.krypton.krypton.ui.state.RibbonButton
+import org.krypton.krypton.ui.AppIconWithTooltip
+import org.krypton.krypton.ui.TooltipPosition
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -727,12 +729,14 @@ private fun SidebarIconButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
-    Box(
+    AppIconWithTooltip(
+        tooltip = contentDescription,
         modifier = modifier
             .size(32.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
+            .clip(RoundedCornerShape(6.dp)),
+        enabled = enabled,
+        position = TooltipPosition.BELOW,
+        onClick = onClick
     ) {
         val colorScheme = MaterialTheme.colorScheme
         Image(

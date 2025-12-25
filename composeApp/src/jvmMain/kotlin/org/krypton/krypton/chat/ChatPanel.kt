@@ -50,6 +50,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import org.krypton.krypton.ui.AppIconWithTooltip
+import org.krypton.krypton.ui.TooltipPosition
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -584,100 +586,101 @@ fun ChatPanel(
                         // RAG icon (if RAG service is available)
                         if (ragChatService != null) {
                             // 1. RAG toggle icon (first)
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clickable(enabled = syncStatus != SyncStatus.UNAVAILABLE) {
-                                        if (ragEnabled) {
-                                            // Disable RAG
-                                            ragEnabled = false
-                                            // Disable reranking and multi-query when RAG is disabled
-                                            rerankingEnabled = false
-                                            ragComponents?.ragService?.setRerankingEnabled(false)
-                                            multiQueryEnabled = false
-                                            AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
-                                        } else {
-                                            // Enable RAG - use activation manager
-                                            coroutineScope.launch {
-                                                if (ragActivationManager != null && currentVaultPath != null) {
-                                                    // First check if collection exists and has data
-                                                    val hasVaultData = extendedRagComponents?.base?.vectorStore?.hasVaultData(currentVaultPath) ?: false
-                                                    
-                                                    if (!hasVaultData) {
-                                                        // Collection doesn't exist or has no data - show prompt
-                                                        showIngestionPrompt = true
+                            AppIconWithTooltip(
+                                tooltip = "RAG",
+                                modifier = Modifier.size(24.dp),
+                                enabled = syncStatus != SyncStatus.UNAVAILABLE,
+                                position = TooltipPosition.ABOVE,
+                                onClick = {
+                                    if (ragEnabled) {
+                                        // Disable RAG
+                                        ragEnabled = false
+                                        // Disable reranking and multi-query when RAG is disabled
+                                        rerankingEnabled = false
+                                        ragComponents?.ragService?.setRerankingEnabled(false)
+                                        multiQueryEnabled = false
+                                        AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
+                                    } else {
+                                        // Enable RAG - use activation manager
+                                        coroutineScope.launch {
+                                            if (ragActivationManager != null && currentVaultPath != null) {
+                                                // First check if collection exists and has data
+                                                val hasVaultData = extendedRagComponents?.base?.vectorStore?.hasVaultData(currentVaultPath) ?: false
+                                                
+                                                if (!hasVaultData) {
+                                                    // Collection doesn't exist or has no data - show prompt
+                                                    showIngestionPrompt = true
+                                                } else {
+                                                    // Collection exists and has data - check sync status
+                                                    val status = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                    if (status == SyncStatus.OUT_OF_SYNC) {
+                                                        // Show re-index prompt
+                                                        showReindexPrompt = true
                                                     } else {
-                                                        // Collection exists and has data - check sync status
-                                                        val status = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                        if (status == SyncStatus.OUT_OF_SYNC) {
-                                                            // Show re-index prompt
-                                                            showReindexPrompt = true
-                                                        } else {
-                                                            // No prompt needed, activate directly
-                                                            // Use ingestionScope for long-running operations
-                                                            ingestionScope.launch {
-                                                                val result = ragActivationManager.activateRag(
-                                                                    vaultPath = currentVaultPath,
-                                                                    onIngestionNeeded = { false }, // Already checked
-                                                                    onReindexNeeded = { false }, // Not needed
-                                                                    onIngestionProgress = { filePath, progress ->
-                                                                        withContext(Dispatchers.Main) {
-                                                                            isIngesting = true
-                                                                        }
+                                                        // No prompt needed, activate directly
+                                                        // Use ingestionScope for long-running operations
+                                                        ingestionScope.launch {
+                                                            val result = ragActivationManager.activateRag(
+                                                                vaultPath = currentVaultPath,
+                                                                onIngestionNeeded = { false }, // Already checked
+                                                                onReindexNeeded = { false }, // Not needed
+                                                                onIngestionProgress = { filePath, progress ->
+                                                                    withContext(Dispatchers.Main) {
+                                                                        isIngesting = true
                                                                     }
-                                                                )
-                                                            
-                                                                // Handle result
-                                                                when (result) {
-                                                                    RagActivationResult.ENABLED -> {
-                                                                        // Update UI state on main thread
-                                                                        withContext(Dispatchers.Main) {
-                                                                            ragEnabled = true
-                                                                            // Keep reranking and multi-query disabled by default
-                                                                            rerankingEnabled = false
-                                                                            ragComponents?.ragService?.setRerankingEnabled(false)
-                                                                            multiQueryEnabled = false
-                                                                            isIngesting = false
-                                                                        }
-                                                                        // Check sync status on IO thread, then update UI
-                                                                        val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                                        withContext(Dispatchers.Main) {
-                                                                            syncStatus = newSyncStatus
-                                                                        }
+                                                                }
+                                                            )
+                                                        
+                                                            // Handle result
+                                                            when (result) {
+                                                                RagActivationResult.ENABLED -> {
+                                                                    // Update UI state on main thread
+                                                                    withContext(Dispatchers.Main) {
+                                                                        ragEnabled = true
+                                                                        // Keep reranking and multi-query disabled by default
+                                                                        rerankingEnabled = false
+                                                                        ragComponents?.ragService?.setRerankingEnabled(false)
+                                                                        multiQueryEnabled = false
+                                                                        isIngesting = false
                                                                     }
-                                                                    RagActivationResult.CANCELLED -> {
-                                                                        withContext(Dispatchers.Main) {
-                                                                            isIngesting = false
-                                                                        }
+                                                                    // Check sync status on IO thread, then update UI
+                                                                    val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                                    withContext(Dispatchers.Main) {
+                                                                        syncStatus = newSyncStatus
                                                                     }
-                                                                    RagActivationResult.ERROR -> {
-                                                                        withContext(Dispatchers.Main) {
-                                                                            val errorMsg = "Failed to activate RAG. Please check ChromaDB connection."
-                                                                            rebuildStatus = UiStatus.Error(
-                                                                                errorMsg,
-                                                                                recoverable = true
-                                                                            )
-                                                                            isIngesting = false
-                                                                            // Log to console in red
-                                                                            System.err.println("✗ $errorMsg")
-                                                                        }
+                                                                }
+                                                                RagActivationResult.CANCELLED -> {
+                                                                    withContext(Dispatchers.Main) {
+                                                                        isIngesting = false
+                                                                    }
+                                                                }
+                                                                RagActivationResult.ERROR -> {
+                                                                    withContext(Dispatchers.Main) {
+                                                                        val errorMsg = "Failed to activate RAG. Please check ChromaDB connection."
+                                                                        rebuildStatus = UiStatus.Error(
+                                                                            errorMsg,
+                                                                            recoverable = true
+                                                                        )
+                                                                        isIngesting = false
+                                                                        // Log to console in red
+                                                                        System.err.println("✗ $errorMsg")
                                                                     }
                                                                 }
                                                             }
                                                         }
                                                     }
-                                                } else {
-                                                    // Fallback: just enable RAG
-                                                    ragEnabled = true
-                                                    // Keep reranking and multi-query disabled by default
-                                                    rerankingEnabled = false
-                                                    ragComponents?.ragService?.setRerankingEnabled(false)
-                                                    multiQueryEnabled = false
                                                 }
+                                            } else {
+                                                // Fallback: just enable RAG
+                                                ragEnabled = true
+                                                // Keep reranking and multi-query disabled by default
+                                                rerankingEnabled = false
+                                                ragComponents?.ragService?.setRerankingEnabled(false)
+                                                multiQueryEnabled = false
                                             }
                                         }
-                                    },
-                                contentAlignment = Alignment.Center
+                                    }
+                                }
                             ) {
                                 Image(
                                     painter = painterResource(Res.drawable.rag),
@@ -774,28 +777,29 @@ fun ChatPanel(
                             }
                             
                             // 4. Multi-query option (fourth) - visible but disabled when RAG off
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clickable(enabled = ragEnabled) {
-                                        if (ragEnabled) {
-                                            val newValue = !multiQueryEnabled
-                                            multiQueryEnabled = newValue
-                                            // Log the state change
-                                            AppLogger.d("ChatPanel", "Multi-Query ${if (newValue) "enabled" else "disabled"}")
-                                            // Update settings
-                                            coroutineScope.launch {
-                                                settingsRepository.update { currentSettings ->
-                                                    currentSettings.copy(
-                                                        rag = currentSettings.rag.copy(
-                                                            multiQueryEnabled = newValue
-                                                        )
+                            AppIconWithTooltip(
+                                tooltip = "Multi-Query",
+                                modifier = Modifier.size(24.dp),
+                                enabled = ragEnabled,
+                                position = TooltipPosition.ABOVE,
+                                onClick = {
+                                    if (ragEnabled) {
+                                        val newValue = !multiQueryEnabled
+                                        multiQueryEnabled = newValue
+                                        // Log the state change
+                                        AppLogger.d("ChatPanel", "Multi-Query ${if (newValue) "enabled" else "disabled"}")
+                                        // Update settings
+                                        coroutineScope.launch {
+                                            settingsRepository.update { currentSettings ->
+                                                currentSettings.copy(
+                                                    rag = currentSettings.rag.copy(
+                                                        multiQueryEnabled = newValue
                                                     )
-                                                }
+                                                )
                                             }
                                         }
-                                    },
-                                contentAlignment = Alignment.Center
+                                    }
+                                }
                             ) {
                                 Image(
                                     painter = painterResource(Res.drawable.arrow_split),
@@ -812,18 +816,19 @@ fun ChatPanel(
                             }
                             
                             // 5. Reranking toggle (fifth) - visible but disabled when RAG off
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clickable(enabled = ragEnabled) {
-                                        if (ragEnabled) {
-                                            val newValue = !rerankingEnabled
-                                            rerankingEnabled = newValue
-                                            // Update RagService reranking state
-                                            ragComponents?.ragService?.setRerankingEnabled(newValue)
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
+                            AppIconWithTooltip(
+                                tooltip = "Reranking",
+                                modifier = Modifier.size(24.dp),
+                                enabled = ragEnabled,
+                                position = TooltipPosition.ABOVE,
+                                onClick = {
+                                    if (ragEnabled) {
+                                        val newValue = !rerankingEnabled
+                                        rerankingEnabled = newValue
+                                        // Update RagService reranking state
+                                        ragComponents?.ragService?.setRerankingEnabled(newValue)
+                                    }
+                                }
                             ) {
                                 Image(
                                     painter = painterResource(Res.drawable.leaderboard),
@@ -840,55 +845,53 @@ fun ChatPanel(
                             }
                             
                             // 6. Manual re-index (sixth) - always available
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clickable(
-                                        enabled = currentVaultPath != null && 
-                                                 extendedRagComponents != null &&
-                                                 syncStatus != SyncStatus.UNAVAILABLE &&
-                                                 rebuildStatus !is UiStatus.Loading &&
-                                                 !isIngesting,
-                                        onClick = {
-                                            if (currentVaultPath != null && extendedRagComponents != null) {
-                                                // Use ingestionScope for long-running operation
-                                                ingestionScope.launch {
-                                                    try {
-                                                        withContext(Dispatchers.Main) {
-                                                            rebuildStatus = UiStatus.Loading
-                                                            isIngesting = true
-                                                        }
-                                                        
-                                                        // Get existing metadata to enable incremental indexing
-                                                        val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
-                                                        val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
-                                                        
-                                                        extendedRagComponents.base.indexer.fullReindex(
-                                                            vaultPath = currentVaultPath,
-                                                            existingFileHashes = existingHashes
-                                                        )
-                                                        
-                                                        // Update sync status on IO thread, then update UI
-                                                        val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
-                                                        withContext(Dispatchers.Main) {
-                                                            syncStatus = newSyncStatus
-                                                            rebuildStatus = UiStatus.Success
-                                                            isIngesting = false
-                                                        }
-                                                    } catch (e: Exception) {
-                                                        withContext(Dispatchers.Main) {
-                                                            rebuildStatus = UiStatus.Error(
-                                                                e.message ?: "Failed to rebuild vector database",
-                                                                recoverable = true
-                                                            )
-                                                            isIngesting = false
-                                                        }
-                                                    }
+                            AppIconWithTooltip(
+                                tooltip = "Rebuild Vector Database",
+                                modifier = Modifier.size(24.dp),
+                                enabled = currentVaultPath != null && 
+                                         extendedRagComponents != null &&
+                                         syncStatus != SyncStatus.UNAVAILABLE &&
+                                         rebuildStatus !is UiStatus.Loading &&
+                                         !isIngesting,
+                                position = TooltipPosition.ABOVE,
+                                onClick = {
+                                    if (currentVaultPath != null && extendedRagComponents != null) {
+                                        // Use ingestionScope for long-running operation
+                                        ingestionScope.launch {
+                                            try {
+                                                withContext(Dispatchers.Main) {
+                                                    rebuildStatus = UiStatus.Loading
+                                                    isIngesting = true
+                                                }
+                                                
+                                                // Get existing metadata to enable incremental indexing
+                                                val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
+                                                val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
+                                                
+                                                extendedRagComponents.base.indexer.fullReindex(
+                                                    vaultPath = currentVaultPath,
+                                                    existingFileHashes = existingHashes
+                                                )
+                                                
+                                                // Update sync status on IO thread, then update UI
+                                                val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
+                                                withContext(Dispatchers.Main) {
+                                                    syncStatus = newSyncStatus
+                                                    rebuildStatus = UiStatus.Success
+                                                    isIngesting = false
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    rebuildStatus = UiStatus.Error(
+                                                        e.message ?: "Failed to rebuild vector database",
+                                                        recoverable = true
+                                                    )
+                                                    isIngesting = false
                                                 }
                                             }
                                         }
-                                    ),
-                                contentAlignment = Alignment.Center
+                                    }
+                                }
                             ) {
                                 Image(
                                     painter = painterResource(Res.drawable.database_search),
@@ -909,21 +912,22 @@ fun ChatPanel(
                         }
                         
                         // Globe icon (Tavily web search) - after RAG controls
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clickable(enabled = tavilyAvailable) {
-                                    if (tavilyAvailable) {
-                                        webEnabled = !webEnabled
-                                        tavilyError = null
-                                        AppLogger.d("ChatPanel", "Web search ${if (webEnabled) "enabled" else "disabled"}")
-                                    } else {
-                                        // Show non-blocking error
-                                        tavilyError = "Tavily API key not found. Please add TAVILLY_API_KEY to local.secrets.properties"
-                                        AppLogger.w("ChatPanel", "Attempted to enable Tavily without API key")
-                                    }
-                                },
-                            contentAlignment = Alignment.Center
+                        AppIconWithTooltip(
+                            tooltip = "Web Search",
+                            modifier = Modifier.size(24.dp),
+                            enabled = tavilyAvailable,
+                            position = TooltipPosition.ABOVE,
+                            onClick = {
+                                if (tavilyAvailable) {
+                                    webEnabled = !webEnabled
+                                    tavilyError = null
+                                    AppLogger.d("ChatPanel", "Web search ${if (webEnabled) "enabled" else "disabled"}")
+                                } else {
+                                    // Show non-blocking error
+                                    tavilyError = "Tavily API key not found. Please add TAVILLY_API_KEY to local.secrets.properties"
+                                    AppLogger.w("ChatPanel", "Attempted to enable Tavily without API key")
+                                }
+                            }
                         ) {
                             Image(
                                 painter = painterResource(Res.drawable.globe),
@@ -941,31 +945,29 @@ fun ChatPanel(
                     }
                     
                     // Right side: Send icon
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable(
-                                enabled = inputText.isNotBlank() && !isLoading,
-                                onClick = {
-                                    if (inputText.isNotBlank() && !isLoading) {
-                                        val messageText = inputText.trim()
-                                        inputText = ""
-                                        
-                                        // Create optimistic user message immediately
-                                        val optimisticMessage = ChatMessage(
-                                            id = "optimistic_${System.currentTimeMillis()}",
-                                            role = ChatRole.USER,
-                                            content = messageText,
-                                            timestamp = System.currentTimeMillis()
-                                        )
-                                        optimisticUserMessage = optimisticMessage
-                                        
-                                        // Send message with current retrieval mode
-                                        chatStateHolder.sendMessage(messageText, retrievalMode)
-                                    }
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
+                    AppIconWithTooltip(
+                        tooltip = "Send",
+                        modifier = Modifier.size(24.dp),
+                        enabled = inputText.isNotBlank() && !isLoading,
+                        position = TooltipPosition.ABOVE,
+                        onClick = {
+                            if (inputText.isNotBlank() && !isLoading) {
+                                val messageText = inputText.trim()
+                                inputText = ""
+                                
+                                // Create optimistic user message immediately
+                                val optimisticMessage = ChatMessage(
+                                    id = "optimistic_${System.currentTimeMillis()}",
+                                    role = ChatRole.USER,
+                                    content = messageText,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                                optimisticUserMessage = optimisticMessage
+                                
+                                // Send message with current retrieval mode
+                                chatStateHolder.sendMessage(messageText, retrievalMode)
+                            }
+                        }
                     ) {
                         Image(
                             painter = painterResource(Res.drawable.send),
