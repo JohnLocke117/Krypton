@@ -38,14 +38,13 @@ kotlin {
             implementation(libs.ktor.client.contentNegotiation)
             implementation(libs.ktor.serialization.kotlinxJson)
             implementation(libs.koin.core)
-            implementation(libs.koin.core)
         }
     }
 }
 
 compose.desktop {
     application {
-        mainClass = "org.krypton.krypton.MainKt"
+        mainClass = "org.krypton.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
