@@ -2,7 +2,6 @@ package org.krypton
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -10,7 +9,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.krypton.VectorBackend
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RagSettings(
     settings: Settings,
@@ -23,58 +21,54 @@ fun RagSettings(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Vector Backend
-        Text(
-            text = "Vector Backend",
-            style = MaterialTheme.typography.bodyLarge,
-            color = theme.TextPrimary
-        )
-        var expanded by remember { mutableStateOf(false) }
-        val backends = VectorBackend.values()
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
-            OutlinedTextField(
-                value = settings.rag.vectorBackend.name,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Vector Backend") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = theme.TextPrimary,
-                    unfocusedTextColor = theme.TextPrimary,
-                    focusedBorderColor = theme.Accent,
-                    unfocusedBorderColor = theme.Border
-                )
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                backends.forEach { backend ->
-                    DropdownMenuItem(
-                        text = { Text(backend.name) },
-                        onClick = {
-                            onSettingsChange(
-                                settings.copy(
-                                    rag = settings.rag.copy(vectorBackend = backend)
-                                )
-                            )
-                            expanded = false
-                        }
+        InlineTextField(
+            label = "Vector Backend",
+            value = settings.rag.vectorBackend.name,
+            onValueChange = { newValue ->
+                VectorBackend.values().find { it.name.equals(newValue, ignoreCase = true) }?.let { backend ->
+                    onSettingsChange(
+                        settings.copy(
+                            rag = settings.rag.copy(vectorBackend = backend)
+                        )
                     )
                 }
-            }
-        }
+            },
+            description = "Vector backend type (CHROMADB)",
+            theme = theme
+        )
+
+        InlineTextField(
+            label = "Generator Model",
+            value = settings.rag.llamaModel,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(llamaModel = newValue)
+                    )
+                )
+            },
+            description = "Ollama generator model name (e.g., llama3.2:1b)",
+            theme = theme
+        )
+
+        InlineTextField(
+            label = "Embedding Model",
+            value = settings.rag.embeddingModel,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(embeddingModel = newValue)
+                    )
+                )
+            },
+            description = "Ollama embedding model name (e.g., nomic-embed-text:v1.5)",
+            theme = theme
+        )
 
         Divider(color = theme.Border)
 
-        // Llama Base URL
-        OutlinedTextField(
+        InlineTextField(
+            label = "Llama Base URL",
             value = settings.rag.llamaBaseUrl,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -83,18 +77,11 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("Llama Base URL") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
-        // Embedding Base URL
-        OutlinedTextField(
+        InlineTextField(
+            label = "Embedding Base URL",
             value = settings.rag.embeddingBaseUrl,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -103,26 +90,19 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("Embedding Base URL") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
         Divider(color = theme.Border)
 
-        // ChromaDB Settings
         Text(
             text = "ChromaDB Settings",
             style = MaterialTheme.typography.titleMedium,
             color = theme.TextPrimary
         )
 
-        OutlinedTextField(
+        InlineTextField(
+            label = "ChromaDB Base URL",
             value = settings.rag.chromaBaseUrl,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -131,17 +111,11 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("ChromaDB Base URL") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
-        OutlinedTextField(
+        InlineTextField(
+            label = "ChromaDB Collection Name",
             value = settings.rag.chromaCollectionName,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -150,17 +124,11 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("ChromaDB Collection Name") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
-        OutlinedTextField(
+        InlineTextField(
+            label = "ChromaDB Tenant",
             value = settings.rag.chromaTenant,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -169,17 +137,11 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("ChromaDB Tenant") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
-        OutlinedTextField(
+        InlineTextField(
+            label = "ChromaDB Database",
             value = settings.rag.chromaDatabase,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -188,248 +150,111 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("ChromaDB Database") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
         Divider(color = theme.Border)
 
-        // Top-K
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Top-K",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Number of chunks to retrieve: ${settings.rag.topK}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.rag.topK}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.rag.topK.toFloat(),
+        InlineTextField(
+            label = "Top-K",
+            value = settings.rag.topK.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(topK = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 20) {
+                        onSettingsChange(
+                            settings.copy(
+                                rag = settings.rag.copy(topK = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 1f..20f,
-            steps = 18, // 1 increment
-            modifier = Modifier.fillMaxWidth()
+            description = "Number of chunks to retrieve (1-20)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Similarity Threshold
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Similarity Threshold",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Minimum similarity score: ${String.format("%.2f", settings.rag.similarityThreshold)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = String.format("%.2f", settings.rag.similarityThreshold),
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
+        InlineFloatField(
+            label = "Similarity Threshold",
             value = settings.rag.similarityThreshold,
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(similarityThreshold = newValue)
-                    )
-                )
-            },
-            valueRange = 0f..1f,
-            steps = 99, // 0.01 increments
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Divider(color = theme.Border)
-
-        // Max-K
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Max-K",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Maximum chunks to retrieve: ${settings.rag.maxK}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.rag.maxK}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.rag.maxK.toFloat(),
-            onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(maxK = newValue.toInt())
-                    )
-                )
-            },
-            valueRange = 1f..50f,
-            steps = 48, // 1 increment
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Divider(color = theme.Border)
-
-        // Display-K
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Display-K",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Number of chunks to display: ${settings.rag.displayK}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.rag.displayK}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.rag.displayK.toFloat(),
-            onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(displayK = newValue.toInt())
-                    )
-                )
-            },
-            valueRange = 1f..20f,
-            steps = 18, // 1 increment
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Divider(color = theme.Border)
-
-        // Query Rewriting
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Query Rewriting",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Enable query rewriting for better retrieval",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Switch(
-                checked = settings.rag.queryRewritingEnabled,
-                onCheckedChange = { enabled ->
+                if (newValue >= 0f && newValue <= 1f) {
                     onSettingsChange(
                         settings.copy(
-                            rag = settings.rag.copy(queryRewritingEnabled = enabled)
+                            rag = settings.rag.copy(similarityThreshold = newValue)
                         )
                     )
                 }
-            )
-        }
+            },
+            description = "Minimum similarity score (0.0-1.0)",
+            theme = theme
+        )
 
-        Divider(color = theme.Border)
-
-        // Multi-Query
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Multi-Query",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Enable multi-query generation",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Switch(
-                checked = settings.rag.multiQueryEnabled,
-                onCheckedChange = { enabled ->
-                    onSettingsChange(
-                        settings.copy(
-                            rag = settings.rag.copy(multiQueryEnabled = enabled)
+        InlineTextField(
+            label = "Max-K",
+            value = settings.rag.maxK.toString(),
+            onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 50) {
+                        onSettingsChange(
+                            settings.copy(
+                                rag = settings.rag.copy(maxK = intValue)
+                            )
                         )
-                    )
+                    }
                 }
-            )
-        }
+            },
+            description = "Maximum chunks to retrieve (1-50)",
+            theme = theme
+        )
 
-        Divider(color = theme.Border)
+        InlineTextField(
+            label = "Display-K",
+            value = settings.rag.displayK.toString(),
+            onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 20) {
+                        onSettingsChange(
+                            settings.copy(
+                                rag = settings.rag.copy(displayK = intValue)
+                            )
+                        )
+                    }
+                }
+            },
+            description = "Number of chunks to display (1-20)",
+            theme = theme
+        )
 
-        // Reranker Model
-        OutlinedTextField(
+        InlineBooleanField(
+            label = "Query Rewriting",
+            value = settings.rag.queryRewritingEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(queryRewritingEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable query rewriting for better retrieval",
+            theme = theme
+        )
+
+        InlineBooleanField(
+            label = "Multi-Query",
+            value = settings.rag.multiQueryEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(multiQueryEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable multi-query generation",
+            theme = theme
+        )
+
+        InlineTextField(
+            label = "Reranker Model",
             value = settings.rag.rerankerModel ?: "",
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -438,47 +263,23 @@ fun RagSettings(
                     )
                 )
             },
-            label = { Text("Reranker Model (optional)") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            description = "Reranker model name (optional)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // RAG Enabled
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "RAG Enabled",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Enable RAG for chat responses",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Switch(
-                checked = settings.rag.ragEnabled,
-                onCheckedChange = { enabled ->
-                    onSettingsChange(
-                        settings.copy(
-                            rag = settings.rag.copy(ragEnabled = enabled)
-                        )
+        InlineBooleanField(
+            label = "RAG Enabled",
+            value = settings.rag.ragEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(ragEnabled = enabled)
                     )
-                }
-            )
-        }
+                )
+            },
+            description = "Enable RAG for chat responses",
+            theme = theme
+        )
 
         Divider(color = theme.Border)
 
@@ -496,6 +297,141 @@ fun RagSettings(
         ) {
             Text("Reindex Notes")
         }
+    }
+}
+
+@Composable
+private fun InlineTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    description: String? = null,
+    theme: ObsidianThemeValues
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+        }
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+    }
+}
+
+@Composable
+private fun InlineBooleanField(
+    label: String,
+    value: Boolean,
+    onValueChange: (Boolean) -> Unit,
+    description: String? = null,
+    theme: ObsidianThemeValues
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+        }
+        OutlinedTextField(
+            value = value.toString(),
+            onValueChange = { newValue ->
+                when (newValue.lowercase()) {
+                    "true" -> onValueChange(true)
+                    "false" -> onValueChange(false)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+    }
+}
+
+@Composable
+private fun InlineFloatField(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    description: String? = null,
+    theme: ObsidianThemeValues
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+        }
+        OutlinedTextField(
+            value = value.toString(),
+            onValueChange = { newValue ->
+                newValue.toFloatOrNull()?.let { floatValue ->
+                    onValueChange(floatValue)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
     }
 }
 

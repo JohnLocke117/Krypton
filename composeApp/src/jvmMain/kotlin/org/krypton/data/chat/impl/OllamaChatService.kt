@@ -115,15 +115,34 @@ class OllamaChatService(
             )
         } catch (e: ChatException) {
             AppLogger.e("Chat", "ChatError: ${e.message}", e)
+            // Check if error is related to model name
+            val errorMessage = e.message?.lowercase() ?: ""
+            if (errorMessage.contains("model") || errorMessage.contains("not found") || 
+                errorMessage.contains("invalid") || errorMessage.contains("404")) {
+                val ragSettings = settingsRepository.settingsFlow.value.rag
+                throw ChatException("Error occurred, please check model name. Generator model: ${ragSettings.llamaModel}, Embedding model: ${ragSettings.embeddingModel}", e)
+            }
             throw e
         } catch (e: RagException) {
             AppLogger.e("Chat", "RAG error during chat: ${e.message}", e)
+            val errorMessage = e.message?.lowercase() ?: ""
+            if (errorMessage.contains("model") || errorMessage.contains("not found") || 
+                errorMessage.contains("invalid") || errorMessage.contains("404")) {
+                val ragSettings = settingsRepository.settingsFlow.value.rag
+                throw ChatException("Error occurred, please check model name. Generator model: ${ragSettings.llamaModel}, Embedding model: ${ragSettings.embeddingModel}", e)
+            }
             throw ChatException("RAG failed: ${e.message}", e)
         } catch (e: IOException) {
             AppLogger.e("Chat", "Network error during chat: ${e.message}", e)
             throw ChatException("Network error during chat", e)
         } catch (e: Exception) {
             AppLogger.e("Chat", "Unexpected chat error: ${e.message}", e)
+            val errorMessage = e.message?.lowercase() ?: ""
+            if (errorMessage.contains("model") || errorMessage.contains("not found") || 
+                errorMessage.contains("invalid") || errorMessage.contains("404")) {
+                val ragSettings = settingsRepository.settingsFlow.value.rag
+                throw ChatException("Error occurred, please check model name. Generator model: ${ragSettings.llamaModel}, Embedding model: ${ragSettings.embeddingModel}", e)
+            }
             throw ChatException("Unexpected chat error: ${e.message}", e)
         }
     }

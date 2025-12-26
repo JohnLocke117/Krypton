@@ -126,9 +126,15 @@ class HttpEmbedder(
                 }.body()
                 
                 if (response.error != null) {
-                    val errorMsg = "Embedding API returned error: ${response.error}"
-                    AppLogger.e("HttpEmbedder", errorMsg, null)
-                    throw EmbeddingException(errorMsg)
+                    val errorMsg = response.error.lowercase()
+                    val finalError = if (errorMsg.contains("model") || errorMsg.contains("not found") || 
+                        errorMsg.contains("invalid") || errorMsg.contains("404")) {
+                        "Model error: ${response.error}. Please check model name."
+                    } else {
+                        "Embedding API returned error: ${response.error}"
+                    }
+                    AppLogger.e("HttpEmbedder", finalError, null)
+                    throw EmbeddingException(finalError)
                 }
                 
                 // Verify response has embeddings

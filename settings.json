@@ -54,22 +54,24 @@
         "autosaveIntervalSeconds": 60,
         "telemetryEnabled": false
     },
-    "rag": {
-        "vectorBackend": "CHROMADB",
-        "llamaBaseUrl": "http://localhost:11434",
-        "embeddingBaseUrl": "http://localhost:11434",
-        "chromaBaseUrl": "http://localhost:8000",
-        "chromaCollectionName": "note_chunks",
-        "chromaTenant": "default",
-        "chromaDatabase": "defaultDB",
-        "ragEnabled": true,
-        "topK": 5,
-        "similarityThreshold": 0.25,
-        "maxK": 10,
-        "displayK": 5,
-        "queryRewritingEnabled": false,
-        "multiQueryEnabled": false,
-        "rerankerModel": "xitao/bge-reranker-v2-m3"
-    }
+        "rag": {
+            "vectorBackend": "CHROMADB",
+            "llamaBaseUrl": "http://localhost:11434",
+            "embeddingBaseUrl": "http://localhost:11434",
+            "chromaBaseUrl": "http://localhost:8000",
+            "chromaCollectionName": "note_chunks",
+            "chromaTenant": "default",
+            "chromaDatabase": "defaultDB",
+            "ragEnabled": true,
+            "llamaModel": "llama3.2:1b",
+            "embeddingModel": "nomic-embed-text:v1.5",
+            "topK": 5,
+            "similarityThreshold": 0.25,
+            "maxK": 10,
+            "displayK": 5,
+            "queryRewritingEnabled": false,
+            "multiQueryEnabled": false,
+            "rerankerModel": "xitao/bge-reranker-v2-m3"
+        }
 }
 

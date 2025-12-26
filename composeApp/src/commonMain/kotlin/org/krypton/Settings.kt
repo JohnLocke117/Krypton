@@ -80,6 +80,8 @@ data class RagSettings(
     val chromaTenant: String = org.krypton.config.RagDefaults.ChromaDb.DEFAULT_TENANT,
     val chromaDatabase: String = org.krypton.config.RagDefaults.ChromaDb.DEFAULT_DATABASE,
     val ragEnabled: Boolean = true,
+    val llamaModel: String = org.krypton.config.RagDefaults.DEFAULT_LLM.modelName,
+    val embeddingModel: String = org.krypton.config.RagDefaults.Embedding.DEFAULT_MODEL,
     val topK: Int = org.krypton.config.RagDefaults.Retrieval.DEFAULT_TOP_K,
     val similarityThreshold: Float = org.krypton.config.RagDefaults.Retrieval.DEFAULT_SIMILARITY_THRESHOLD,
     val maxK: Int = org.krypton.config.RagDefaults.Retrieval.DEFAULT_MAX_K,

@@ -87,7 +87,26 @@ class HttpLlamaClient(
                 }
                 
                 if (httpResponse.status.value !in 200..299) {
-                    val errorMsg = "LLM API returned error: ${httpResponse.status}"
+                    val errorBody = try {
+                        httpResponse.body<String>()
+                    } catch (e: Exception) {
+                        null
+                    }
+                    val errorMsg = if (errorBody != null) {
+                        val errorLower = errorBody.lowercase()
+                        if (errorLower.contains("model") || errorLower.contains("not found") || 
+                            errorLower.contains("invalid") || httpResponse.status.value == 404) {
+                            "Model error: ${httpResponse.status}. Please check model name."
+                        } else {
+                            "LLM API returned error: ${httpResponse.status}"
+                        }
+                    } else {
+                        if (httpResponse.status.value == 404) {
+                            "Model error: ${httpResponse.status}. Please check model name."
+                        } else {
+                            "LLM API returned error: ${httpResponse.status}"
+                        }
+                    }
                     AppLogger.e("HttpLlamaClient", errorMsg, null)
                     throw LlamaClientException(errorMsg)
                 }
@@ -126,6 +145,11 @@ class HttpLlamaClient(
                 }
                 
                 if (hasError != null) {
+                    val errorMsg = hasError.lowercase()
+                    if (errorMsg.contains("model") || errorMsg.contains("not found") || 
+                        errorMsg.contains("invalid") || errorMsg.contains("404")) {
+                        throw LlamaClientException("Model error: $hasError. Please check model name.")
+                    }
                     throw LlamaClientException("LLM API error: $hasError")
                 }
                 
@@ -190,7 +214,26 @@ class HttpLlamaClient(
                     }
                     
                     if (httpResponse.status.value !in 200..299) {
-                        val errorMsg = "LLM API returned error: ${httpResponse.status}"
+                        val errorBody = try {
+                            httpResponse.body<String>()
+                        } catch (e: Exception) {
+                            null
+                        }
+                        val errorMsg = if (errorBody != null) {
+                            val errorLower = errorBody.lowercase()
+                            if (errorLower.contains("model") || errorLower.contains("not found") || 
+                                errorLower.contains("invalid") || httpResponse.status.value == 404) {
+                                "Model error: ${httpResponse.status}. Please check model name."
+                            } else {
+                                "LLM API returned error: ${httpResponse.status}"
+                            }
+                        } else {
+                            if (httpResponse.status.value == 404) {
+                                "Model error: ${httpResponse.status}. Please check model name."
+                            } else {
+                                "LLM API returned error: ${httpResponse.status}"
+                            }
+                        }
                         AppLogger.e("HttpLlamaClient", errorMsg, null)
                         throw LlamaClientException(errorMsg)
                     }
@@ -229,6 +272,11 @@ class HttpLlamaClient(
                     }
                     
                     if (hasError != null) {
+                        val errorMsg = hasError.lowercase()
+                        if (errorMsg.contains("model") || errorMsg.contains("not found") || 
+                            errorMsg.contains("invalid") || errorMsg.contains("404")) {
+                            throw LlamaClientException("Model error: $hasError. Please check model name.")
+                        }
                         throw LlamaClientException("LLM API error: $hasError")
                     }
                     

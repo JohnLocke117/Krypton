@@ -65,6 +65,8 @@
         "chromaTenant": "default",
         "chromaDatabase": "defaultDB",
         "ragEnabled": true,
+        "llamaModel": "llama3.2:1b",
+        "embeddingModel": "nomic-embed-text:v1.5",
         "topK": 5,
         "similarityThreshold": 0.25,
         "maxK": 10,

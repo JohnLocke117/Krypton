@@ -36,8 +36,8 @@ object RagComponentProvider {
                 chromaCollectionName = ragSettings.chromaCollectionName,
                 chromaTenant = ragSettings.chromaTenant,
                 chromaDatabase = ragSettings.chromaDatabase,
-                llamaModel = RagDefaults.DEFAULT_LLM.modelName,
-                embeddingModel = RagDefaults.Embedding.DEFAULT_MODEL
+                llamaModel = ragSettings.llamaModel,
+                embeddingModel = ragSettings.embeddingModel
             )
             
             createRagComponents(

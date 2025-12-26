@@ -225,10 +225,10 @@ fun SettingsDialog(
                                     Text("Refresh")
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                                TextButton(
-                                    onClick = { onOpenSettingsJson() }
-                                ) {
-                                    Text("Open Settings JSON")
+                            TextButton(
+                                onClick = { onOpenSettingsJson() }
+                            ) {
+                                Text("Open Settings JSON")
                                 }
                             }
                             Row {
@@ -386,9 +386,6 @@ private fun SettingsContent(
                     theme = theme
                 )
             }
-            SettingsCategory.Keybindings -> {
-                KeybindingsSettings(theme = theme)
-            }
             SettingsCategory.RAG -> {
                 RagSettings(
                     settings = settings,
@@ -411,82 +408,43 @@ private fun GeneralSettings(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Autosave interval
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Autosave Interval",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Save changes automatically every ${settings.app.autosaveIntervalSeconds} seconds",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.app.autosaveIntervalSeconds}s",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.app.autosaveIntervalSeconds.toFloat(),
+        InlineTextField(
+            label = "Autosave Interval (seconds)",
+            value = settings.app.autosaveIntervalSeconds.toString(),
             onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 0 && intValue <= 3600) {
                 onSettingsChange(
                     settings.copy(
-                        app = settings.app.copy(autosaveIntervalSeconds = newValue.toInt())
+                                app = settings.app.copy(autosaveIntervalSeconds = intValue)
                     )
                 )
+                    }
+                }
             },
-            valueRange = 0f..3600f,
-            steps = 59, // 60 second increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Save changes automatically every N seconds (0-3600)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
         // Telemetry
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Telemetry",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Enable usage analytics and error reporting",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Switch(
-                checked = settings.app.telemetryEnabled,
-                onCheckedChange = { enabled ->
+        InlineBooleanField(
+            label = "Telemetry",
+            value = settings.app.telemetryEnabled,
+            onValueChange = { enabled ->
                     onSettingsChange(
                         settings.copy(
                             app = settings.app.copy(telemetryEnabled = enabled)
                         )
                     )
-                }
+            },
+            description = "Enable usage analytics and error reporting",
+            theme = theme
             )
-        }
-
-        Divider(color = theme.Border)
 
         // Recent folders
         Text(
             text = "Recent Folders",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = theme.TextPrimary
         )
         if (settings.app.recentFolders.isEmpty()) {
@@ -517,8 +475,8 @@ private fun EditorSettingsContent(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Font family
-        OutlinedTextField(
+        InlineTextField(
+            label = "Font Family",
             value = settings.editor.fontFamily,
             onValueChange = { newValue ->
                 onSettingsChange(
@@ -527,327 +485,145 @@ private fun EditorSettingsContent(
                     )
                 )
             },
-            label = { Text("Font Family") },
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = theme.TextPrimary,
-                unfocusedTextColor = theme.TextPrimary,
-                focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
-            )
+            theme = theme
         )
 
-        // Font size
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Font Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.editor.fontSize}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.editor.fontSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.editor.fontSize.toFloat(),
+        InlineTextField(
+            label = "Font Size",
+            value = settings.editor.fontSize.toString(),
             onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 8 && intValue <= 72) {
+                        onSettingsChange(
+                            settings.copy(
+                                editor = settings.editor.copy(fontSize = intValue)
+                            )
+                        )
+                    }
+                }
+            },
+            description = "Font size in pixels (8-72)",
+            theme = theme
+        )
+
+        InlineTextField(
+            label = "Tab Size",
+            value = settings.editor.tabSize.toString(),
+            onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 8) {
+                        onSettingsChange(
+                            settings.copy(
+                                editor = settings.editor.copy(tabSize = intValue)
+                            )
+                        )
+                    }
+                }
+            },
+            description = "Number of spaces per tab (1-8)",
+            theme = theme
+        )
+
+        InlineBooleanField(
+            label = "Line Numbers",
+            value = settings.editor.lineNumbers,
+            onValueChange = { enabled ->
                 onSettingsChange(
                     settings.copy(
-                        editor = settings.editor.copy(fontSize = newValue.toInt())
+                        editor = settings.editor.copy(lineNumbers = enabled)
                     )
                 )
             },
-            valueRange = 8f..72f,
-            steps = 63, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Show line numbers in the editor",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Tab size
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tab Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.editor.tabSize} spaces",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.editor.tabSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.editor.tabSize.toFloat(),
-            onValueChange = { newValue ->
+        InlineBooleanField(
+            label = "Word Wrap",
+            value = settings.editor.wordWrap,
+            onValueChange = { enabled ->
                 onSettingsChange(
                     settings.copy(
-                        editor = settings.editor.copy(tabSize = newValue.toInt())
+                        editor = settings.editor.copy(wordWrap = enabled)
                     )
                 )
             },
-            valueRange = 1f..8f,
-            steps = 6, // 1 space increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Wrap long lines in the editor",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Line numbers
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Line Numbers",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Show line numbers in the editor",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Switch(
-                checked = settings.editor.lineNumbers,
-                onCheckedChange = { enabled ->
-                    onSettingsChange(
-                        settings.copy(
-                            editor = settings.editor.copy(lineNumbers = enabled)
-                        )
-                    )
-                }
-            )
-        }
-
-        Divider(color = theme.Border)
-
-        // Word wrap
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Word Wrap",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "Wrap long lines in the editor",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Switch(
-                checked = settings.editor.wordWrap,
-                onCheckedChange = { enabled ->
-                    onSettingsChange(
-                        settings.copy(
-                            editor = settings.editor.copy(wordWrap = enabled)
-                        )
-                    )
-                }
-            )
-        }
-
-        Divider(color = theme.Border)
-
-        // Line height
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Line Height",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.editor.lineHeight}x",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = String.format("%.1f", settings.editor.lineHeight),
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
+        InlineFloatField(
+            label = "Line Height",
             value = settings.editor.lineHeight,
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        editor = settings.editor.copy(lineHeight = newValue)
+                if (newValue >= 1.0f && newValue <= 3.0f) {
+                    onSettingsChange(
+                        settings.copy(
+                            editor = settings.editor.copy(lineHeight = newValue)
+                        )
                     )
-                )
+                }
             },
-            valueRange = 1.0f..3.0f,
-            steps = 19, // 0.1 increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Line height multiplier (1.0-3.0)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Editor padding
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Editor Padding",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.editor.editorPadding}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.editor.editorPadding}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.editor.editorPadding.toFloat(),
+        InlineTextField(
+            label = "Editor Padding",
+            value = settings.editor.editorPadding.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        editor = settings.editor.copy(editorPadding = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 0 && intValue <= 48) {
+                        onSettingsChange(
+                            settings.copy(
+                                editor = settings.editor.copy(editorPadding = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 0f..48f,
-            steps = 47, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Editor padding in pixels (0-48)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Code block font size
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Code Block Font Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.editor.codeBlockFontSize}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.editor.codeBlockFontSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.editor.codeBlockFontSize.toFloat(),
+        InlineTextField(
+            label = "Code Block Font Size",
+            value = settings.editor.codeBlockFontSize.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        editor = settings.editor.copy(codeBlockFontSize = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 8 && intValue <= 24) {
+                        onSettingsChange(
+                            settings.copy(
+                                editor = settings.editor.copy(codeBlockFontSize = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 8f..24f,
-            steps = 15, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Code block font size in pixels (8-24)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Code span font size
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Code Span Font Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.editor.codeSpanFontSize}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.editor.codeSpanFontSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.editor.codeSpanFontSize.toFloat(),
+        InlineTextField(
+            label = "Code Span Font Size",
+            value = settings.editor.codeSpanFontSize.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        editor = settings.editor.copy(codeSpanFontSize = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 8 && intValue <= 24) {
+                        onSettingsChange(
+                            settings.copy(
+                                editor = settings.editor.copy(codeSpanFontSize = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 8f..24f,
-            steps = 15, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Code span font size in pixels (8-24)",
+            theme = theme
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppearanceSettings(
     settings: Settings,
@@ -857,53 +633,21 @@ private fun AppearanceSettings(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Theme
-        Text(
-            text = "Theme",
-            style = MaterialTheme.typography.bodyLarge,
-            color = theme.TextPrimary
-        )
-        var expanded by remember { mutableStateOf(false) }
-        val themes = listOf("dark", "light")
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
-            OutlinedTextField(
-                value = settings.editor.theme,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Theme") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = theme.TextPrimary,
-                    unfocusedTextColor = theme.TextPrimary,
-                    focusedBorderColor = theme.Accent,
-                    unfocusedBorderColor = theme.Border
-                )
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false }
-            ) {
-                themes.forEach { theme ->
-                    DropdownMenuItem(
-                        text = { Text(theme.replaceFirstChar { it.uppercaseChar() }) },
-                        onClick = {
-                            onSettingsChange(
-                                settings.copy(
-                                    editor = settings.editor.copy(theme = theme)
-                                )
-                            )
-                            expanded = false
-                        }
+        InlineTextField(
+            label = "Theme",
+            value = settings.editor.theme,
+            onValueChange = { newValue ->
+                if (newValue.lowercase() in listOf("dark", "light")) {
+                    onSettingsChange(
+                        settings.copy(
+                            editor = settings.editor.copy(theme = newValue.lowercase())
+                        )
                     )
                 }
-            }
-        }
+            },
+            description = "Theme name (dark or light)",
+            theme = theme
+        )
     }
 }
 
@@ -916,514 +660,220 @@ private fun UISettings(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Sidebar widths
-        Text(
-            text = "Sidebar Widths",
-            style = MaterialTheme.typography.titleMedium,
-            color = theme.TextPrimary
-        )
-        
-        // Sidebar default width
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Sidebar Default Width",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.sidebarDefaultWidth}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.sidebarDefaultWidth}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.sidebarDefaultWidth.toFloat(),
+        InlineTextField(
+            label = "Sidebar Default Width",
+            value = settings.ui.sidebarDefaultWidth.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(sidebarDefaultWidth = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= settings.ui.sidebarMinWidth && intValue <= settings.ui.sidebarMaxWidth) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(sidebarDefaultWidth = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = settings.ui.sidebarMinWidth.toFloat()..settings.ui.sidebarMaxWidth.toFloat(),
-            modifier = Modifier.fillMaxWidth()
+            description = "Default sidebar width in pixels",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Sidebar min width
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Sidebar Min Width",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.sidebarMinWidth}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.sidebarMinWidth}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.sidebarMinWidth.toFloat(),
+        InlineTextField(
+            label = "Sidebar Min Width",
+            value = settings.ui.sidebarMinWidth.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(sidebarMinWidth = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 100 && intValue <= 500) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(sidebarMinWidth = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 100f..500f,
-            steps = 39, // 10px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Minimum sidebar width in pixels (100-500)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Sidebar max width
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Sidebar Max Width",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.sidebarMaxWidth}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.sidebarMaxWidth}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.sidebarMaxWidth.toFloat(),
+        InlineTextField(
+            label = "Sidebar Max Width",
+            value = settings.ui.sidebarMaxWidth.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(sidebarMaxWidth = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 200 && intValue <= 800) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(sidebarMaxWidth = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 200f..800f,
-            steps = 59, // 10px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Maximum sidebar width in pixels (200-800)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Ribbon width
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Ribbon Width",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.ribbonWidth}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.ribbonWidth}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.ribbonWidth.toFloat(),
+        InlineTextField(
+            label = "Ribbon Width",
+            value = settings.ui.ribbonWidth.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(ribbonWidth = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 32 && intValue <= 80) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(ribbonWidth = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 32f..80f,
-            steps = 47, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Ribbon width in pixels (32-80)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Tab settings
-        Text(
-            text = "Tab Settings",
-            style = MaterialTheme.typography.titleMedium,
-            color = theme.TextPrimary
-        )
-
-        // Tab height
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tab Height",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.tabHeight}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.tabHeight}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.tabHeight.toFloat(),
+        InlineTextField(
+            label = "Tab Height",
+            value = settings.ui.tabHeight.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(tabHeight = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 24 && intValue <= 60) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(tabHeight = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 24f..60f,
-            steps = 35, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Tab height in pixels (24-60)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Tab font sizes
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tab Font Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.tabFontSize}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.tabFontSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.tabFontSize.toFloat(),
+        InlineTextField(
+            label = "Tab Font Size",
+            value = settings.ui.tabFontSize.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(tabFontSize = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 8 && intValue <= 20) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(tabFontSize = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 8f..20f,
-            steps = 11, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Tab font size in pixels (8-20)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Tab padding
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tab Padding",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.tabPadding}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.tabPadding}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.tabPadding.toFloat(),
+        InlineTextField(
+            label = "Tab Padding",
+            value = settings.ui.tabPadding.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(tabPadding = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 4 && intValue <= 24) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(tabPadding = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 4f..24f,
-            steps = 19, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Tab padding in pixels (4-24)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Tab corner radius
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tab Corner Radius",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.tabCornerRadius}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.tabCornerRadius}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.tabCornerRadius.toFloat(),
+        InlineTextField(
+            label = "Tab Corner Radius",
+            value = settings.ui.tabCornerRadius.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(tabCornerRadius = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 0 && intValue <= 16) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(tabCornerRadius = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 0f..16f,
-            steps = 15, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Tab corner radius in pixels (0-16)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Tab label font size
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Tab Label Font Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.tabLabelFontSize}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.tabLabelFontSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.tabLabelFontSize.toFloat(),
+        InlineTextField(
+            label = "Tab Label Font Size",
+            value = settings.ui.tabLabelFontSize.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(tabLabelFontSize = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 8 && intValue <= 16) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(tabLabelFontSize = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 8f..16f,
-            steps = 7, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Tab label font size in pixels (8-16)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Panel settings
-        Text(
-            text = "Panel Settings",
-            style = MaterialTheme.typography.titleMedium,
-            color = theme.TextPrimary
-        )
-
-        // Panel border width
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Panel Border Width",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.panelBorderWidth}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.panelBorderWidth}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.panelBorderWidth.toFloat(),
+        InlineTextField(
+            label = "Panel Border Width",
+            value = settings.ui.panelBorderWidth.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(panelBorderWidth = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 0 && intValue <= 4) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(panelBorderWidth = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 0f..4f,
-            steps = 3, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Panel border width in pixels (0-4)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // Panel padding
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Panel Padding",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.panelPadding}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.panelPadding}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.panelPadding.toFloat(),
+        InlineTextField(
+            label = "Panel Padding",
+            value = settings.ui.panelPadding.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(panelPadding = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 0 && intValue <= 24) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(panelPadding = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 0f..24f,
-            steps = 23, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "Panel padding in pixels (0-24)",
+            theme = theme
         )
 
-        Divider(color = theme.Border)
-
-        // File explorer font size
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "File Explorer Font Size",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                Text(
-                    text = "${settings.ui.fileExplorerFontSize}px",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = theme.TextSecondary
-                )
-            }
-            Text(
-                text = "${settings.ui.fileExplorerFontSize}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = theme.TextPrimary,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-        Slider(
-            value = settings.ui.fileExplorerFontSize.toFloat(),
+        InlineTextField(
+            label = "File Explorer Font Size",
+            value = settings.ui.fileExplorerFontSize.toString(),
             onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        ui = settings.ui.copy(fileExplorerFontSize = newValue.toInt())
-                    )
-                )
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 8 && intValue <= 20) {
+                        onSettingsChange(
+                            settings.copy(
+                                ui = settings.ui.copy(fileExplorerFontSize = intValue)
+                            )
+                        )
+                    }
+                }
             },
-            valueRange = 8f..20f,
-            steps = 11, // 1px increments
-            modifier = Modifier.fillMaxWidth()
+            description = "File explorer font size in pixels (8-20)",
+            theme = theme
         )
     }
 }
@@ -1440,7 +890,7 @@ private fun ColorSettings(
         Text(
             text = "Color values are stored as hex strings (e.g., #202020)",
             style = MaterialTheme.typography.bodySmall,
-            color = theme.TextSecondary
+                    color = theme.TextSecondary
         )
         
         // Background colors
@@ -1581,22 +1031,37 @@ private fun ColorSettings(
 }
 
 @Composable
-private fun ColorField(
+private fun InlineTextField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
+    description: String? = null,
     theme: ObsidianThemeValues
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+        }
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            label = { Text(label) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = theme.TextPrimary,
                 unfocusedTextColor = theme.TextPrimary,
@@ -1604,26 +1069,140 @@ private fun ColorField(
                 unfocusedBorderColor = theme.Border
             )
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(parseHexColor(value))
+    }
+}
+
+@Composable
+private fun InlineBooleanField(
+    label: String,
+    value: Boolean,
+    onValueChange: (Boolean) -> Unit,
+    description: String? = null,
+    theme: ObsidianThemeValues
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+        }
+        OutlinedTextField(
+            value = value.toString(),
+            onValueChange = { newValue ->
+                when (newValue.lowercase()) {
+                    "true" -> onValueChange(true)
+                    "false" -> onValueChange(false)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
         )
     }
 }
 
 @Composable
-private fun KeybindingsSettings(
+private fun InlineFloatField(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    description: String? = null,
     theme: ObsidianThemeValues
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = "Keybindings settings coming soon...",
-            style = MaterialTheme.typography.bodyMedium,
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
                     color = theme.TextSecondary
+                )
+            }
+        }
+        OutlinedTextField(
+            value = value.toString(),
+            onValueChange = { newValue ->
+                newValue.toFloatOrNull()?.let { floatValue ->
+                    onValueChange(floatValue)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
         )
     }
 }
+
+@Composable
+private fun ColorField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    theme: ObsidianThemeValues
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = theme.TextPrimary
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = theme.TextPrimary,
+                    unfocusedTextColor = theme.TextPrimary,
+                    focusedBorderColor = theme.Accent,
+                    unfocusedBorderColor = theme.Border
+                )
+            )
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(parseHexColor(value))
+            )
+        }
+    }
+}
+

@@ -39,7 +39,7 @@ val ragModule = module {
         val httpEngine: HttpClientEngine = get()
         HttpEmbedder(
             baseUrl = ragSettings.embeddingBaseUrl,
-            model = RagDefaults.Embedding.DEFAULT_MODEL,
+            model = ragSettings.embeddingModel,
             apiPath = "/api/embed",
             httpClientEngine = httpEngine
         )
@@ -66,7 +66,7 @@ val ragModule = module {
         val httpEngine: HttpClientEngine = get()
         HttpLlamaClient(
             baseUrl = ragSettings.llamaBaseUrl,
-            model = RagDefaults.DEFAULT_LLM.modelName,
+            model = ragSettings.llamaModel,
             apiPath = "/api/generate",
             httpClientEngine = httpEngine
         )
@@ -103,7 +103,7 @@ val ragModule = module {
                     modelName = rerankerModel!!
                 )
             } else {
-                val generatorModel = RagDefaults.DEFAULT_LLM.modelName
+                val generatorModel = ragSettings.llamaModel
                 if (rerankerModel != null) {
                     AppLogger.i("RagModule", "Dedicated reranker model '$rerankerModel' not found, falling back to generator LLM: $generatorModel")
                 } else {
@@ -133,8 +133,8 @@ val ragModule = module {
                 chromaCollectionName = ragSettings.chromaCollectionName,
                 chromaTenant = ragSettings.chromaTenant,
                 chromaDatabase = ragSettings.chromaDatabase,
-                llamaModel = RagDefaults.DEFAULT_LLM.modelName,
-                embeddingModel = RagDefaults.Embedding.DEFAULT_MODEL,
+                llamaModel = ragSettings.llamaModel,
+                embeddingModel = ragSettings.embeddingModel,
                 similarityThreshold = ragSettings.similarityThreshold,
                 maxK = ragSettings.maxK,
                 displayK = ragSettings.displayK,
@@ -220,8 +220,8 @@ val ragModule = module {
                         chromaCollectionName = ragSettings.chromaCollectionName,
                         chromaTenant = ragSettings.chromaTenant,
                         chromaDatabase = ragSettings.chromaDatabase,
-                        llamaModel = RagDefaults.DEFAULT_LLM.modelName,
-                        embeddingModel = RagDefaults.Embedding.DEFAULT_MODEL,
+                        llamaModel = ragSettings.llamaModel,
+                        embeddingModel = ragSettings.embeddingModel,
                         similarityThreshold = ragSettings.similarityThreshold,
                         maxK = ragSettings.maxK,
                         displayK = ragSettings.displayK,

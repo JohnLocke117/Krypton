@@ -888,6 +888,6 @@ enum class RightPanelType {
 }
 
 enum class SettingsCategory {
-    General, Editor, Appearance, UI, Colors, Keybindings, RAG
+    General, Editor, Appearance, UI, Colors, RAG
 }
 
