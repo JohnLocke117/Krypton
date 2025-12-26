@@ -46,6 +46,9 @@ object AppLogger {
     /**
      * Format and log a message with the specified severity.
      * 
+     * The actual formatting is handled by the LogWriter (e.g., CleanLogWriter),
+     * so we just pass the raw message to Kermit.
+     * 
      * @param severity Log severity level
      * @param tag Log tag
      * @param message Log message
@@ -58,32 +61,21 @@ object AppLogger {
         throwable: Throwable? = null
     ) {
         try {
-            val timestamp = getCurrentTimestamp()
-            val level = LoggerConfig.severityToShortLevel(severity)
-            val formattedMessage = LoggerConfig.formatLogMessage(
-                timestamp = timestamp,
-                level = level,
-                tag = tag,
-                message = message,
-                throwable = throwable,
-                severity = severity
-            )
-            
-            // Use Kermit's logging methods
+            // Use Kermit's logging methods - pass raw message, let LogWriter handle formatting
             val kermitLogger = getLogger().withTag(tag)
             when (severity) {
-                Severity.Verbose -> kermitLogger.v { formattedMessage }
-                Severity.Debug -> kermitLogger.d { formattedMessage }
-                Severity.Info -> kermitLogger.i { formattedMessage }
-                Severity.Warn -> kermitLogger.w { formattedMessage }
+                Severity.Verbose -> kermitLogger.v { message }
+                Severity.Debug -> kermitLogger.d { message }
+                Severity.Info -> kermitLogger.i { message }
+                Severity.Warn -> kermitLogger.w { message }
                 Severity.Error -> {
                     if (throwable != null) {
-                        kermitLogger.e(throwable) { formattedMessage }
+                        kermitLogger.e(throwable) { message }
                     } else {
-                        kermitLogger.e { formattedMessage }
+                        kermitLogger.e { message }
                     }
                 }
-                Severity.Assert -> kermitLogger.a { formattedMessage }
+                Severity.Assert -> kermitLogger.a { message }
             }
         } catch (e: Exception) {
             // Never crash - silently ignore logging errors
