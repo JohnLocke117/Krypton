@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.close
@@ -36,6 +37,7 @@ fun SettingsDialog(
     val selectedSettingsCategory by state.selectedSettingsCategory.collectAsState()
     var localSettings by remember { mutableStateOf(currentSettings) }
     var validationErrors by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isRefreshing by remember { mutableStateOf(false) }
     val theme = rememberObsidianTheme(currentSettings)
 
     // Update local settings when dialog opens or current settings change externally
@@ -43,6 +45,23 @@ fun SettingsDialog(
         if (settingsDialogOpen) {
             localSettings = currentSettings
             validationErrors = emptyList()
+        }
+    }
+    
+    // Persist settings immediately when changed (with debouncing)
+    LaunchedEffect(localSettings) {
+        if (settingsDialogOpen && localSettings != currentSettings) {
+            val validation = validateSettings(localSettings)
+            if (validation.isValid) {
+                delay(300) // Debounce 300ms
+                if (localSettings != currentSettings) { // Check again after delay
+                    try {
+                        settingsRepository.update { localSettings }
+                    } catch (e: Exception) {
+                        validationErrors = listOf(e.message ?: "Failed to save settings")
+                    }
+                }
+            }
         }
     }
 
@@ -71,7 +90,7 @@ fun SettingsDialog(
                     // Header
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        color = theme.SurfaceContainer
                     ) {
                         Row(
                             modifier = Modifier
@@ -83,7 +102,7 @@ fun SettingsDialog(
                             Text(
                                 text = "Settings",
                                 style = MaterialTheme.typography.headlineSmall,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = theme.TextPrimary
                             )
                             IconButton(
                                 onClick = onDismiss
@@ -92,7 +111,7 @@ fun SettingsDialog(
                                     painter = painterResource(Res.drawable.close),
                                     contentDescription = "Close",
                                     modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant)
+                                    colorFilter = ColorFilter.tint(theme.TextSecondary)
                                 )
                             }
                         }
@@ -109,17 +128,18 @@ fun SettingsDialog(
                             modifier = Modifier
                                 .width(200.dp)
                                 .fillMaxHeight(),
-                            color = MaterialTheme.colorScheme.background
+                            color = theme.Background
                         ) {
                             SettingsCategoryList(
                                 selectedCategory = selectedSettingsCategory,
                                 onCategorySelected = { state.selectSettingsCategory(it) },
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                theme = theme
                             )
                         }
 
                         Divider(
-                            color = MaterialTheme.colorScheme.outline,
+                            color = theme.Border,
                             modifier = Modifier.width(1.dp)
                         )
 
@@ -128,7 +148,7 @@ fun SettingsDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.surface)
+                                .background(theme.Surface)
                         ) {
                             SettingsContent(
                                 category = selectedSettingsCategory,
@@ -138,7 +158,8 @@ fun SettingsDialog(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .verticalScroll(rememberScrollState())
-                                    .padding(24.dp)
+                                    .padding(24.dp),
+                                theme = theme
                             )
                         }
                     }
@@ -147,7 +168,7 @@ fun SettingsDialog(
                     if (validationErrors.isNotEmpty()) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.errorContainer
+                            color = theme.BackgroundElevated
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
@@ -157,7 +178,7 @@ fun SettingsDialog(
                                     Text(
                                         text = error,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                        color = theme.TextPrimary
                                     )
                                 }
                             }
@@ -167,7 +188,7 @@ fun SettingsDialog(
                     // Footer - Action buttons
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        color = theme.SurfaceContainer
                     ) {
                         Row(
                             modifier = Modifier
@@ -176,16 +197,45 @@ fun SettingsDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(
-                                onClick = { onOpenSettingsJson() }
-                            ) {
-                                Text("Open Settings JSON")
+                            Row {
+                                TextButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            isRefreshing = true
+                                            try {
+                                                settingsRepository.reloadFromDisk()
+                                                localSettings = settingsRepository.settingsFlow.value
+                                                validationErrors = emptyList()
+                                            } catch (e: Exception) {
+                                                validationErrors = listOf(e.message ?: "Failed to reload settings")
+                                            } finally {
+                                                isRefreshing = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isRefreshing
+                                ) {
+                                    if (isRefreshing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    Text("Refresh")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                TextButton(
+                                    onClick = { onOpenSettingsJson() }
+                                ) {
+                                    Text("Open Settings JSON")
+                                }
                             }
                             Row {
                                 TextButton(
                                     onClick = onDismiss
                                 ) {
-                                    Text("Cancel")
+                                    Text("Close")
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Button(
@@ -205,10 +255,10 @@ fun SettingsDialog(
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
+                                        containerColor = theme.Accent
                                     )
                                 ) {
-                                    Text("Apply")
+                                    Text("Apply & Close")
                                 }
                             }
                         }
@@ -223,7 +273,8 @@ fun SettingsDialog(
 private fun SettingsCategoryList(
     selectedCategory: SettingsCategory,
     onCategorySelected: (SettingsCategory) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    theme: ObsidianThemeValues
 ) {
     Column(
         modifier = modifier
@@ -235,7 +286,8 @@ private fun SettingsCategoryList(
                 category = category,
                 isSelected = category == selectedCategory,
                 onClick = { onCategorySelected(category) },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                theme = theme
             )
         }
     }
@@ -246,14 +298,15 @@ private fun SettingsCategoryItem(
     category: SettingsCategory,
     isSelected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    theme: ObsidianThemeValues
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         color = if (isSelected) {
-            MaterialTheme.colorScheme.primaryContainer
+            theme.SelectionAccent
         } else {
             androidx.compose.ui.graphics.Color.Transparent
         }
@@ -262,9 +315,9 @@ private fun SettingsCategoryItem(
             text = category.name,
             style = MaterialTheme.typography.bodyLarge,
             color = if (isSelected) {
-                MaterialTheme.colorScheme.primary
+                theme.Accent
             } else {
-                MaterialTheme.colorScheme.onSurface
+                theme.TextPrimary
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -279,7 +332,8 @@ private fun SettingsContent(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
     onReindex: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    theme: ObsidianThemeValues
 ) {
     Column(
         modifier = modifier,
@@ -293,48 +347,54 @@ private fun SettingsContent(
                 else -> category.name
             },
             style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onSurface
+            color = theme.TextPrimary
         )
 
         when (category) {
             SettingsCategory.General -> {
                 GeneralSettings(
                     settings = settings,
-                    onSettingsChange = onSettingsChange
+                    onSettingsChange = onSettingsChange,
+                    theme = theme
                 )
             }
             SettingsCategory.Editor -> {
                 EditorSettingsContent(
                     settings = settings,
-                    onSettingsChange = onSettingsChange
+                    onSettingsChange = onSettingsChange,
+                    theme = theme
                 )
             }
             SettingsCategory.Appearance -> {
                 AppearanceSettings(
                     settings = settings,
-                    onSettingsChange = onSettingsChange
+                    onSettingsChange = onSettingsChange,
+                    theme = theme
                 )
             }
             SettingsCategory.UI -> {
                 UISettings(
                     settings = settings,
-                    onSettingsChange = onSettingsChange
+                    onSettingsChange = onSettingsChange,
+                    theme = theme
                 )
             }
             SettingsCategory.Colors -> {
                 ColorSettings(
                     settings = settings,
-                    onSettingsChange = onSettingsChange
+                    onSettingsChange = onSettingsChange,
+                    theme = theme
                 )
             }
             SettingsCategory.Keybindings -> {
-                KeybindingsSettings()
+                KeybindingsSettings(theme = theme)
             }
             SettingsCategory.RAG -> {
                 RagSettings(
                     settings = settings,
                     onSettingsChange = onSettingsChange,
-                    onReindex = { onReindex?.invoke() }
+                    onReindex = { onReindex?.invoke() },
+                    theme = theme
                 )
             }
         }
@@ -344,7 +404,8 @@ private fun SettingsContent(
 @Composable
 private fun GeneralSettings(
     settings: Settings,
-    onSettingsChange: (Settings) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    theme: ObsidianThemeValues
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -359,18 +420,18 @@ private fun GeneralSettings(
                 Text(
                     text = "Autosave Interval",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "Save changes automatically every ${settings.app.autosaveIntervalSeconds} seconds",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.app.autosaveIntervalSeconds}s",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -388,7 +449,7 @@ private fun GeneralSettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Telemetry
         Row(
@@ -400,12 +461,12 @@ private fun GeneralSettings(
                 Text(
                     text = "Telemetry",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "Enable usage analytics and error reporting",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Switch(
@@ -420,26 +481,26 @@ private fun GeneralSettings(
             )
         }
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Recent folders
         Text(
             text = "Recent Folders",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = theme.TextPrimary
         )
         if (settings.app.recentFolders.isEmpty()) {
             Text(
                 text = "No recent folders",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = theme.TextSecondary
             )
         } else {
             settings.app.recentFolders.forEach { folder ->
                 Text(
                     text = folder,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = theme.TextSecondary,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
@@ -450,7 +511,8 @@ private fun GeneralSettings(
 @Composable
 private fun EditorSettingsContent(
     settings: Settings,
-    onSettingsChange: (Settings) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    theme: ObsidianThemeValues
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -468,10 +530,10 @@ private fun EditorSettingsContent(
             label = { Text("Font Family") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
             )
         )
 
@@ -485,18 +547,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.editor.fontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.editor.fontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -514,7 +576,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Tab size
         Row(
@@ -526,18 +588,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Tab Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.editor.tabSize} spaces",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.editor.tabSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -555,7 +617,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Line numbers
         Row(
@@ -567,12 +629,12 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Line Numbers",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "Show line numbers in the editor",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Switch(
@@ -587,7 +649,7 @@ private fun EditorSettingsContent(
             )
         }
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Word wrap
         Row(
@@ -599,12 +661,12 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Word Wrap",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "Wrap long lines in the editor",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Switch(
@@ -619,7 +681,7 @@ private fun EditorSettingsContent(
             )
         }
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Line height
         Row(
@@ -631,18 +693,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Line Height",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.editor.lineHeight}x",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = String.format("%.1f", settings.editor.lineHeight),
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -660,7 +722,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Editor padding
         Row(
@@ -672,18 +734,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Editor Padding",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.editor.editorPadding}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.editor.editorPadding}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -701,7 +763,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Code block font size
         Row(
@@ -713,18 +775,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Code Block Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.editor.codeBlockFontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.editor.codeBlockFontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -742,7 +804,7 @@ private fun EditorSettingsContent(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Code span font size
         Row(
@@ -754,18 +816,18 @@ private fun EditorSettingsContent(
                 Text(
                     text = "Code Span Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.editor.codeSpanFontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.editor.codeSpanFontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -789,7 +851,8 @@ private fun EditorSettingsContent(
 @Composable
 private fun AppearanceSettings(
     settings: Settings,
-    onSettingsChange: (Settings) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    theme: ObsidianThemeValues
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -798,7 +861,7 @@ private fun AppearanceSettings(
         Text(
             text = "Theme",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = theme.TextPrimary
         )
         var expanded by remember { mutableStateOf(false) }
         val themes = listOf("dark", "light")
@@ -816,10 +879,10 @@ private fun AppearanceSettings(
                     .menuAnchor()
                     .fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    focusedTextColor = theme.TextPrimary,
+                    unfocusedTextColor = theme.TextPrimary,
+                    focusedBorderColor = theme.Accent,
+                    unfocusedBorderColor = theme.Border
                 )
             )
             ExposedDropdownMenu(
@@ -847,7 +910,8 @@ private fun AppearanceSettings(
 @Composable
 private fun UISettings(
     settings: Settings,
-    onSettingsChange: (Settings) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    theme: ObsidianThemeValues
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -856,7 +920,7 @@ private fun UISettings(
         Text(
             text = "Sidebar Widths",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            color = theme.TextPrimary
         )
         
         // Sidebar default width
@@ -869,18 +933,18 @@ private fun UISettings(
                 Text(
                     text = "Sidebar Default Width",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.ui.sidebarDefaultWidth}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.ui.sidebarDefaultWidth}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -897,13 +961,136 @@ private fun UISettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
+
+        // Sidebar min width
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Sidebar Min Width",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.sidebarMinWidth}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.sidebarMinWidth}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.sidebarMinWidth.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(sidebarMinWidth = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 100f..500f,
+            steps = 39, // 10px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Sidebar max width
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Sidebar Max Width",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.sidebarMaxWidth}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.sidebarMaxWidth}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.sidebarMaxWidth.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(sidebarMaxWidth = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 200f..800f,
+            steps = 59, // 10px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Ribbon width
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Ribbon Width",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.ribbonWidth}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.ribbonWidth}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.ribbonWidth.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(ribbonWidth = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 32f..80f,
+            steps = 47, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
 
         // Tab settings
         Text(
             text = "Tab Settings",
             style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            color = theme.TextPrimary
         )
 
         // Tab height
@@ -916,18 +1103,18 @@ private fun UISettings(
                 Text(
                     text = "Tab Height",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.ui.tabHeight}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.ui.tabHeight}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -945,7 +1132,7 @@ private fun UISettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Tab font sizes
         Row(
@@ -957,18 +1144,18 @@ private fun UISettings(
                 Text(
                     text = "Tab Font Size",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "${settings.ui.tabFontSize}px",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.ui.tabFontSize}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -985,39 +1172,458 @@ private fun UISettings(
             steps = 11, // 1px increments
             modifier = Modifier.fillMaxWidth()
         )
+
+        Divider(color = theme.Border)
+
+        // Tab padding
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tab Padding",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.tabPadding}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.tabPadding}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.tabPadding.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabPadding = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 4f..24f,
+            steps = 19, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Tab corner radius
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tab Corner Radius",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.tabCornerRadius}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.tabCornerRadius}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.tabCornerRadius.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabCornerRadius = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 0f..16f,
+            steps = 15, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Tab label font size
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Tab Label Font Size",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.tabLabelFontSize}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.tabLabelFontSize}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.tabLabelFontSize.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabLabelFontSize = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 8f..16f,
+            steps = 7, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Panel settings
+        Text(
+            text = "Panel Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+
+        // Panel border width
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Panel Border Width",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.panelBorderWidth}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.panelBorderWidth}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.panelBorderWidth.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(panelBorderWidth = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 0f..4f,
+            steps = 3, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Panel padding
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Panel Padding",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.panelPadding}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.panelPadding}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.panelPadding.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(panelPadding = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 0f..24f,
+            steps = 23, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // File explorer font size
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "File Explorer Font Size",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "${settings.ui.fileExplorerFontSize}px",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.ui.fileExplorerFontSize}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.ui.fileExplorerFontSize.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(fileExplorerFontSize = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 8f..20f,
+            steps = 11, // 1px increments
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @Composable
 private fun ColorSettings(
     settings: Settings,
-    onSettingsChange: (Settings) -> Unit
+    onSettingsChange: (Settings) -> Unit,
+    theme: ObsidianThemeValues
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Color customization coming soon. Edit colors directly in settings.json for now.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
             text = "Color values are stored as hex strings (e.g., #202020)",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = theme.TextSecondary
+        )
+        
+        // Background colors
+        Text(
+            text = "Background Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Background", settings.colors.background, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(background = newValue)))
+        }, theme)
+        ColorField("Background Elevated", settings.colors.backgroundElevated, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(backgroundElevated = newValue)))
+        }, theme)
+        ColorField("Background Hover", settings.colors.backgroundHover, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(backgroundHover = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Text colors
+        Text(
+            text = "Text Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Text Primary", settings.colors.textPrimary, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(textPrimary = newValue)))
+        }, theme)
+        ColorField("Text Secondary", settings.colors.textSecondary, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(textSecondary = newValue)))
+        }, theme)
+        ColorField("Text Tertiary", settings.colors.textTertiary, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(textTertiary = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Accent colors
+        Text(
+            text = "Accent Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Accent", settings.colors.accent, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(accent = newValue)))
+        }, theme)
+        ColorField("Accent Hover", settings.colors.accentHover, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(accentHover = newValue)))
+        }, theme)
+        ColorField("Accent Pressed", settings.colors.accentPressed, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(accentPressed = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Border colors
+        Text(
+            text = "Border Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Border", settings.colors.border, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(border = newValue)))
+        }, theme)
+        ColorField("Border Variant", settings.colors.borderVariant, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(borderVariant = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Surface colors
+        Text(
+            text = "Surface Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Surface", settings.colors.surface, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(surface = newValue)))
+        }, theme)
+        ColorField("Surface Variant", settings.colors.surfaceVariant, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(surfaceVariant = newValue)))
+        }, theme)
+        ColorField("Surface Container", settings.colors.surfaceContainer, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(surfaceContainer = newValue)))
+        }, theme)
+        ColorField("Selection", settings.colors.selection, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(selection = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Code colors
+        Text(
+            text = "Code Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Code Block Background", settings.colors.codeBlockBackground, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(codeBlockBackground = newValue)))
+        }, theme)
+        ColorField("Code Block Border", settings.colors.codeBlockBorder, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(codeBlockBorder = newValue)))
+        }, theme)
+        ColorField("Code Span Background", settings.colors.codeSpanBackground, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(codeSpanBackground = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Link colors
+        Text(
+            text = "Link Colors",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        ColorField("Link Color", settings.colors.linkColor, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(linkColor = newValue)))
+        }, theme)
+        ColorField("Link Hover", settings.colors.linkHover, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(linkHover = newValue)))
+        }, theme)
+        
+        Divider(color = theme.Border)
+        
+        // Blockquote
+        ColorField("Blockquote Background", settings.colors.blockquoteBackground, { newValue ->
+            onSettingsChange(settings.copy(colors = settings.colors.copy(blockquoteBackground = newValue)))
+        }, theme)
+    }
+}
+
+@Composable
+private fun ColorField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    theme: ObsidianThemeValues
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier = Modifier.weight(1f),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(parseHexColor(value))
         )
     }
 }
 
 @Composable
-private fun KeybindingsSettings() {
+private fun KeybindingsSettings(
+    theme: ObsidianThemeValues
+) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = "Keybindings settings coming soon...",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
         )
     }
 }

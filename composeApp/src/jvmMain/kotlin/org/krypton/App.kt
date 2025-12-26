@@ -239,11 +239,7 @@ private fun AppContent(
                                 val deltaDp = with(density) { deltaPx.toDp().value }
                                 totalDragDp += deltaDp
                                 val newWidth = dragStartWidth + totalDragDp
-                                editorStateHolder.updateLeftSidebarWidth(
-                                    newWidth,
-                                    minWidth = settings.ui.sidebarMinWidth.toDouble(),
-                                    maxWidth = settings.ui.sidebarMaxWidth.toDouble()
-                                )
+                                editorStateHolder.updateLeftSidebarWidth(newWidth)
                             },
                             theme = theme,
                             onDragStart = {
@@ -293,11 +289,7 @@ private fun AppContent(
                                 totalDragDp += deltaDp
                                 // For right panel, dragging left (negative delta) increases width
                                 val newWidth = dragStartWidth - totalDragDp
-                                editorStateHolder.updateRightSidebarWidth(
-                                    newWidth,
-                                    minWidth = settings.ui.sidebarMinWidth.toDouble(),
-                                    maxWidth = settings.ui.sidebarMaxWidth.toDouble()
-                                )
+                                editorStateHolder.updateRightSidebarWidth(newWidth)
                             },
                             theme = theme,
                             onDragStart = {

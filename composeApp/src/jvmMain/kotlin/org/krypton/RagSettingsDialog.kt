@@ -15,7 +15,8 @@ import org.krypton.VectorBackend
 fun RagSettings(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
-    onReindex: () -> Unit
+    onReindex: () -> Unit,
+    theme: ObsidianThemeValues
 ) {
     val coroutineScope = rememberCoroutineScope()
     
@@ -26,7 +27,7 @@ fun RagSettings(
         Text(
             text = "Vector Backend",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = theme.TextPrimary
         )
         var expanded by remember { mutableStateOf(false) }
         val backends = VectorBackend.values()
@@ -44,10 +45,10 @@ fun RagSettings(
                     .menuAnchor()
                     .fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    focusedTextColor = theme.TextPrimary,
+                    unfocusedTextColor = theme.TextPrimary,
+                    focusedBorderColor = theme.Accent,
+                    unfocusedBorderColor = theme.Border
                 )
             )
             ExposedDropdownMenu(
@@ -70,7 +71,7 @@ fun RagSettings(
             }
         }
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Llama Base URL
         OutlinedTextField(
@@ -85,10 +86,10 @@ fun RagSettings(
             label = { Text("Llama Base URL") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
             )
         )
 
@@ -105,14 +106,99 @@ fun RagSettings(
             label = { Text("Embedding Base URL") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
             )
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
+
+        // ChromaDB Settings
+        Text(
+            text = "ChromaDB Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+
+        OutlinedTextField(
+            value = settings.rag.chromaBaseUrl,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaBaseUrl = newValue)
+                    )
+                )
+            },
+            label = { Text("ChromaDB Base URL") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+
+        OutlinedTextField(
+            value = settings.rag.chromaCollectionName,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaCollectionName = newValue)
+                    )
+                )
+            },
+            label = { Text("ChromaDB Collection Name") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+
+        OutlinedTextField(
+            value = settings.rag.chromaTenant,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaTenant = newValue)
+                    )
+                )
+            },
+            label = { Text("ChromaDB Tenant") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+
+        OutlinedTextField(
+            value = settings.rag.chromaDatabase,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaDatabase = newValue)
+                    )
+                )
+            },
+            label = { Text("ChromaDB Database") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+
+        Divider(color = theme.Border)
 
         // Top-K
         Row(
@@ -124,18 +210,18 @@ fun RagSettings(
                 Text(
                     text = "Top-K",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "Number of chunks to retrieve: ${settings.rag.topK}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Text(
                 text = "${settings.rag.topK}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = theme.TextPrimary,
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -153,7 +239,216 @@ fun RagSettings(
             modifier = Modifier.fillMaxWidth()
         )
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
+
+        // Similarity Threshold
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Similarity Threshold",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "Minimum similarity score: ${String.format("%.2f", settings.rag.similarityThreshold)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = String.format("%.2f", settings.rag.similarityThreshold),
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.rag.similarityThreshold,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(similarityThreshold = newValue)
+                    )
+                )
+            },
+            valueRange = 0f..1f,
+            steps = 99, // 0.01 increments
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Max-K
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Max-K",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "Maximum chunks to retrieve: ${settings.rag.maxK}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.rag.maxK}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.rag.maxK.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(maxK = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 1f..50f,
+            steps = 48, // 1 increment
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Display-K
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Display-K",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "Number of chunks to display: ${settings.rag.displayK}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Text(
+                text = "${settings.rag.displayK}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+        Slider(
+            value = settings.rag.displayK.toFloat(),
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(displayK = newValue.toInt())
+                    )
+                )
+            },
+            valueRange = 1f..20f,
+            steps = 18, // 1 increment
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Divider(color = theme.Border)
+
+        // Query Rewriting
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Query Rewriting",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "Enable query rewriting for better retrieval",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Switch(
+                checked = settings.rag.queryRewritingEnabled,
+                onCheckedChange = { enabled ->
+                    onSettingsChange(
+                        settings.copy(
+                            rag = settings.rag.copy(queryRewritingEnabled = enabled)
+                        )
+                    )
+                }
+            )
+        }
+
+        Divider(color = theme.Border)
+
+        // Multi-Query
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Multi-Query",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = theme.TextPrimary
+                )
+                Text(
+                    text = "Enable multi-query generation",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+            Switch(
+                checked = settings.rag.multiQueryEnabled,
+                onCheckedChange = { enabled ->
+                    onSettingsChange(
+                        settings.copy(
+                            rag = settings.rag.copy(multiQueryEnabled = enabled)
+                        )
+                    )
+                }
+            )
+        }
+
+        Divider(color = theme.Border)
+
+        // Reranker Model
+        OutlinedTextField(
+            value = settings.rag.rerankerModel ?: "",
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(rerankerModel = newValue.ifBlank { null })
+                    )
+                )
+            },
+            label = { Text("Reranker Model (optional)") },
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = theme.Accent,
+                unfocusedBorderColor = theme.Border
+            )
+        )
+
+        Divider(color = theme.Border)
 
         // RAG Enabled
         Row(
@@ -165,12 +460,12 @@ fun RagSettings(
                 Text(
                     text = "RAG Enabled",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = theme.TextPrimary
                 )
                 Text(
                     text = "Enable RAG for chat responses",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = theme.TextSecondary
                 )
             }
             Switch(
@@ -185,7 +480,7 @@ fun RagSettings(
             )
         }
 
-        Divider(color = MaterialTheme.colorScheme.outline)
+        Divider(color = theme.Border)
 
         // Reindex Button
         Button(
@@ -196,7 +491,7 @@ fun RagSettings(
             },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = theme.Accent
             )
         ) {
             Text("Reindex Notes")

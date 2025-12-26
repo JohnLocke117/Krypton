@@ -8,8 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.krypton.config.UiDefaults
 import org.krypton.core.domain.editor.*
 import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
@@ -41,11 +43,41 @@ class EditorStateHolder(
     private val _rightSidebarVisible = MutableStateFlow(true)
     val rightSidebarVisible: StateFlow<Boolean> = _rightSidebarVisible.asStateFlow()
     
-    private val _leftSidebarWidth = MutableStateFlow(280.0)
+    // Initialize sidebar widths from Settings, with fallback to defaults
+    private val initialLeftWidth = settingsRepository?.settingsFlow?.value?.ui?.sidebarDefaultWidth?.toDouble() 
+        ?: UiDefaults.DEFAULT_SIDEBAR_DEFAULT_WIDTH.toDouble()
+    private val initialRightWidth = settingsRepository?.settingsFlow?.value?.ui?.sidebarMaxWidth?.toDouble()
+        ?: UiDefaults.DEFAULT_SIDEBAR_MAX_WIDTH.toDouble()
+    
+    private val _leftSidebarWidth = MutableStateFlow(initialLeftWidth)
     val leftSidebarWidth: StateFlow<Double> = _leftSidebarWidth.asStateFlow()
     
-    private val _rightSidebarWidth = MutableStateFlow(400.0) // Default to max width
+    private val _rightSidebarWidth = MutableStateFlow(initialRightWidth)
     val rightSidebarWidth: StateFlow<Double> = _rightSidebarWidth.asStateFlow()
+    
+    init {
+        // Observe Settings changes and update sidebar widths accordingly
+        settingsRepository?.let { repo ->
+            coroutineScope.launch {
+                repo.settingsFlow.collectLatest { settings ->
+                    // Update left sidebar width if default width changed
+                    val newLeftWidth = settings.ui.sidebarDefaultWidth.toDouble()
+                    if (_leftSidebarWidth.value != newLeftWidth) {
+                        // Coerce to valid range
+                        val minWidth = settings.ui.sidebarMinWidth.toDouble()
+                        val maxWidth = settings.ui.sidebarMaxWidth.toDouble()
+                        _leftSidebarWidth.value = newLeftWidth.coerceIn(minWidth, maxWidth)
+                    }
+                    
+                    // Update right sidebar width if max width changed and current width exceeds new max
+                    val newMaxWidth = settings.ui.sidebarMaxWidth.toDouble()
+                    if (_rightSidebarWidth.value > newMaxWidth) {
+                        _rightSidebarWidth.value = newMaxWidth
+                    }
+                }
+            }
+        }
+    }
     
     private val _activeRibbonButton = MutableStateFlow(RibbonButton.Files)
     val activeRibbonButton: StateFlow<RibbonButton> = _activeRibbonButton.asStateFlow()
@@ -405,11 +437,17 @@ class EditorStateHolder(
         AppLogger.action("RightSidebar", if (_rightSidebarVisible.value) "Opened" else "Closed")
     }
     
-    fun updateLeftSidebarWidth(width: Double, minWidth: Double = 200.0, maxWidth: Double = 400.0) {
+    fun updateLeftSidebarWidth(width: Double) {
+        val settings = settingsRepository?.settingsFlow?.value
+        val minWidth = settings?.ui?.sidebarMinWidth?.toDouble() ?: UiDefaults.DEFAULT_SIDEBAR_MIN_WIDTH.toDouble()
+        val maxWidth = settings?.ui?.sidebarMaxWidth?.toDouble() ?: UiDefaults.DEFAULT_SIDEBAR_MAX_WIDTH.toDouble()
         _leftSidebarWidth.value = width.coerceIn(minWidth, maxWidth)
     }
     
-    fun updateRightSidebarWidth(width: Double, minWidth: Double = 200.0, maxWidth: Double = 400.0) {
+    fun updateRightSidebarWidth(width: Double) {
+        val settings = settingsRepository?.settingsFlow?.value
+        val minWidth = settings?.ui?.sidebarMinWidth?.toDouble() ?: UiDefaults.DEFAULT_SIDEBAR_MIN_WIDTH.toDouble()
+        val maxWidth = settings?.ui?.sidebarMaxWidth?.toDouble() ?: UiDefaults.DEFAULT_SIDEBAR_MAX_WIDTH.toDouble()
         _rightSidebarWidth.value = width.coerceIn(minWidth, maxWidth)
     }
     
@@ -423,8 +461,10 @@ class EditorStateHolder(
         AppLogger.action("RightPanel", "Switched", type.name)
         if (!_rightSidebarVisible.value) {
             _rightSidebarVisible.value = true
-            // Set to max width when first opening
-            _rightSidebarWidth.value = 400.0 // Default max width
+            // Set to max width when first opening, using Settings value
+            val settings = settingsRepository?.settingsFlow?.value
+            val maxWidth = settings?.ui?.sidebarMaxWidth?.toDouble() ?: UiDefaults.DEFAULT_SIDEBAR_MAX_WIDTH.toDouble()
+            _rightSidebarWidth.value = maxWidth
         }
     }
     
