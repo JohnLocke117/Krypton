@@ -61,7 +61,7 @@ class HttpEmbedder(
     @Serializable
     private data class EmbeddingResponse(
         val model: String? = null,
-        val embeddings: List<List<Float>>,
+        val embeddings: List<List<Float>>? = null,
         val error: String? = null
     )
     
@@ -120,16 +120,42 @@ class HttpEmbedder(
                     input = prefixedTexts
                 )
                 
-                val response: EmbeddingResponse = client.post(url) {
-                    contentType(ContentType.Application.Json)
-                    setBody(request)
-                }.body()
+                // Make HTTP call and try to deserialize response
+                val response: EmbeddingResponse = try {
+                    client.post(url) {
+                        contentType(ContentType.Application.Json)
+                        setBody(request)
+                    }.body<EmbeddingResponse>()
+                } catch (e: kotlinx.serialization.SerializationException) {
+                    // If deserialization fails, get raw response body for debugging
+                    val rawResponseBody = try {
+                        client.post(url) {
+                            contentType(ContentType.Application.Json)
+                            setBody(request)
+                        }.body<String>()
+                    } catch (e2: Exception) {
+                        "Failed to read response body: ${e2.message}"
+                    }
+                    
+                    AppLogger.e("HttpEmbedder", "Failed to deserialize embedding API response. Raw response: $rawResponseBody", e)
+                    
+                    // Check if it's an error response
+                    val errorMsg = if (rawResponseBody.contains("\"error\"") || rawResponseBody.contains("\"error\"")) {
+                        "Embedding API returned an error response. Raw response: $rawResponseBody"
+                    } else if (rawResponseBody.contains("model") && (rawResponseBody.contains("not found") || rawResponseBody.contains("404"))) {
+                        "Embedding model not found or unavailable: $model. Raw response: $rawResponseBody"
+                    } else {
+                        "Embedding API response format is invalid or missing 'embeddings' field. Model: $model. Raw response: $rawResponseBody"
+                    }
+                    
+                    throw EmbeddingException(errorMsg, e)
+                }
                 
                 if (response.error != null) {
                     val errorMsg = response.error.lowercase()
                     val finalError = if (errorMsg.contains("model") || errorMsg.contains("not found") || 
                         errorMsg.contains("invalid") || errorMsg.contains("404")) {
-                        "Model error: ${response.error}. Please check model name."
+                        "Model error: ${response.error}. Please check model name: $model"
                     } else {
                         "Embedding API returned error: ${response.error}"
                     }
@@ -137,15 +163,20 @@ class HttpEmbedder(
                     throw EmbeddingException(finalError)
                 }
                 
+                // Verify response has embeddings field
+                if (response.embeddings == null) {
+                    throw EmbeddingException("Embedding API response is missing 'embeddings' field. Model: $model. This may indicate the model is not available or the API format has changed.")
+                }
+                
                 // Verify response has embeddings
                 if (response.embeddings.isEmpty()) {
-                    throw EmbeddingException("No embeddings found in API response")
+                    throw EmbeddingException("No embeddings found in API response. Model: $model")
                 }
                 
                 // Verify embeddings count matches input texts count
                 if (response.embeddings.size != texts.size) {
                     throw EmbeddingException(
-                        "Embedding count mismatch: expected ${texts.size}, got ${response.embeddings.size}"
+                        "Embedding count mismatch: expected ${texts.size}, got ${response.embeddings.size}. Model: $model"
                     )
                 }
                 
@@ -157,7 +188,7 @@ class HttpEmbedder(
                     AppLogger.d("HttpEmbedder", "Embedding[$index] size: ${embedding.size} dimensions")
                 }
                 
-                AppLogger.i("HttpEmbedder", "Embedding request succeeded: generated ${embeddings.size} embeddings")
+                AppLogger.i("HttpEmbedder", "Embedding request succeeded: generated ${embeddings.size} embeddings, model: $model")
                 return@withContext embeddings
             } catch (e: Exception) {
                 lastException = e
@@ -165,14 +196,14 @@ class HttpEmbedder(
                 
                 if (retryCount <= maxRetries) {
                     val delayMs = initialRetryDelayMs * (1 shl (retryCount - 1)) // Exponential backoff
-                    AppLogger.w("HttpEmbedder", "Embedding request failed (attempt $retryCount/$maxRetries), retrying in ${delayMs}ms: ${e.message}", e)
+                    AppLogger.w("HttpEmbedder", "Embedding request failed (attempt $retryCount/$maxRetries), retrying in ${delayMs}ms: ${e.message}, model: $model", e)
                     delay(delayMs)
                 } else {
                     // Final failure after all retries
                     val errorMsg = if (e is EmbeddingException) {
                         e.message ?: "Embedding failed"
                     } else {
-                        "Failed to generate embeddings after $maxRetries retries: ${e.message}"
+                        "Failed to generate embeddings after $maxRetries retries: ${e.message}. Model: $model"
                     }
                     AppLogger.e("HttpEmbedder", errorMsg, e)
                     throw EmbeddingException(errorMsg, e)

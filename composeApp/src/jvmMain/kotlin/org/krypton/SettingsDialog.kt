@@ -4,7 +4,9 @@ import org.krypton.ui.state.SettingsCategory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -15,6 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -48,37 +55,66 @@ fun SettingsDialog(
         }
     }
     
-    // Persist settings immediately when changed (with debouncing)
-    LaunchedEffect(localSettings) {
-        if (settingsDialogOpen && localSettings != currentSettings) {
-            val validation = validateSettings(localSettings)
-            if (validation.isValid) {
-                delay(300) // Debounce 300ms
-                if (localSettings != currentSettings) { // Check again after delay
-                    try {
-                        settingsRepository.update { localSettings }
-                    } catch (e: Exception) {
-                        validationErrors = listOf(e.message ?: "Failed to save settings")
-                    }
-                }
+    // Function to apply settings (updates repository which triggers UI updates)
+    suspend fun applySettings(): Boolean {
+        val validation = validateSettings(localSettings)
+        if (validation.isValid) {
+            try {
+                settingsRepository.update { localSettings }
+                validationErrors = emptyList()
+                return true
+            } catch (e: Exception) {
+                validationErrors = listOf(e.message ?: "Failed to apply settings")
+                return false
             }
+        } else {
+            validationErrors = validation.errors
+            return false
         }
     }
 
     if (settingsDialogOpen) {
-        // Backdrop
+        // Backdrop - only handle mouse clicks, not keyboard events
+        // Use pointerInput instead of clickable to prevent space bar from triggering clicks
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.5f))
-                .clickable(onClick = onDismiss),
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        onDismiss()
+                    }
+                }
+                .onKeyEvent { 
+                    // Don't handle keyboard events on backdrop - let them go to dialog content
+                    // This prevents space bar from triggering backdrop click
+                    false 
+                },
             contentAlignment = Alignment.Center
         ) {
-            // Dialog content
+            // Dialog content - prevent clicks from propagating to backdrop
             Card(
                 modifier = modifier
                     .fillMaxWidth(0.8f)
-                    .fillMaxHeight(0.9f),
+                    .fillMaxHeight(0.9f)
+                    .clickable(enabled = false, onClick = { /* Prevent click-through to backdrop */ })
+                    .onKeyEvent { event ->
+                        // Handle keyboard events - only Escape closes, all others pass through
+                        if (event.type == KeyEventType.KeyDown) {
+                            when (event.key) {
+                                Key.Escape -> {
+                                    onDismiss()
+                                    true
+                                }
+                                else -> {
+                                    // Don't consume other keys - let text fields handle them
+                                    false
+                                }
+                            }
+                        } else {
+                            false
+                        }
+                    },
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = theme.BackgroundElevated
@@ -159,7 +195,8 @@ fun SettingsDialog(
                                     .fillMaxSize()
                                     .verticalScroll(rememberScrollState())
                                     .padding(24.dp),
-                                theme = theme
+                                theme = theme,
+                                settingsRepository = settingsRepository
                             )
                         }
                     }
@@ -232,33 +269,36 @@ fun SettingsDialog(
                                 }
                             }
                             Row {
-                                TextButton(
-                                    onClick = onDismiss
-                                ) {
-                                    Text("Close")
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                // Apply button - applies settings but doesn't close
                                 Button(
                                     onClick = {
-                                        val validation = validateSettings(localSettings)
-                                        if (validation.isValid) {
-                                            coroutineScope.launch {
-                                                try {
-                                                    settingsRepository.update { localSettings }
-                                                    onDismiss()
-                                                } catch (e: Exception) {
-                                                    validationErrors = listOf(e.message ?: "Failed to save settings")
-                                                }
+                                        coroutineScope.launch {
+                                            applySettings()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = theme.Accent.copy(alpha = 0.8f)
+                                    )
+                                ) {
+                                    Text("Apply")
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                // Save button - applies settings and closes
+                                Button(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            val success = applySettings()
+                                            // Only close if settings were successfully applied
+                                            if (success) {
+                                                onDismiss()
                                             }
-                                        } else {
-                                            validationErrors = validation.errors
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = theme.Accent
                                     )
                                 ) {
-                                    Text("Apply & Close")
+                                    Text("Save")
                                 }
                             }
                         }
@@ -333,7 +373,8 @@ private fun SettingsContent(
     onSettingsChange: (Settings) -> Unit,
     onReindex: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    theme: ObsidianThemeValues
+    theme: ObsidianThemeValues,
+    settingsRepository: org.krypton.data.repository.SettingsRepository
 ) {
     Column(
         modifier = modifier,
@@ -355,7 +396,8 @@ private fun SettingsContent(
                 GeneralSettings(
                     settings = settings,
                     onSettingsChange = onSettingsChange,
-                    theme = theme
+                    theme = theme,
+                    settingsRepository = settingsRepository
                 )
             }
             SettingsCategory.Editor -> {
@@ -402,11 +444,65 @@ private fun SettingsContent(
 private fun GeneralSettings(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
-    theme: ObsidianThemeValues
+    theme: ObsidianThemeValues,
+    settingsRepository: org.krypton.data.repository.SettingsRepository
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    val currentSettingsFilePath = remember { 
+        org.krypton.data.repository.impl.SettingsConfigManager.getSettingsFilePath()
+    }
+    var settingsFilePath by remember { mutableStateOf(currentSettingsFilePath) }
+    
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Settings file path
+        Text(
+            text = "Settings File",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = settingsFilePath,
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            Button(
+                onClick = {
+                    org.krypton.openSettingsFileDialog { selectedPath ->
+                        selectedPath?.let { path ->
+                            val pathString = path.toString()
+                            if (org.krypton.data.repository.impl.SettingsConfigManager.setSettingsFilePath(pathString)) {
+                                settingsFilePath = pathString
+                                // Reload settings from the new file
+                                coroutineScope.launch {
+                                    settingsRepository.reloadFromDisk()
+                                }
+                            }
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = theme.Accent
+                )
+            ) {
+                Text("Browse...")
+            }
+        }
+        Text(
+            text = "Select the settings.json file to use. Changes will be saved to this file.",
+            style = MaterialTheme.typography.bodySmall,
+            color = theme.TextTertiary
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
         // Autosave interval
         InlineTextField(
             label = "Autosave Interval (seconds)",

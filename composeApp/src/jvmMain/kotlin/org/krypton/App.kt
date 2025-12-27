@@ -134,7 +134,14 @@ fun App() {
                 modifier = Modifier
                     .fillMaxSize()
                     .background(CatppuccinMochaColors.Base)
-                    .onKeyEvent { handleKeyboardShortcut(it, editorStateHolder) }
+                    .onKeyEvent { event ->
+                        // Don't process keyboard shortcuts when settings dialog is open
+                        if (!settingsDialogOpen) {
+                            handleKeyboardShortcut(event, editorStateHolder)
+                        } else {
+                            false // Let text fields handle the events
+                        }
+                    }
             ) {
                 AppContent(
                     editorStateHolder = editorStateHolder,
@@ -307,6 +314,7 @@ private fun AppContent(
                         state = editorStateHolder,
                         theme = theme,
                         chatStateHolder = chatStateHolder,
+                        settings = settings,
                         modifier = Modifier.fillMaxHeight()
                     )
                 }
@@ -461,6 +469,26 @@ fun openFolderDialog(onResult: (java.nio.file.Path?) -> Unit) {
     val fileChooser = JFileChooser(FileSystemView.getFileSystemView().homeDirectory)
     fileChooser.fileSelectionMode = JFileChooser.FILES_AND_DIRECTORIES
     fileChooser.dialogTitle = "Select Folder or File"
+    
+    val result = fileChooser.showOpenDialog(null)
+    if (result == JFileChooser.APPROVE_OPTION) {
+        val selectedFile = fileChooser.selectedFile
+        onResult(selectedFile.toPath())
+    } else {
+        onResult(null)
+    }
+}
+
+fun openSettingsFileDialog(onResult: (java.nio.file.Path?) -> Unit) {
+    val fileChooser = JFileChooser(FileSystemView.getFileSystemView().homeDirectory)
+    fileChooser.fileSelectionMode = JFileChooser.FILES_ONLY
+    fileChooser.dialogTitle = "Select Settings JSON File"
+    fileChooser.fileFilter = object : javax.swing.filechooser.FileFilter() {
+        override fun accept(f: java.io.File): Boolean {
+            return f.isDirectory || f.name.lowercase().endsWith(".json")
+        }
+        override fun getDescription(): String = "JSON Files (*.json)"
+    }
     
     val result = fileChooser.showOpenDialog(null)
     if (result == JFileChooser.APPROVE_OPTION) {

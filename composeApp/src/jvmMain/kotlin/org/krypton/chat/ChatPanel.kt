@@ -56,6 +56,7 @@ fun ChatPanel(
     chatStateHolder: org.krypton.ui.state.ChatStateHolder,
     editorStateHolder: EditorStateHolder? = null,
     theme: ObsidianThemeValues,
+    settings: org.krypton.Settings,
     modifier: Modifier = Modifier
 ) {
     val messages by chatStateHolder.messages.collectAsState()
@@ -308,6 +309,7 @@ fun ChatPanel(
             messages = displayMessages,
             isLoading = isLoading,
             theme = theme,
+            settings = settings,
             modifier = Modifier.weight(1f)
         )
 
@@ -743,8 +745,8 @@ fun ChatPanel(
                                 )
                                 optimisticUserMessage = optimisticMessage
                                 
-                                // Send message with current retrieval mode
-                                chatStateHolder.sendMessage(messageText, retrievalMode)
+                                // Send message with current retrieval mode and vault path
+                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath)
                             }
                         }
                     ) {

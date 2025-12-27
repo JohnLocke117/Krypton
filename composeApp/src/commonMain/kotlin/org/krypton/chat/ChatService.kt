@@ -16,13 +16,15 @@ interface ChatService {
      * @param message The user's message
      * @param mode The retrieval mode to use (NONE, RAG, WEB, or HYBRID)
      * @param threadId Optional thread/conversation ID for multi-threaded conversations
+     * @param vaultPath Optional path to the currently opened vault/folder for agent context
      * @return ChatResponse containing the assistant's message and metadata
      * @throws ChatException if the chat operation fails (e.g., LLM error, retrieval failure, network error)
      */
     suspend fun sendMessage(
         message: String,
         mode: RetrievalMode,
-        threadId: String? = null
+        threadId: String? = null,
+        vaultPath: String? = null
     ): ChatResponse
 }
 

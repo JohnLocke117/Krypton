@@ -22,6 +22,9 @@ import org.krypton.util.createIdGenerator
 import org.krypton.util.createTimeProvider
 import org.krypton.util.AppLogger
 import org.krypton.rag.RagException
+import org.krypton.chat.agent.ChatAgent
+import org.krypton.chat.agent.AgentContext
+import org.krypton.chat.agent.AgentResult
 import java.io.IOException
 
 /**
@@ -35,6 +38,7 @@ class OllamaChatService(
     private val promptBuilder: PromptBuilder,
     private val retrievalService: RetrievalService?,
     private val settingsRepository: SettingsRepository,
+    private val createNoteAgent: ChatAgent? = null,
     private val idGenerator: IdGenerator = createIdGenerator(),
     private val timeProvider: TimeProvider = createTimeProvider()
 ) : ChatService {
@@ -42,11 +46,62 @@ class OllamaChatService(
     override suspend fun sendMessage(
         message: String,
         mode: RetrievalMode,
-        threadId: String?
+        threadId: String?,
+        vaultPath: String?
     ): ChatResponse = withContext(Dispatchers.IO) {
         AppLogger.action("Chat", "MessageSent", "mode=$mode, length=${message.length}")
         
         try {
+            // Check agents before normal flow
+            val agentResult = createNoteAgent?.let { agent ->
+                try {
+                    val context = AgentContext(
+                        currentVaultPath = vaultPath,
+                        settings = settingsRepository.settingsFlow.value
+                    )
+                    // For MVP, pass empty history (can enhance later)
+                    agent.tryHandle(message, emptyList(), context)
+                } catch (e: Exception) {
+                    AppLogger.e("Chat", "Agent error (continuing with normal flow): ${e.message}", e)
+                    null
+                }
+            }
+            
+            // If agent handled the message, convert result to ChatResponse
+            if (agentResult != null) {
+                return@withContext when (agentResult) {
+                    is AgentResult.NoteCreated -> {
+                        val responseText = buildString {
+                            appendLine("Created a new note:")
+                            appendLine()
+                            appendLine("- **Title:** ${agentResult.title}")
+                            appendLine("- **File:** `${agentResult.filePath}`")
+                            appendLine()
+                            appendLine("**Preview:**")
+                            appendLine("```markdown")
+                            appendLine(agentResult.preview)
+                            appendLine("```")
+                        }
+                        
+                        val assistantMessage = ChatMessage(
+                            id = idGenerator.generateId(),
+                            role = ChatRole.ASSISTANT,
+                            content = responseText,
+                            timestamp = timeProvider.currentTimeMillis()
+                        )
+                        
+                        ChatResponse(
+                            message = assistantMessage,
+                            retrievalMode = mode,
+                            metadata = ChatResponseMetadata(
+                                sources = emptyList(),
+                                additionalInfo = mapOf("agent" to "CreateNoteAgent", "action" to "note_created")
+                            )
+                        )
+                    }
+                }
+            }
+            
             // Retrieve context if mode requires it
             val retrievalCtx = if (mode != RetrievalMode.NONE && retrievalService != null) {
                 retrievalService.retrieve(message, mode)

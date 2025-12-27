@@ -18,9 +18,10 @@ class RagChatService(
     override suspend fun sendMessage(
         message: String,
         mode: RetrievalMode,
-        threadId: String?
+        threadId: String?,
+        vaultPath: String?
     ): ChatResponse {
-        return delegate.sendMessage(message, mode, threadId)
+        return delegate.sendMessage(message, mode, threadId, vaultPath)
     }
 }
 

@@ -1,7 +1,9 @@
 package org.krypton.di
 
 import org.krypton.chat.ChatService
+import org.krypton.chat.agent.CreateNoteAgent
 import org.krypton.data.chat.impl.OllamaChatService
+import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.prompt.PromptBuilder
 import org.krypton.prompt.impl.DefaultPromptBuilder
@@ -89,6 +91,16 @@ val chatModule = module {
         }
     }
     
+    // CreateNoteAgent (for note creation functionality)
+    // All dependencies (LlamaClient, FileSystem, SettingsRepository) are always available
+    single<CreateNoteAgent> {
+        CreateNoteAgent(
+            llamaClient = get(),
+            fileSystem = get(),
+            settingsRepository = get()
+        )
+    }
+    
     // ChatService
     single<ChatService> {
         val llamaClient: LlamaClient = get()
@@ -99,13 +111,19 @@ val chatModule = module {
             null
         }
         val settingsRepository: SettingsRepository = get()
+        val createNoteAgent: CreateNoteAgent? = try {
+            get<CreateNoteAgent>()
+        } catch (e: Exception) {
+            null
+        }
         
         // OllamaChatService now handles retrieval internally
         OllamaChatService(
             llamaClient = llamaClient,
             promptBuilder = promptBuilder,
             retrievalService = retrievalService,
-            settingsRepository = settingsRepository
+            settingsRepository = settingsRepository,
+            createNoteAgent = createNoteAgent
         )
     }
 }

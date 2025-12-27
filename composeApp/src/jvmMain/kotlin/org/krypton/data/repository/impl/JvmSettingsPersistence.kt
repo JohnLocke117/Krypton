@@ -18,14 +18,7 @@ object JvmSettingsPersistence : SettingsPersistence {
     }
 
     override fun getSettingsFilePath(): String {
-        // Check for environment variable override first
-        val envPath = System.getenv("KRYPTON_SETTINGS_PATH")
-        if (envPath != null && envPath.isNotBlank()) {
-            return Paths.get(envPath).toAbsolutePath().normalize().toString()
-        }
-        
-        // Default to ./settings.json in project root
-        return Paths.get(".").resolve("settings.json").toAbsolutePath().normalize().toString()
+        return SettingsConfigManager.getSettingsFilePath()
     }
 
     override fun loadSettingsFromFile(path: String): Settings? {

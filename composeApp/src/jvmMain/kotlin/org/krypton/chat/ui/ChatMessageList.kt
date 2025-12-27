@@ -1,18 +1,39 @@
 package org.krypton.chat.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.painterResource
+import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.copy
 import org.krypton.ObsidianThemeValues
 import org.krypton.chat.ChatMessage
 import org.krypton.chat.ChatRole
+import org.krypton.markdown.*
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 
 /**
  * Displays the list of chat messages with scrolling.
@@ -22,6 +43,7 @@ fun ChatMessageList(
     messages: List<ChatMessage>,
     isLoading: Boolean,
     theme: ObsidianThemeValues,
+    settings: org.krypton.Settings,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -42,6 +64,7 @@ fun ChatMessageList(
             ChatMessageItem(
                 message = message,
                 theme = theme,
+                settings = settings,
                 modifier = Modifier.fillMaxWidth()
             )
             
@@ -82,6 +105,7 @@ fun ChatMessageList(
 private fun ChatMessageItem(
     message: ChatMessage,
     theme: ObsidianThemeValues,
+    settings: org.krypton.Settings,
     modifier: Modifier = Modifier
 ) {
     val isUser = message.role == ChatRole.USER
@@ -104,12 +128,328 @@ private fun ChatMessageItem(
             )
         }
     } else {
-        // Assistant message: displayed directly without box, full width
-        Text(
-            text = message.content,
-            style = MaterialTheme.typography.bodyMedium,
-            color = theme.TextPrimary,
+        // Assistant message: render markdown with copy button
+        Column(
             modifier = modifier.fillMaxWidth()
+        ) {
+            // Markdown content wrapped in SelectionContainer for text selection
+            SelectionContainer {
+                InlineMarkdownRenderer(
+                    markdown = message.content,
+                    settings = settings,
+                    theme = theme,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            
+            // Copy All button at the bottom
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                CopyAllButton(
+                    textToCopy = message.content,
+                    theme = theme
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Inline markdown renderer for chat messages.
+ * Simplified version that works inline without fillMaxSize().
+ */
+@Composable
+private fun InlineMarkdownRenderer(
+    markdown: String,
+    settings: org.krypton.Settings,
+    theme: ObsidianThemeValues,
+    modifier: Modifier = Modifier
+) {
+    val engine = remember { JetBrainsMarkdownEngine() }
+    val blocks = remember(markdown) {
+        engine.renderToBlocks(markdown)
+    }
+    
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        blocks.forEach { block ->
+            RenderChatBlock(block, settings, theme)
+        }
+    }
+}
+
+@Composable
+private fun RenderChatBlock(block: BlockNode, settings: org.krypton.Settings, theme: ObsidianThemeValues) {
+    when (block) {
+        is BlockNode.Heading -> {
+            val typography = when (block.level) {
+                1 -> MaterialTheme.typography.headlineMedium
+                2 -> MaterialTheme.typography.headlineSmall
+                3 -> MaterialTheme.typography.titleLarge
+                4 -> MaterialTheme.typography.titleMedium
+                5 -> MaterialTheme.typography.titleSmall
+                else -> MaterialTheme.typography.bodyLarge
+            }
+            
+            Text(
+                text = if (block.inlineNodes.isNotEmpty()) {
+                    buildAnnotatedStringFromInlineNodes(block.inlineNodes, settings, theme)
+                } else {
+                    AnnotatedString(block.text)
+                },
+                style = typography.copy(
+                    color = theme.HeadingColor,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+            )
+        }
+        
+        is BlockNode.Paragraph -> {
+            Text(
+                text = buildAnnotatedStringFromInlineNodes(block.inlineNodes, settings, theme),
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        
+        is BlockNode.CodeBlock -> {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = theme.CodeBlockBackground
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = block.code,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = settings.editor.codeBlockFontSize.sp
+                    ),
+                    color = theme.TextPrimary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                )
+            }
+        }
+        
+        is BlockNode.Blockquote -> {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .border(
+                        width = 3.dp,
+                        color = theme.BlockquoteBorder,
+                        shape = RoundedCornerShape(4.dp)
+                    ),
+                colors = CardDefaults.cardColors(
+                    containerColor = theme.BlockquoteBackground
+                ),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    block.blocks.forEach { childBlock ->
+                        RenderChatBlock(childBlock, settings, theme)
+                    }
+                }
+            }
+        }
+        
+        is BlockNode.UnorderedList -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                block.items.forEachIndexed { index, item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Text(
+                            text = "• ",
+                            color = theme.TextSecondary,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            item.blocks.forEach { childBlock ->
+                                RenderChatBlock(childBlock, settings, theme)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        is BlockNode.OrderedList -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                block.items.forEachIndexed { index, item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Text(
+                            text = "${block.startNumber + index}. ",
+                            color = theme.TextSecondary,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            item.blocks.forEach { childBlock ->
+                                RenderChatBlock(childBlock, settings, theme)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        is BlockNode.HorizontalRule -> {
+            HorizontalDivider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                color = theme.Border
+            )
+        }
+    }
+}
+
+private fun buildAnnotatedStringFromInlineNodes(
+    nodes: List<InlineNode>,
+    settings: org.krypton.Settings,
+    theme: ObsidianThemeValues
+): AnnotatedString {
+    return buildAnnotatedString {
+        var lastChar: Char? = null
+        
+        nodes.forEachIndexed { index, node ->
+            when (node) {
+                is InlineNode.Text -> {
+                    append(node.content)
+                    lastChar = node.content.lastOrNull()
+                }
+                is InlineNode.Strong -> {
+                    val innerText = buildAnnotatedStringFromInlineNodes(node.inlineNodes, settings, theme).text
+                    pushStyle(
+                        style = SpanStyle(
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    append(innerText)
+                    pop()
+                    lastChar = innerText.lastOrNull()
+                }
+                is InlineNode.Emphasis -> {
+                    val innerText = buildAnnotatedStringFromInlineNodes(node.inlineNodes, settings, theme).text
+                    pushStyle(
+                        style = SpanStyle(
+                            fontStyle = FontStyle.Italic
+                        )
+                    )
+                    append(innerText)
+                    pop()
+                    lastChar = innerText.lastOrNull()
+                }
+                is InlineNode.Code -> {
+                    if (lastChar != null && lastChar != ' ') {
+                        append(" ")
+                    }
+                    pushStyle(
+                        style = SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = settings.editor.codeSpanFontSize.sp,
+                            background = theme.CodeSpanBackground
+                        )
+                    )
+                    append(node.code)
+                    pop()
+                    val nextNode = nodes.getOrNull(index + 1)
+                    val nextStartsWithSpace = when (nextNode) {
+                        is InlineNode.Text -> nextNode.content.firstOrNull() == ' '
+                        else -> false
+                    }
+                    if (!nextStartsWithSpace) {
+                        append(" ")
+                    }
+                    lastChar = ' '
+                }
+                is InlineNode.Link -> {
+                    pushStyle(
+                        style = SpanStyle(
+                            color = theme.LinkColor,
+                            textDecoration = TextDecoration.Underline
+                        )
+                    )
+                    append(node.text)
+                    pop()
+                    lastChar = node.text.lastOrNull()
+                }
+                is InlineNode.Image -> {
+                    append("[Image: ${node.alt}]")
+                    lastChar = ']'
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Copy All button component.
+ */
+@Composable
+private fun CopyAllButton(
+    textToCopy: String,
+    theme: ObsidianThemeValues,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    
+    Box(
+        modifier = modifier
+            .clickable {
+                // Copy to clipboard
+                val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                val selection = StringSelection(textToCopy)
+                clipboard.setContents(selection, null)
+            }
+            .padding(4.dp)
+    ) {
+        Image(
+            painter = painterResource(Res.drawable.copy),
+            contentDescription = "Copy All",
+            modifier = Modifier.size(16.dp),
+            colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
         )
     }
 }

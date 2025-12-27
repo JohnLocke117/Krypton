@@ -18,12 +18,15 @@ class SettingsRepositoryImpl(
     private val persistence: SettingsPersistence
 ) : SettingsRepository {
     private val mutex = Mutex()
-    private val settingsPath = persistence.getSettingsFilePath()
+    
+    // Get settings path dynamically each time (can change via config)
+    private fun getSettingsPath(): String = persistence.getSettingsFilePath()
     
     private val _settingsFlow = MutableStateFlow<Settings>(loadInitialSettings())
     override val settingsFlow: StateFlow<Settings> = _settingsFlow.asStateFlow()
 
     private fun loadInitialSettings(): Settings {
+        val settingsPath = getSettingsPath()
         val loaded = persistence.loadSettingsFromFile(settingsPath)
         return if (loaded != null) {
             val migrated = migrateSettings(loaded)
@@ -51,6 +54,8 @@ class SettingsRepositoryImpl(
             
             if (validation.isValid) {
                 _settingsFlow.value = migrated
+                // Save to current settings file path
+                val settingsPath = getSettingsPath()
                 persistence.saveSettingsToFile(settingsPath, migrated)
             } else {
                 // Validation failed, don't update
@@ -61,6 +66,7 @@ class SettingsRepositoryImpl(
 
     override suspend fun reloadFromDisk() {
         mutex.withLock {
+            val settingsPath = getSettingsPath()
             val loaded = persistence.loadSettingsFromFile(settingsPath)
             if (loaded != null) {
                 val migrated = migrateSettings(loaded)

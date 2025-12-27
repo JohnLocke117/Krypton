@@ -44,8 +44,16 @@ class ChatStateHolder(
     
     /**
      * Sends a message to the chat service.
+     * 
+     * @param message The user's message
+     * @param retrievalMode The retrieval mode to use
+     * @param vaultPath Optional path to the currently opened vault/folder for agent context
      */
-    fun sendMessage(message: String, retrievalMode: RetrievalMode = RetrievalMode.NONE) {
+    fun sendMessage(
+        message: String, 
+        retrievalMode: RetrievalMode = RetrievalMode.NONE,
+        vaultPath: String? = null
+    ) {
         if (message.isBlank()) return
         
         coroutineScope.launch {
@@ -65,7 +73,8 @@ class ChatStateHolder(
                 val response = chatService.sendMessage(
                     message = message,
                     mode = retrievalMode,
-                    threadId = null // TODO: Support threadId if needed
+                    threadId = null, // TODO: Support threadId if needed
+                    vaultPath = vaultPath
                 )
                 
                 // Update history with user message and assistant response

@@ -58,6 +58,7 @@ fun RightSidebar(
     state: org.krypton.ui.state.EditorStateHolder,
     theme: ObsidianThemeValues,
     chatStateHolder: ChatStateHolder,
+    settings: org.krypton.Settings,
     modifier: Modifier = Modifier
 ) {
     val rightSidebarVisible by state.rightSidebarVisible.collectAsState()
@@ -118,6 +119,7 @@ fun RightSidebar(
                             chatStateHolder = chatStateHolder,
                             editorStateHolder = state,
                             theme = theme,
+                            settings = settings,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

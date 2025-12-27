@@ -15,7 +15,7 @@
     "ui": {
         "ribbonWidth": 48,
         "sidebarMinWidth": 200,
-        "sidebarDefaultWidth": 250,
+        "sidebarDefaultWidth": 280,
         "sidebarMaxWidth": 400,
         "tabHeight": 36,
         "tabPadding": 12,
@@ -72,7 +72,7 @@
         "maxK": 10,
         "displayK": 5,
         "queryRewritingEnabled": false,
-        "multiQueryEnabled": false,
+        "multiQueryEnabled": true,
         "rerankerModel": "xitao/bge-reranker-v2-m3"
     }
 }
