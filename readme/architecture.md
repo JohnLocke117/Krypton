@@ -81,6 +81,7 @@ composeApp/src/
 ### Module Organization
 
 - **chat/**: Chat service interfaces and models
+  - **chat/agent/**: Agent system for intent-based actions
 - **core/domain/**: Business logic and domain models
 - **data/**: Data access layer (repositories, file system)
 - **markdown/**: Markdown parsing and rendering

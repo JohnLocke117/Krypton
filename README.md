@@ -8,6 +8,7 @@ Krypton is designed to be your intelligent knowledge companion. It provides:
 
 - **Rich Markdown Editor**: Live preview, syntax highlighting, and a modern editing experience
 - **AI Chat Interface**: Interact with your notes using AI, with support for RAG, web search, and hybrid modes
+- **Intelligent Agents**: Specialized agents for note creation, search, and summarization that understand natural language intents
 - **Vector Search**: Automatic indexing of your markdown notes for semantic search
 - **File Management**: Full file and folder CRUD operations with a clean, intuitive interface
 - **Cross-Platform**: Built with Kotlin Multiplatform, targeting Desktop (JVM) with future Android support
@@ -55,6 +56,7 @@ Krypton follows a clean, modular architecture:
    - Chat service interfaces and implementations
    - Retrieval mode handling (NONE, RAG, WEB, HYBRID)
    - Prompt building
+   - Agent system for intent-based actions
 
 6. **Markdown Layer** (`markdown/`)
    - Markdown parsing and AST generation
@@ -189,6 +191,7 @@ For more detailed information, see:
 
 - **[AI Chat Features](./readme/ai-chat.md)**: Detailed documentation on RAG pipeline, chat modes, and web search
 - **[Architecture Guide](./readme/architecture.md)**: Deep dive into architecture, design choices, and markdown parsing
+- **[Agents & Agentic Architecture](./readme/agents.md)**: Comprehensive guide to the agent system, including all available agents and how they work
 
 ## Development
 

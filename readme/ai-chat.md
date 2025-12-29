@@ -18,11 +18,23 @@ The chat system supports four retrieval modes:
 The chat system consists of several key components:
 
 1. **ChatService**: Base interface for chat operations
-2. **OllamaChatService**: Direct LLM chat without retrieval
-3. **RagChatService**: RAG-enhanced chat with retrieval support
+2. **OllamaChatService**: Direct LLM chat without retrieval (includes agent system)
+3. **ChatAgent**: Interface for specialized agents that handle specific intents
 4. **RetrievalService**: Orchestrates retrieval from different sources
 5. **PromptBuilder**: Constructs prompts with context
 6. **LlamaClient**: Interface for LLM interactions
+
+### Agent System
+
+Krypton includes an intelligent agent system that intercepts user messages before normal chat processing. Agents detect specific intents (like "create a note" or "summarize my notes") and handle them directly, providing structured responses and actions.
+
+**Agent Flow:**
+1. User sends message
+2. Agents are checked in order
+3. First agent that matches intent handles the message
+4. If no agent matches, normal RAG/chat flow proceeds
+
+See **[Agents & Agentic Architecture](./agents.md)** for detailed documentation on all available agents.
 
 ### Service Hierarchy
 

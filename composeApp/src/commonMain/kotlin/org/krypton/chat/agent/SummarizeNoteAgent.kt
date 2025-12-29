@@ -4,6 +4,7 @@ import org.krypton.chat.ChatMessage
 import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.rag.LlamaClient
+import org.krypton.rag.RagChunk
 import org.krypton.retrieval.RagRetriever
 import org.krypton.util.AppLogger
 import kotlinx.coroutines.Dispatchers
@@ -53,7 +54,8 @@ class SummarizeNoteAgent(
             "what do my notes say about"
         )
         
-        private const val MAX_CHUNKS_FOR_SUMMARY = 10
+        private const val MAX_CHUNKS_FOR_SUMMARY = 6  // Reduced for 8B model capacity
+        private const val MAX_WORDS_PER_CHUNK = 800    // Limit chunk size for 8B model
     }
 
     override suspend fun tryHandle(
@@ -75,6 +77,7 @@ class SummarizeNoteAgent(
         // Check for topic-from-vault mode
         val topic = extractTopic(message)
         if (topic != null) {
+            AppLogger.i("SummarizeNoteAgent", "Topic extracted: \"$topic\"")
             return handleTopicMode(context, topic, modelName)
         }
         
@@ -113,7 +116,8 @@ class SummarizeNoteAgent(
             }
 
             val title = extractTitle(content, notePath)
-            val summary = generateSummary(content, "the following note")
+            // For current note mode, use a simple prompt
+            val summary = generateSummaryForCurrentNote(content)
 
             if (summary.isBlank()) {
                 AppLogger.w("SummarizeNoteAgent", "Generated summary is empty for note: $notePath")
@@ -164,15 +168,27 @@ class SummarizeNoteAgent(
         }
 
         try {
+            // Build better retrieval query
+            val retrievalQuery = buildRetrievalQuery(topic)
+            AppLogger.i("SummarizeNoteAgent", "Retrieval query: \"$retrievalQuery\"")
+            
             // Retrieve relevant chunks
-            val chunks = ragRetriever.retrieveChunks(topic)
+            val allChunks = ragRetriever.retrieveChunks(retrievalQuery)
+            
+            // Filter for relevance and limit count
+            val relevantChunks = allChunks
+                .filter { isChunkRelevant(it, topic) }
                 .take(MAX_CHUNKS_FOR_SUMMARY)
+            
+            AppLogger.i("SummarizeNoteAgent", "Retrieved ${allChunks.size} chunks, ${relevantChunks.size} relevant after filtering")
 
-            if (chunks.isEmpty()) {
+            if (relevantChunks.isEmpty()) {
                 AppLogger.i("SummarizeNoteAgent", "No relevant chunks found for topic: $topic")
-                AppLogger.d("SummarizeNoteAgent", "Ending query - no chunks")
+                AppLogger.d("SummarizeNoteAgent", "Ending query - no relevant chunks")
                 return null
             }
+            
+            val chunks = relevantChunks
 
             // Extract unique file paths from chunks
             val sourceFiles = chunks.mapNotNull { chunk ->
@@ -186,11 +202,12 @@ class SummarizeNoteAgent(
                 }
             }
 
-            // Concatenate chunks for context
+            // Concatenate chunks for context (truncate long chunks)
             val contextText = buildString {
                 chunks.forEachIndexed { index, chunk ->
                     val filePath = chunk.metadata["filePath"] ?: "unknown"
                     val sectionTitle = chunk.metadata["sectionTitle"]
+                    val truncatedText = truncateChunkText(chunk.text, MAX_WORDS_PER_CHUNK)
                     
                     if (index > 0) appendLine()
                     if (sectionTitle != null) {
@@ -198,12 +215,12 @@ class SummarizeNoteAgent(
                     }
                     appendLine("From: $filePath")
                     appendLine()
-                    appendLine(chunk.text)
+                    appendLine(truncatedText)
                     appendLine()
                 }
             }
 
-            val summary = generateSummary(contextText, "my notes about $topic")
+            val summary = generateSummary(contextText, topic)
 
             if (summary.isBlank()) {
                 AppLogger.w("SummarizeNoteAgent", "Generated summary is empty for topic: $topic")
@@ -246,21 +263,79 @@ class SummarizeNoteAgent(
     }
 
     /**
-     * Generates a summary using the LLM.
+     * Generates a summary using the LLM for topic-based summarization.
+     * Designed for 8B Llama model - simple, direct prompt.
      */
-    private suspend fun generateSummary(content: String, contextDescription: String): String {
-        val prompt = """
-            You are an assistant that summarizes markdown notes. Summarize $contextDescription in a concise, bullet-point style, focusing on the key ideas and avoiding unnecessary detail.
-            
-            Content:
-            $content
-            
-            Provide a clear, structured summary with the most important points.
-        """.trimIndent()
+    private suspend fun generateSummary(content: String, topic: String): String {
+        val prompt = """Summarize the following notes about $topic.
 
-        return llamaClient.complete(prompt).trim()
+$content
+
+Summary:"""
+
+        AppLogger.d("SummarizeNoteAgent", "Generating summary for topic: $topic")
+        val summary = llamaClient.complete(prompt).trim()
+        
+        if (summary.isBlank()) {
+            AppLogger.w("SummarizeNoteAgent", "Summary generation returned empty result")
+        } else {
+            AppLogger.d("SummarizeNoteAgent", "Summary generated, length: ${summary.length}")
+        }
+        
+        return summary
+    }
+    
+    /**
+     * Generates a summary for the current note.
+     * Designed for 8B Llama model - simple, direct prompt.
+     */
+    private suspend fun generateSummaryForCurrentNote(content: String): String {
+        val prompt = """Summarize the following note.
+
+$content
+
+Summary:"""
+
+        AppLogger.d("SummarizeNoteAgent", "Generating summary for current note")
+        val summary = llamaClient.complete(prompt).trim()
+        
+        if (summary.isBlank()) {
+            AppLogger.w("SummarizeNoteAgent", "Summary generation returned empty result")
+        } else {
+            AppLogger.d("SummarizeNoteAgent", "Summary generated, length: ${summary.length}")
+        }
+        
+        return summary
     }
 
+    /**
+     * Builds a better retrieval query from a topic.
+     */
+    private fun buildRetrievalQuery(topic: String): String {
+        return "notes about $topic"
+    }
+    
+    /**
+     * Truncates chunk text to a maximum word count for 8B model capacity.
+     */
+    private fun truncateChunkText(text: String, maxWords: Int): String {
+        val words = text.split(Regex("\\s+"))
+        if (words.size <= maxWords) {
+            return text
+        }
+        return words.take(maxWords).joinToString(" ") + "..."
+    }
+    
+    /**
+     * Checks if a chunk is relevant to the topic using simple keyword matching.
+     */
+    private fun isChunkRelevant(chunk: RagChunk, topic: String): Boolean {
+        val topicLower = topic.lowercase()
+        val textLower = chunk.text.lowercase()
+        // Simple check: topic appears in chunk text
+        return textLower.contains(topicLower)
+    }
+    
     /**
      * Extracts title from content or file path.
      */

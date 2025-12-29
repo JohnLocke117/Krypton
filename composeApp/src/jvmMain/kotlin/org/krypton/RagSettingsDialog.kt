@@ -253,6 +253,20 @@ fun RagSettings(
             theme = theme
         )
 
+        InlineBooleanField(
+            label = "Reranking",
+            value = settings.rag.rerankingEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(rerankingEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable reranking of retrieved chunks",
+            theme = theme
+        )
+
         InlineTextField(
             label = "Reranker Model",
             value = settings.rag.rerankerModel ?: "",

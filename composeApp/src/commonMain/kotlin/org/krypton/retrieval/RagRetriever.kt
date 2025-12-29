@@ -42,8 +42,16 @@ class RagRetriever(
         try {
             // Read current settings dynamically if SettingsRepository is available
             val currentSettings = settingsRepository?.settingsFlow?.value?.rag
-            val shouldUseMultiQuery = currentSettings?.multiQueryEnabled ?: multiQueryEnabled
+            // Always prefer settings from repository; only fall back to constructor param if repository is unavailable
+            val shouldUseMultiQuery = if (settingsRepository != null) {
+                currentSettings?.multiQueryEnabled ?: false
+            } else {
+                multiQueryEnabled
+            }
             val shouldUseReranking = currentSettings?.rerankingEnabled ?: false
+            
+            // Log settings being used for debugging
+            AppLogger.d("RagRetriever", "Settings: multiQuery=$shouldUseMultiQuery, reranking=$shouldUseReranking (from settings: multiQuery=${currentSettings?.multiQueryEnabled}, reranking=${currentSettings?.rerankingEnabled})")
             
             // Step 0: Rewrite query if enabled
             val processedQuestion = if (queryRewritingEnabled && queryPreprocessor != null) {

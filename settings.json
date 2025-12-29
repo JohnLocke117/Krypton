@@ -72,8 +72,8 @@
         "maxK": 10,
         "displayK": 5,
         "queryRewritingEnabled": false,
-        "multiQueryEnabled": false,
-        "rerankingEnabled": false,
+        "multiQueryEnabled": true,
+        "rerankingEnabled": true,
         "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M"
     }
 }

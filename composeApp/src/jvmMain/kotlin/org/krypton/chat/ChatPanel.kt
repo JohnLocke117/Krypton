@@ -46,6 +46,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.isShiftPressed
 import org.krypton.ui.AppIconWithTooltip
 import org.krypton.ui.TooltipPosition
 import org.krypton.chat.ui.ChatMessageList
@@ -348,10 +358,58 @@ fun ChatPanel(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Part 1: Text area
+                // Track previous text to detect newline additions
+                var previousText by remember { mutableStateOf("") }
+                // Track Shift key state
+                var shiftPressed by remember { mutableStateOf(false) }
+                
                 OutlinedTextField(
                     value = inputText,
-                    onValueChange = { inputText = it },
-                    modifier = Modifier.fillMaxWidth(),
+                    onValueChange = { newText ->
+                        // Check if a newline was just added (newText has \n at end, previousText didn't)
+                        val newlineJustAdded = newText.endsWith('\n') && !previousText.endsWith('\n') && 
+                                               newText.length == previousText.length + 1
+                        
+                        if (newlineJustAdded && !shiftPressed) {
+                            // Enter without Shift: send message instead of adding newline
+                            if (inputText.isNotBlank() && !isLoading) {
+                                val messageText = inputText.trim()
+                                inputText = ""
+                                previousText = ""
+                                
+                                // Create optimistic user message immediately
+                                val optimisticMessage = ChatMessage(
+                                    id = "optimistic_${System.currentTimeMillis()}",
+                                    role = ChatRole.USER,
+                                    content = messageText,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                                optimisticUserMessage = optimisticMessage
+                                
+                                // Send message with current retrieval mode, vault path, and current note path
+                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
+                            } else {
+                                // Can't send, revert to previous text (without the newline)
+                                inputText = previousText
+                            }
+                        } else {
+                            // Normal text change or Shift+Enter (allow newline)
+                            inputText = newText
+                            previousText = newText
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onKeyEvent { keyEvent ->
+                            // Track Shift key state for detecting Shift+Enter
+                            when (keyEvent.key) {
+                                Key.ShiftLeft, Key.ShiftRight -> {
+                                    shiftPressed = keyEvent.type == KeyEventType.KeyDown
+                                    false // Don't consume Shift key
+                                }
+                                else -> false
+                            }
+                        },
                     placeholder = {
                         Text(
                             text = "Type your message...",
@@ -374,7 +432,28 @@ fun ChatPanel(
                     maxLines = 5,
                     minLines = 1,
                     enabled = !isLoading,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(
+                        onSend = {
+                            if (inputText.isNotBlank() && !isLoading) {
+                                val messageText = inputText.trim()
+                                inputText = ""
+                                
+                                // Create optimistic user message immediately
+                                val optimisticMessage = ChatMessage(
+                                    id = "optimistic_${System.currentTimeMillis()}",
+                                    role = ChatRole.USER,
+                                    content = messageText,
+                                    timestamp = System.currentTimeMillis()
+                                )
+                                optimisticUserMessage = optimisticMessage
+                                
+                                // Send message with current retrieval mode, vault path, and current note path
+                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
+                            }
+                        }
+                    )
                 )
                 
                 // Part 2: Icon bar

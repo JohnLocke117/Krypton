@@ -115,17 +115,18 @@ class OllamaChatService(
                     
                     is AgentResult.NotesFound -> {
                         val responseText = buildString {
-                            appendLine("Found ${agentResult.results.size} note(s) matching \"${agentResult.query}\":")
-                            appendLine()
-                            agentResult.results.forEachIndexed { index, match ->
-                                appendLine("${index + 1}. **${match.title}**")
-                                appendLine("   - File: `${match.filePath}`")
-                                appendLine("   - Relevance: ${String.format("%.0f", match.score * 100)}%")
-                                appendLine("   - Snippet: ${match.snippet}")
-                                if (index < agentResult.results.size - 1) {
-                                    appendLine()
-                                }
+                            agentResult.results.forEach { match ->
+                                appendLine("- [${match.title}](${match.filePath})")
                             }
+                        }
+                        
+                        // Build sources from results
+                        val sources = agentResult.results.map { match ->
+                            ChatSource(
+                                type = SourceType.RAG,
+                                identifier = match.title,
+                                location = match.filePath
+                            )
                         }
                         
                         val assistantMessage = ChatMessage(
@@ -139,7 +140,7 @@ class OllamaChatService(
                             message = assistantMessage,
                             retrievalMode = mode,
                             metadata = ChatResponseMetadata(
-                                sources = emptyList(),
+                                sources = sources,
                                 additionalInfo = mapOf("agent" to "SearchNoteAgent", "action" to "notes_found", "count" to agentResult.results.size.toString())
                             )
                         )
@@ -159,6 +160,16 @@ class OllamaChatService(
                             }
                         }
                         
+                        // Build sources from source files
+                        val sources = agentResult.sourceFiles.map { filePath ->
+                            val fileName = filePath.substringAfterLast('/').substringBeforeLast('.')
+                            ChatSource(
+                                type = SourceType.RAG,
+                                identifier = fileName,
+                                location = filePath
+                            )
+                        }
+                        
                         val assistantMessage = ChatMessage(
                             id = idGenerator.generateId(),
                             role = ChatRole.ASSISTANT,
@@ -170,7 +181,7 @@ class OllamaChatService(
                             message = assistantMessage,
                             retrievalMode = mode,
                             metadata = ChatResponseMetadata(
-                                sources = emptyList(),
+                                sources = sources,
                                 additionalInfo = mapOf("agent" to "SummarizeNoteAgent", "action" to "note_summarized", "sources" to agentResult.sourceFiles.size.toString())
                             )
                         )
