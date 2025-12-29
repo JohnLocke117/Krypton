@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.cards
 import krypton.composeapp.generated.resources.chat
 import krypton.composeapp.generated.resources.outline
 import krypton.composeapp.generated.resources.right_panel_close
@@ -60,6 +61,22 @@ fun RightRibbon(
                     contentDescription = "Chat",
                     isActive = activeRightPanel == RightPanelType.Chat,
                     onClick = { state.updateActiveRightPanel(RightPanelType.Chat) },
+                    cardFacingEdge = CardFacingEdge.Start
+                )
+            },
+            // Slot 3: Flashcards icon
+            {
+                val activeDocument by state.activeDocument.collectAsState()
+                RibbonIconButton(
+                    icon = Res.drawable.cards,
+                    contentDescription = "Generate Flashcards",
+                    isActive = false,
+                    onClick = {
+                        if (activeDocument != null) {
+                            state.generateFlashcardsForCurrentNote()
+                            state.showFlashcards()
+                        }
+                    },
                     cardFacingEdge = CardFacingEdge.Start
                 )
             }

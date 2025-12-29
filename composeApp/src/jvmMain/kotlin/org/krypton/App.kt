@@ -387,6 +387,17 @@ private fun AppDialogs(
             theme = theme
         )
     }
+    
+    // Flashcards Dialog
+    val flashcardsUiState by editorStateHolder.flashcardsUiState.collectAsState()
+    FlashcardsScreen(
+        state = flashcardsUiState,
+        onNext = { editorStateHolder.nextCard() },
+        onPrev = { editorStateHolder.prevCard() },
+        onToggleAnswer = { editorStateHolder.toggleAnswer() },
+        onClose = { editorStateHolder.closeFlashcards() },
+        theme = theme
+    )
 }
 
 private fun handleKeyboardShortcut(

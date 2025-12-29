@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.krypton.config.UiDefaults
 import org.krypton.core.domain.editor.*
+import org.krypton.core.domain.flashcard.Flashcard
+import org.krypton.core.domain.flashcard.FlashcardService
 import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.util.AppLogger
@@ -30,7 +32,8 @@ class EditorStateHolder(
     private val editorDomain: EditorDomain,
     private val fileSystem: FileSystem,
     private val coroutineScope: CoroutineScope,
-    private val settingsRepository: SettingsRepository?
+    private val settingsRepository: SettingsRepository?,
+    private val flashcardService: FlashcardService?
 ) {
     // Domain state - maintain our own StateFlow
     private val _domainState = MutableStateFlow(EditorDomainState())
@@ -91,6 +94,19 @@ class EditorStateHolder(
     
     private val _selectedSettingsCategory = MutableStateFlow(SettingsCategory.General)
     val selectedSettingsCategory: StateFlow<SettingsCategory> = _selectedSettingsCategory.asStateFlow()
+    
+    // Flashcards state
+    data class FlashcardsUiState(
+        val cards: List<Flashcard> = emptyList(),
+        val currentIndex: Int = 0,
+        val isAnswerVisible: Boolean = false,
+        val isLoading: Boolean = false,
+        val error: String? = null,
+        val isVisible: Boolean = false,
+    )
+    
+    private val _flashcardsUiState = MutableStateFlow(FlashcardsUiState())
+    val flashcardsUiState: StateFlow<FlashcardsUiState> = _flashcardsUiState.asStateFlow()
     
     // Optional callback for auto-indexing on save
     var onFileSaved: ((String) -> Unit)? = null
@@ -875,6 +891,98 @@ class EditorStateHolder(
         val newPath = parent.resolve(newName)
         // Allow if it's the same path (no actual rename) or if the new path doesn't exist
         return newPath == oldPath || !fileSystem.exists(newPath.toString())
+    }
+    
+    /**
+     * Generates flashcards for the currently active note.
+     */
+    fun generateFlashcardsForCurrentNote() {
+        val notePath = activeDocument.value?.path
+        if (notePath == null) {
+            AppLogger.d("EditorStateHolder", "No active document for flashcard generation")
+            return
+        }
+        
+        if (flashcardService == null) {
+            AppLogger.w("EditorStateHolder", "FlashcardService not available")
+            _flashcardsUiState.value = _flashcardsUiState.value.copy(
+                isLoading = false,
+                error = "Flashcard service not available"
+            )
+            return
+        }
+        
+        _flashcardsUiState.value = _flashcardsUiState.value.copy(
+            isLoading = true,
+            error = null
+        )
+        
+        coroutineScope.launch {
+            try {
+                val cards = flashcardService.generateFromNote(notePath)
+                _flashcardsUiState.value = _flashcardsUiState.value.copy(
+                    cards = cards,
+                    currentIndex = 0,
+                    isAnswerVisible = false,
+                    isVisible = true,
+                    isLoading = false
+                )
+            } catch (t: Throwable) {
+                AppLogger.e("EditorStateHolder", "Failed to generate flashcards", t)
+                _flashcardsUiState.value = _flashcardsUiState.value.copy(
+                    isLoading = false,
+                    error = t.message ?: "Failed to generate flashcards"
+                )
+            }
+        }
+    }
+    
+    /**
+     * Shows the flashcards dialog.
+     */
+    fun showFlashcards() {
+        _flashcardsUiState.value = _flashcardsUiState.value.copy(isVisible = true)
+    }
+    
+    /**
+     * Closes the flashcards dialog.
+     */
+    fun closeFlashcards() {
+        _flashcardsUiState.value = _flashcardsUiState.value.copy(isVisible = false)
+    }
+    
+    /**
+     * Moves to the next flashcard.
+     */
+    fun nextCard() {
+        val state = _flashcardsUiState.value
+        if (state.currentIndex < state.cards.size - 1) {
+            _flashcardsUiState.value = state.copy(
+                currentIndex = state.currentIndex + 1,
+                isAnswerVisible = false
+            )
+        }
+    }
+    
+    /**
+     * Moves to the previous flashcard.
+     */
+    fun prevCard() {
+        val state = _flashcardsUiState.value
+        if (state.currentIndex > 0) {
+            _flashcardsUiState.value = state.copy(
+                currentIndex = state.currentIndex - 1,
+                isAnswerVisible = false
+            )
+        }
+    }
+    
+    /**
+     * Toggles the answer visibility for the current flashcard.
+     */
+    fun toggleAnswer() {
+        val state = _flashcardsUiState.value
+        _flashcardsUiState.value = state.copy(isAnswerVisible = !state.isAnswerVisible)
     }
 }
 

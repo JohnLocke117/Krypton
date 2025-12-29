@@ -3,6 +3,7 @@ package org.krypton.di
 import kotlinx.coroutines.CoroutineScope
 import org.krypton.chat.ChatService
 import org.krypton.core.domain.editor.EditorDomain
+import org.krypton.core.domain.flashcard.FlashcardService
 import org.krypton.core.domain.search.PatternMatcher
 import org.krypton.core.domain.search.SearchDomain
 import org.krypton.core.domain.search.JvmPatternMatcher
@@ -32,7 +33,12 @@ val uiModule = module {
             editorDomain = get(),
             fileSystem = get(),
             coroutineScope = get(),
-            settingsRepository = get()
+            settingsRepository = get(),
+            flashcardService = try {
+                get<FlashcardService>()
+            } catch (e: Exception) {
+                null
+            }
         )
     }
     

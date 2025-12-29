@@ -4,7 +4,9 @@ import org.krypton.chat.ChatService
 import org.krypton.chat.agent.CreateNoteAgent
 import org.krypton.chat.agent.SearchNoteAgent
 import org.krypton.chat.agent.SummarizeNoteAgent
+import org.krypton.core.domain.flashcard.FlashcardService
 import org.krypton.data.chat.impl.OllamaChatService
+import org.krypton.data.flashcard.impl.FlashcardServiceImpl
 import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.prompt.PromptBuilder
@@ -130,6 +132,14 @@ val chatModule = module {
             ragRetriever = ragRetriever,
             fileSystem = get(),
             settingsRepository = get()
+        )
+    }
+    
+    // FlashcardService (for flashcard generation functionality)
+    single<FlashcardService> {
+        FlashcardServiceImpl(
+            fileSystem = get(),
+            llamaClient = get()
         )
     }
     
