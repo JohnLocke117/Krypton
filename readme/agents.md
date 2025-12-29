@@ -371,6 +371,339 @@ val agents = buildList<ChatAgent> {
 6. **Structured Results**: Use appropriate `AgentResult` types
 7. **User Feedback**: Provide clear, formatted responses
 
+## MCP (Model Context Protocol) Server
+
+Krypton's agents are exposed as MCP tools via an HTTP server, allowing external clients (like MCP Inspector, Claude Desktop, or custom applications) to interact with the agents programmatically.
+
+### Overview
+
+The MCP server exposes Krypton's three agents as standardized MCP tools:
+- `create_note`: Create markdown notes in a vault
+- `search_notes`: Search notes using semantic and keyword search
+- `summarize_notes`: Summarize notes or topics
+
+### Architecture
+
+```
+MCP Client (MCP Inspector, Claude Desktop, etc.)
+    ↓ (HTTP/SSE)
+Krypton MCP Server (KryptonMcpServer.kt)
+    ↓
+MCP Server (io.modelcontextprotocol SDK)
+    ↓
+Tool Handlers
+    ↓
+Agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+    ↓
+AgentContext (vault path, settings, note path)
+```
+
+### MCP Tools
+
+#### 1. `create_note`
+
+Creates a markdown note in the specified vault.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory where the note should be created
+- `topic` (required, string): Topic/title of the note to create
+
+**Returns:**
+- Success: Note creation details (filePath, title, preview)
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "topic": "machine learning basics"
+}
+```
+
+#### 2. `search_notes`
+
+Searches notes in the specified vault using semantic and keyword search.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory to search in
+- `query` (required, string): Search query text
+- `limit` (optional, integer, default: 20): Maximum number of matches to return
+
+**Returns:**
+- Success: JSON array of search results with filePath, title, snippet, and score
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "query": "AWS",
+  "limit": 10
+}
+```
+
+**Example Response:**
+```json
+[
+  {
+    "filePath": "aws-notes.md",
+    "title": "AWS Notes",
+    "snippet": "Amazon Web Services provides cloud computing...",
+    "score": 0.85
+  }
+]
+```
+
+#### 3. `summarize_notes`
+
+Summarizes either a specific note or notes on a topic from the vault.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory
+- `mode` (required, string): Either `"current_note"` or `"topic"`
+- `note_path` (optional, string): Path to the note file to summarize (required when `mode = "current_note"`)
+- `topic` (optional, string): Topic to summarize (required when `mode = "topic"`)
+
+**Returns:**
+- Success: JSON object with title, summary, and sourceFiles
+- Error: Descriptive error message
+
+**Example Request (Current Note Mode):**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "mode": "current_note",
+  "note_path": "/path/to/vault/my-note.md"
+}
+```
+
+**Example Request (Topic Mode):**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "mode": "topic",
+  "topic": "AWS"
+}
+```
+
+**Example Response:**
+```json
+{
+  "title": "AWS",
+  "summary": "Your notes about AWS cover various services including EC2, S3, and Lambda...",
+  "sourceFiles": ["aws-notes.md", "cloud-computing.md"]
+}
+```
+
+### Running the MCP Server
+
+#### Prerequisites
+
+- Java 11 or higher
+- Gradle (included via wrapper)
+- All Krypton dependencies configured (see main README)
+
+#### Start the Server
+
+**Option 1: Using Gradle (default port 8080)**
+```bash
+./gradlew :composeApp:run --args="org.krypton.mcp.KryptonMcpServerKt"
+```
+
+**Option 2: Custom Port**
+```bash
+MCP_PORT=9000 ./gradlew :composeApp:run --args="org.krypton.mcp.KryptonMcpServerKt"
+```
+
+**Option 3: Build JAR and Run**
+```bash
+./gradlew :composeApp:jar
+java -jar composeApp/build/libs/composeApp-jvm.jar org.krypton.mcp.KryptonMcpServerKt
+```
+
+The server will:
+- Start on port 8080 (or the port specified by `MCP_PORT` environment variable)
+- Listen on `0.0.0.0` (all network interfaces)
+- Log startup messages and tool invocations
+- Handle MCP protocol over HTTP/SSE
+
+#### Server Logs
+
+The server logs important events:
+- Startup: `[MCP] Starting Krypton MCP Server...`
+- Port binding: `[MCP] Starting HTTP server on port 8080`
+- Tool invocations: `[MCP] Error in [tool_name] tool` (on errors)
+
+### Testing the MCP Server
+
+#### Using MCP Inspector
+
+1. **Start the MCP Server** (see above)
+
+2. **Install MCP Inspector** (if not already installed):
+   ```bash
+   npm install -g @modelcontextprotocol/inspector
+   ```
+
+3. **Connect to the Server**:
+   - Open MCP Inspector
+   - Connect to: `http://localhost:8080` (or your custom port)
+   - The inspector will discover available tools
+
+4. **Test Tools**:
+   - Select a tool (e.g., `create_note`)
+   - Fill in required parameters
+   - Click "Call Tool"
+   - View the response
+
+#### Using HTTP Client (curl/Postman)
+
+**List Available Tools:**
+```bash
+curl http://localhost:8080/mcp/tools
+```
+
+**Call a Tool (create_note):**
+```bash
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "create_note",
+    "arguments": {
+      "vault_path": "/path/to/vault",
+      "topic": "test note"
+    }
+  }'
+```
+
+**Call a Tool (search_notes):**
+```bash
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "search_notes",
+    "arguments": {
+      "vault_path": "/path/to/vault",
+      "query": "test",
+      "limit": 5
+    }
+  }'
+```
+
+**Call a Tool (summarize_notes):**
+```bash
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "summarize_notes",
+    "arguments": {
+      "vault_path": "/path/to/vault",
+      "mode": "topic",
+      "topic": "AWS"
+    }
+  }'
+```
+
+#### Using Claude Desktop
+
+1. **Configure Claude Desktop** to use the MCP server:
+   ```json
+   {
+     "mcpServers": {
+       "krypton": {
+         "command": "java",
+         "args": [
+           "-jar",
+           "/path/to/krypton/composeApp/build/libs/composeApp-jvm.jar",
+           "org.krypton.mcp.KryptonMcpServerKt"
+         ],
+         "env": {
+           "MCP_PORT": "8080"
+         }
+       }
+     }
+   }
+   ```
+
+2. **Restart Claude Desktop** to load the configuration
+
+3. **Use in Claude**: Claude can now call the tools directly:
+   - "Create a note about machine learning"
+   - "Search my notes for AWS"
+   - "Summarize my notes on cloud computing"
+
+### Implementation Details
+
+**File Location:**
+- `composeApp/src/jvmMain/kotlin/org/krypton/mcp/KryptonMcpServer.kt`
+
+**Dependencies:**
+- `io.modelcontextprotocol:kotlin-sdk:0.8.1` - MCP SDK
+- `io.ktor:ktor-server-*:3.2.3` - Ktor server (required by MCP SDK)
+
+**Key Components:**
+- `main()`: Server entry point, initializes DI and starts HTTP server
+- `registerCreateNoteTool()`: Registers create_note tool
+- `registerSearchNotesTool()`: Registers search_notes tool
+- `registerSummarizeNotesTool()`: Registers summarize_notes tool
+- `buildAgentContext()`: Builds AgentContext for tool handlers
+- `textContent()`: Helper for creating TextContent responses
+
+**Transport:**
+- Uses Ktor's HTTP server with SSE (Server-Sent Events) support
+- MCP protocol handled by `mcp { }` extension function from SDK
+- Supports streaming responses for better performance
+
+### Troubleshooting
+
+#### Server Won't Start
+
+**Check:**
+- Port is not already in use: `lsof -i :8080`
+- All dependencies are resolved: `./gradlew :composeApp:dependencies`
+- Java version is 11+: `java -version`
+
+**Common Issues:**
+- Port conflict: Change port via `MCP_PORT` environment variable
+- Missing dependencies: Run `./gradlew build` to download dependencies
+- Class not found: Ensure you're using the correct main class path
+
+#### Tools Not Available
+
+**Check:**
+- Server started successfully (check logs)
+- MCP client connected to correct URL
+- Tool names match exactly: `create_note`, `search_notes`, `summarize_notes`
+
+#### Tool Errors
+
+**Common Errors:**
+- `Missing required parameter: vault_path` - Provide valid vault path
+- `Agent did not create a note` - Check vault path exists and is writable
+- `Agent did not return search results` - Ensure vault contains markdown files
+- `Agent did not return a summary` - Check note path exists or topic has matching notes
+
+**Debug:**
+- Check server logs for detailed error messages
+- Verify vault path is absolute and exists
+- Ensure agents have required dependencies (LLM, RAG retriever for some operations)
+
+### Security Considerations
+
+**Current Implementation:**
+- Server listens on all interfaces (`0.0.0.0`) - consider restricting in production
+- No authentication/authorization - add if exposing to network
+- File system access - ensure vault paths are validated
+- No rate limiting - consider adding for production use
+
+**Production Recommendations:**
+- Add authentication (API keys, OAuth, etc.)
+- Restrict server to localhost or specific network
+- Add rate limiting
+- Validate and sanitize all inputs
+- Use HTTPS in production
+- Add logging and monitoring
+
 ## Configuration
 
 Agents use settings from `AgentContext.settings`:
@@ -406,7 +739,7 @@ Potential improvements to the agent system:
 - **Multi-Agent Collaboration**: Agents could call other agents
 - **Learning**: Agents could learn from user corrections
 - **Custom Agents**: User-defined agents via configuration
-- **MCP Server**: Convert agents to MCP (Model Context Protocol) server
+- **MCP Server**: ✅ Implemented - Agents are exposed via MCP (Model Context Protocol) server
 - **Streaming Responses**: Stream agent results for better UX
 - **Agent Chaining**: Chain agents for complex workflows
 

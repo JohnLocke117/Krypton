@@ -1,4 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.gradle.api.tasks.JavaExec
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -33,10 +34,18 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.cio)
-            implementation(libs.ktor.client.contentNegotiation)
-            implementation(libs.ktor.serialization.kotlinxJson)
+            // MCP SDK requires Ktor 3.2.3, so we need to align all Ktor dependencies
+            // MCP SDK - single package that includes both client and server
+            implementation("io.modelcontextprotocol:kotlin-sdk:0.8.1")
+            // Ktor client - use version compatible with MCP SDK (3.2.3)
+            implementation("io.ktor:ktor-client-core:3.2.3")
+            implementation("io.ktor:ktor-client-cio:3.2.3")
+            implementation("io.ktor:ktor-client-content-negotiation:3.2.3")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.2.3")
+            // Ktor server for HTTP transport (required by MCP SDK) - use 3.2.3 to match
+            implementation("io.ktor:ktor-server-core:3.2.3")
+            implementation("io.ktor:ktor-server-netty:3.2.3")
+            implementation("io.ktor:ktor-server-content-negotiation:3.2.3")
             implementation(libs.koin.core)
         }
     }
@@ -52,4 +61,21 @@ compose.desktop {
             packageVersion = "1.0.0"
         }
     }
+}
+
+// Task to run the MCP Server
+tasks.register<JavaExec>("runMcpServer") {
+    group = "application"
+    description = "Runs the Krypton MCP Server"
+    
+    // Ensure classes are compiled before running
+    dependsOn(tasks.named("compileKotlinJvm"))
+    
+    // Set classpath to include compiled classes and dependencies
+    classpath = sourceSets["jvmMain"].runtimeClasspath
+    mainClass.set("org.krypton.mcp.KryptonMcpServerKt")
+    standardInput = System.`in`
+    
+    // Allow setting port via environment variable
+    environment("MCP_PORT", System.getenv("MCP_PORT") ?: "8080")
 }
