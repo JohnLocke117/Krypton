@@ -17,6 +17,7 @@ interface ChatService {
      * @param mode The retrieval mode to use (NONE, RAG, WEB, or HYBRID)
      * @param threadId Optional thread/conversation ID for multi-threaded conversations
      * @param vaultPath Optional path to the currently opened vault/folder for agent context
+     * @param currentNotePath Optional path to the currently active/open note file for agent context
      * @return ChatResponse containing the assistant's message and metadata
      * @throws ChatException if the chat operation fails (e.g., LLM error, retrieval failure, network error)
      */
@@ -24,7 +25,8 @@ interface ChatService {
         message: String,
         mode: RetrievalMode,
         threadId: String? = null,
-        vaultPath: String? = null
+        vaultPath: String? = null,
+        currentNotePath: String? = null
     ): ChatResponse
 }
 

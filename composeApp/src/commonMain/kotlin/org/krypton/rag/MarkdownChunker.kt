@@ -28,6 +28,11 @@ interface MarkdownChunker {
  * 3. Preserve code blocks and lists (don't split mid-block/list)
  * 4. Extract section titles from heading hierarchy
  * 
+ * Note: Chunks produced by this chunker are further validated by EmbeddingValidator
+ * before embedding to ensure they don't exceed the embedding model's context limit.
+ * The chunker's maxTokens setting should be set lower than the embedding context limit
+ * to account for the prefix added by the embedding service (e.g., "search_document: ").
+ * 
  * This implementation will be moved to jvmMain in a later refactoring step.
  */
 class MarkdownChunkerImpl(

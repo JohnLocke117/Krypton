@@ -36,6 +36,10 @@ class ChatStateHolder(
     private val _status = MutableStateFlow<UiStatus>(UiStatus.Idle)
     val status: StateFlow<UiStatus> = _status.asStateFlow()
     
+    // Temporary agent message (shown while agent is processing)
+    private val _agentMessage = MutableStateFlow<ChatMessage?>(null)
+    val agentMessage: StateFlow<ChatMessage?> = _agentMessage.asStateFlow()
+    
     // Keep error for backward compatibility
     @Deprecated("Use status instead", ReplaceWith("status"))
     val error: StateFlow<String?> = _status.map { 
@@ -48,11 +52,13 @@ class ChatStateHolder(
      * @param message The user's message
      * @param retrievalMode The retrieval mode to use
      * @param vaultPath Optional path to the currently opened vault/folder for agent context
+     * @param currentNotePath Optional path to the currently active/open note file for agent context
      */
     fun sendMessage(
         message: String, 
         retrievalMode: RetrievalMode = RetrievalMode.NONE,
-        vaultPath: String? = null
+        vaultPath: String? = null,
+        currentNotePath: String? = null
     ) {
         if (message.isBlank()) return
         
@@ -69,21 +75,53 @@ class ChatStateHolder(
                     timestamp = org.krypton.util.createTimeProvider().currentTimeMillis()
                 )
                 
+                // Add user message immediately
+                val updatedMessagesWithUser = _messages.value + userMessage
+                _messages.value = updatedMessagesWithUser
+                
+                // Show temporary agent message immediately (will be updated/replaced when response arrives)
+                val tempAgentId = org.krypton.util.createIdGenerator().generateId()
+                val tempAgentMessage = ChatMessage(
+                    id = tempAgentId,
+                    role = org.krypton.chat.ChatRole.ASSISTANT,
+                    content = "Agent called: Processing...",
+                    timestamp = org.krypton.util.createTimeProvider().currentTimeMillis()
+                )
+                _agentMessage.value = tempAgentMessage
+                
                 // Call chat service with new signature
                 val response = chatService.sendMessage(
                     message = message,
                     mode = retrievalMode,
                     threadId = null, // TODO: Support threadId if needed
-                    vaultPath = vaultPath
+                    vaultPath = vaultPath,
+                    currentNotePath = currentNotePath
                 )
                 
-                // Update history with user message and assistant response
-                val updatedMessages = _messages.value + userMessage + response.message
+                // Check if an agent was used (indicated in metadata)
+                val agentName = response.metadata.additionalInfo["agent"]
+                if (agentName != null) {
+                    // Update temporary message with agent name
+                    val updatedTempMessage = tempAgentMessage.copy(
+                        content = "Agent called: $agentName"
+                    )
+                    _agentMessage.value = updatedTempMessage
+                    
+                    // Small delay to show the agent name, then replace with actual response
+                    kotlinx.coroutines.delay(300)
+                }
+                
+                // Clear temporary agent message and add actual response
+                _agentMessage.value = null
+                val updatedMessages = updatedMessagesWithUser + response.message
                 _messages.value = updatedMessages
+                
                 _status.value = UiStatus.Success
                 
                 AppLogger.i("ChatStateHolder", "Message sent successfully with mode: $retrievalMode, sources: ${response.metadata.sources.size}")
             } catch (e: Exception) {
+                // Clear temporary agent message on error
+                _agentMessage.value = null
                 val errorMsg = e.message ?: "Failed to send message"
                 _status.value = UiStatus.Error(errorMsg, recoverable = true)
                 AppLogger.e("ChatStateHolder", "Failed to send message: $errorMsg", e)

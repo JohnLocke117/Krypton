@@ -262,6 +262,25 @@ open class Indexer(
             
             logger.debug("Chunked file $filePath into ${ragChunks.size} chunks")
             
+            // Validate and split chunks that exceed embedding context limit
+            // Use model-specific limit estimation (conservative for mxbai-embed-large: 1700 chars)
+            // HttpEmbedder will do final validation with actual model name
+            val maxContentChars = org.krypton.rag.EmbeddingValidator.estimateMaxContentChars("mxbai-embed-large")
+            
+            val originalChunkCount = ragChunks.size
+            val validatedChunks = org.krypton.rag.EmbeddingValidator.validateAndSplitChunks(
+                chunks = ragChunks,
+                maxChars = maxContentChars + org.krypton.config.RagDefaults.Embedding.DOCUMENT_PREFIX_LENGTH,
+                prefixLength = org.krypton.config.RagDefaults.Embedding.DOCUMENT_PREFIX_LENGTH
+            )
+            
+            if (validatedChunks.size != originalChunkCount) {
+                logger.info("Validated chunks for file $filePath: ${originalChunkCount} original -> ${validatedChunks.size} after validation (${validatedChunks.size - originalChunkCount} chunks split)")
+            }
+            
+            // Log indexing info for large files
+            logger.info("Indexing file $filePath: length=${content.length}, chunks=${validatedChunks.size}, maxChars=$maxContentChars, overlap=150")
+            
             // Delete existing chunks for this file (to handle updates)
             // This is best-effort - if it fails, we'll just upsert which will overwrite
             try {
@@ -271,8 +290,8 @@ open class Indexer(
             }
             
             // Generate embeddings in batches
-            logger.debug("Generating embeddings for ${ragChunks.size} chunks from file $filePath")
-            val texts = ragChunks.map { it.text }
+            logger.debug("Generating embeddings for ${validatedChunks.size} chunks from file $filePath")
+            val texts = validatedChunks.map { it.text }
             val maxBatchSize = RagDefaults.Embedding.DEFAULT_BATCH_SIZE
             
             // Batch chunks for embedding to reduce HTTP overhead
@@ -285,16 +304,16 @@ open class Indexer(
                 allEmbeddings.addAll(batchEmbeddings.map { it.vector })
             }
             
-            if (allEmbeddings.size != ragChunks.size) {
+            if (allEmbeddings.size != validatedChunks.size) {
                 throw IndexingException(
-                    "Embedding count mismatch: expected ${ragChunks.size}, got ${allEmbeddings.size}"
+                    "Embedding count mismatch: expected ${validatedChunks.size}, got ${allEmbeddings.size}"
                 )
             }
             
             logger.debug("Generated ${allEmbeddings.size} embeddings for file $filePath")
             
             // Attach embeddings to chunks
-            val chunksWithEmbeddings = ragChunks.zip(allEmbeddings).map { (chunk, embedding) ->
+            val chunksWithEmbeddings = validatedChunks.zip(allEmbeddings).map { (chunk, embedding) ->
                 chunk.copy(embedding = embedding)
             }
             

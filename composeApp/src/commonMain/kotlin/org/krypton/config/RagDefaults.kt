@@ -29,11 +29,19 @@ object RagDefaults {
      * Default chunking configuration.
      * 
      * Groups chunk size and overlap settings used in RAG indexing.
+     * 
+     * Note: maxTokens is set to 400 (instead of 512) to account for:
+     * - Prefix added by embedding service ("search_document: " = 18 chars ≈ 4-5 tokens)
+     * - Safety margin for models with smaller context windows (e.g., 512 token models)
+     * - Token estimation inaccuracy (char-based approximation)
+     * 
+     * This ensures chunks work with 512-token embedding models while still being
+     * large enough for good semantic retrieval.
      */
     val DEFAULT_CHUNKING = ChunkingConfig(
-        targetTokens = 400,
-        minTokens = 300,
-        maxTokens = 512,
+        targetTokens = 350,
+        minTokens = 200,
+        maxTokens = 400, // Reduced from 512 to account for prefix and safety margin
         overlapTokens = 50,
         charsPerToken = 4,
         minWords = 300,
@@ -148,6 +156,38 @@ object RagDefaults {
          * Default maximum concurrent upsert operations.
          */
         const val DEFAULT_MAX_CONCURRENT_UPSERTS = 8
+        
+        /**
+         * Maximum characters allowed per embedding input (conservative default).
+         * 
+         * This accounts for the prefix added by HttpEmbedder ("search_document: " = 18 chars).
+         * Most embedding models support 8192 tokens (~32K chars), but we use a conservative
+         * limit to prevent errors. For nomic-embed-text:v1.5, the context limit is ~8192 tokens.
+         * 
+         * Default: 2000 chars (≈500 tokens with 4 chars/token) provides safety margin for
+         * models with smaller context windows (e.g., 512 token models).
+         * 
+         * Note: This is a conservative default. Models with larger context windows will
+         * work fine, but models with smaller windows (like 512 tokens) need this lower limit.
+         */
+        const val MAX_EMBEDDING_CONTEXT_CHARS = 2000
+        
+        /**
+         * Maximum tokens allowed per embedding input (for token-based validation).
+         * 
+         * Default: 500 tokens (conservative, works for 512 token models and larger).
+         */
+        const val MAX_EMBEDDING_CONTEXT_TOKENS = 500
+        
+        /**
+         * Prefix length for document embeddings ("search_document: ").
+         */
+        const val DOCUMENT_PREFIX_LENGTH = 18
+        
+        /**
+         * Prefix length for query embeddings ("search_query: ").
+         */
+        const val QUERY_PREFIX_LENGTH = 16
     }
     
     /**

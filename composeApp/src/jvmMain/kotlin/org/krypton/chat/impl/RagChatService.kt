@@ -19,9 +19,10 @@ class RagChatService(
         message: String,
         mode: RetrievalMode,
         threadId: String?,
-        vaultPath: String?
+        vaultPath: String?,
+        currentNotePath: String?
     ): ChatResponse {
-        return delegate.sendMessage(message, mode, threadId, vaultPath)
+        return delegate.sendMessage(message, mode, threadId, vaultPath, currentNotePath)
     }
 }
 

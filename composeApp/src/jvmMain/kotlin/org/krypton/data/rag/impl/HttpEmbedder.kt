@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.krypton.config.RagDefaults
 import org.krypton.rag.Embedder
 import org.krypton.rag.EmbeddingTaskType
 import org.krypton.rag.models.Embedding
@@ -51,6 +52,28 @@ class HttpEmbedder(
     
     private val maxRetries = 3
     private val initialRetryDelayMs = 500L
+    
+    /**
+     * Validates and possibly truncates content to ensure it doesn't exceed the embedding limit.
+     * 
+     * This is a hard guard that ensures no content exceeds maxContentChars, even if
+     * upstream chunking is buggy. If content exceeds the limit, it will be truncated
+     * and a warning will be logged.
+     * 
+     * @param raw The raw text content
+     * @param maxContentChars Maximum content characters allowed (excluding prefix)
+     * @return The text, truncated if necessary
+     */
+    private fun validateAndPossiblyTrimContent(raw: String, maxContentChars: Int): String {
+        if (raw.length <= maxContentChars) return raw
+
+        // Log and truncate as a last line of defense
+        AppLogger.w(
+            "HttpEmbedder",
+            "Embedding content exceeded MAX_CONTENT_CHARS=${maxContentChars}, length=${raw.length}. Truncating."
+        )
+        return raw.substring(0, maxContentChars)
+    }
     
     @Serializable
     private data class EmbeddingRequest(
@@ -99,11 +122,54 @@ class HttpEmbedder(
         }
         
         // Prefix texts based on task type for Nomic embedding models
-        val prefixedTexts = texts.map { text ->
+        val prefixLength = when (taskType) {
+            EmbeddingTaskType.SEARCH_DOCUMENT -> RagDefaults.Embedding.DOCUMENT_PREFIX_LENGTH
+            EmbeddingTaskType.SEARCH_QUERY -> RagDefaults.Embedding.QUERY_PREFIX_LENGTH
+        }
+        
+        // Validate text lengths before sending to API
+        // Use model-specific limit estimation for better accuracy
+        val maxContentChars = org.krypton.rag.EmbeddingValidator.estimateMaxContentChars(model)
+        val maxChars = maxContentChars + prefixLength // Total including prefix
+        
+        // Apply hard guard: truncate any texts that exceed maxContentChars before prefixing
+        val safeTexts = texts.map { validateAndPossiblyTrimContent(it, maxContentChars) }
+        
+        // Prefix the safe texts
+        val prefixedTexts = safeTexts.map { text ->
             when (taskType) {
                 EmbeddingTaskType.SEARCH_DOCUMENT -> "search_document: $text"
                 EmbeddingTaskType.SEARCH_QUERY -> "search_query: $text"
             }
+        }
+        
+        AppLogger.d("HttpEmbedder", "Validating ${prefixedTexts.size} texts for embedding (model=$model, maxContentChars=$maxContentChars, maxTotalChars=$maxChars)")
+        
+        val invalidTexts = mutableListOf<Pair<Int, Int>>() // (index, length)
+        val closeToLimitTexts = mutableListOf<Pair<Int, Int>>() // (index, length)
+        
+        prefixedTexts.forEachIndexed { index, prefixedText ->
+            val textLength = prefixedText.length
+            if (textLength > maxChars) {
+                invalidTexts.add(index to textLength)
+            } else if (textLength > maxChars * 0.9) {
+                closeToLimitTexts.add(index to textLength)
+            }
+        }
+        
+        if (invalidTexts.isNotEmpty()) {
+            val errorDetails = invalidTexts.joinToString(", ") { "text[$it.first]=${it.second}chars" }
+            val errorMsg = "One or more texts exceed embedding context limit (max=$maxChars chars including prefix, model=$model, estimated max content=$maxContentChars). $errorDetails. " +
+                    "This should not happen if chunks were properly validated before embedding. " +
+                    "Please check chunking configuration and ensure chunks are validated before calling embed()."
+            AppLogger.e("HttpEmbedder", errorMsg)
+            throw EmbeddingException(errorMsg)
+        }
+        
+        // Log if any texts are close to the limit
+        if (closeToLimitTexts.isNotEmpty()) {
+            val details = closeToLimitTexts.joinToString(", ") { "text[$it.first]=${it.second}chars" }
+            AppLogger.w("HttpEmbedder", "Some texts are close to embedding limit (max=$maxChars, model=$model): $details")
         }
         
         val url = "$baseUrl$apiPath"
@@ -156,6 +222,14 @@ class HttpEmbedder(
                     val finalError = if (errorMsg.contains("model") || errorMsg.contains("not found") || 
                         errorMsg.contains("invalid") || errorMsg.contains("404")) {
                         "Model error: ${response.error}. Please check model name: $model"
+                    } else if (errorMsg.contains("context length") || errorMsg.contains("input length") || 
+                               errorMsg.contains("exceeds")) {
+                        // Context length error - this should have been caught by validation
+                        val maxChars = maxContentChars + prefixLength
+                        "Embedding API returned error: ${response.error}. " +
+                        "This indicates a chunk exceeded the context limit (max=$maxChars chars including prefix, model=$model). " +
+                        "Please check that chunking and validation are working correctly. " +
+                        "Current validation limit: $maxContentChars chars content + $prefixLength chars prefix = $maxChars chars total."
                     } else {
                         "Embedding API returned error: ${response.error}"
                     }

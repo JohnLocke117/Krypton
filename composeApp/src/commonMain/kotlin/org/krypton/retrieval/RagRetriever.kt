@@ -2,6 +2,7 @@ package org.krypton.retrieval
 
 import org.krypton.rag.*
 import org.krypton.util.AppLogger
+import org.krypton.data.repository.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,11 +21,9 @@ class RagRetriever(
     private val queryPreprocessor: QueryPreprocessor? = null,
     private val queryRewritingEnabled: Boolean = false,
     private val multiQueryEnabled: Boolean = false,
-    private val reranker: Reranker = NoopReranker()
+    private val reranker: Reranker = NoopReranker(),
+    private val settingsRepository: SettingsRepository? = null
 ) {
-    // Reranking enabled flag (can be toggled at runtime)
-    @Volatile
-    private var rerankingEnabled: Boolean = true
     
     /**
      * Retrieves relevant chunks for the given query.
@@ -41,6 +40,11 @@ class RagRetriever(
      */
     suspend fun retrieveChunks(question: String): List<RagChunk> = withContext(Dispatchers.Default) {
         try {
+            // Read current settings dynamically if SettingsRepository is available
+            val currentSettings = settingsRepository?.settingsFlow?.value?.rag
+            val shouldUseMultiQuery = currentSettings?.multiQueryEnabled ?: multiQueryEnabled
+            val shouldUseReranking = currentSettings?.rerankingEnabled ?: false
+            
             // Step 0: Rewrite query if enabled
             val processedQuestion = if (queryRewritingEnabled && queryPreprocessor != null) {
                 queryPreprocessor.rewriteQuery(question)
@@ -49,7 +53,7 @@ class RagRetriever(
             }
             
             // Step 1: Handle multi-query or single query
-            val allResults = if (multiQueryEnabled && queryPreprocessor != null) {
+            val allResults = if (shouldUseMultiQuery && queryPreprocessor != null) {
                 // Multi-query: generate alternatives and search for each
                 val queries = queryPreprocessor.generateAlternativeQueries(processedQuestion)
                 AppLogger.i("RagRetriever", "═══════════════════════════════════════════════════════════")
@@ -86,7 +90,7 @@ class RagRetriever(
             
             // Step 2: Rerank chunks (if reranking is enabled and reranker is available and not NoopReranker)
             val rerankedResults = try {
-                if (!rerankingEnabled || reranker is NoopReranker) {
+                if (!shouldUseReranking || reranker is NoopReranker) {
                     // Skip reranking if disabled or using NoopReranker
                     allResults
                 } else {
@@ -139,15 +143,20 @@ class RagRetriever(
     
     /**
      * Sets whether reranking is enabled.
+     * @deprecated Use settings repository instead. This method is kept for backward compatibility.
      */
+    @Deprecated("Use settings repository to control reranking")
     fun setRerankingEnabled(enabled: Boolean) {
-        rerankingEnabled = enabled
-        AppLogger.d("RagRetriever", "Reranking ${if (enabled) "enabled" else "disabled"}")
+        AppLogger.w("RagRetriever", "setRerankingEnabled is deprecated. Use settings repository instead.")
     }
     
     /**
      * Gets whether reranking is currently enabled.
+     * @deprecated Use settings repository instead. This method is kept for backward compatibility.
      */
-    fun isRerankingEnabled(): Boolean = rerankingEnabled
+    @Deprecated("Use settings repository to control reranking")
+    fun isRerankingEnabled(): Boolean {
+        return settingsRepository?.settingsFlow?.value?.rag?.rerankingEnabled ?: false
+    }
 }
 

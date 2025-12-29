@@ -21,6 +21,9 @@ data class ChunkingConfig(
     /** Maximum chunk size in words (legacy) */
     val maxWords: Int,
     /** Overlap in words (legacy) */
-    val overlapWords: Int
+    val overlapWords: Int,
+    /** Maximum characters allowed per embedding input (including prefix).
+     * If null, uses RagDefaults.Embedding.MAX_EMBEDDING_CONTEXT_CHARS */
+    val maxEmbeddingChars: Int? = null
 )
 

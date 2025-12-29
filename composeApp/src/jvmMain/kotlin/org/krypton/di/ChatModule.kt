@@ -2,6 +2,8 @@ package org.krypton.di
 
 import org.krypton.chat.ChatService
 import org.krypton.chat.agent.CreateNoteAgent
+import org.krypton.chat.agent.SearchNoteAgent
+import org.krypton.chat.agent.SummarizeNoteAgent
 import org.krypton.data.chat.impl.OllamaChatService
 import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
@@ -60,7 +62,8 @@ val chatModule = module {
                     queryPreprocessor = queryPreprocessor,
                     queryRewritingEnabled = ragSettings.queryRewritingEnabled,
                     multiQueryEnabled = ragSettings.multiQueryEnabled,
-                    reranker = reranker
+                    reranker = reranker,
+                    settingsRepository = settingsRepository
                 )
             }
         } catch (e: Exception) {
@@ -101,6 +104,35 @@ val chatModule = module {
         )
     }
     
+    // SearchNoteAgent (for note search functionality)
+    single<SearchNoteAgent> {
+        val ragRetriever: RagRetriever? = try {
+            get<RagRetriever>()
+        } catch (e: Exception) {
+            null
+        }
+        SearchNoteAgent(
+            ragRetriever = ragRetriever,
+            fileSystem = get(),
+            settingsRepository = get()
+        )
+    }
+    
+    // SummarizeNoteAgent (for note summarization functionality)
+    single<SummarizeNoteAgent> {
+        val ragRetriever: RagRetriever? = try {
+            get<RagRetriever>()
+        } catch (e: Exception) {
+            null
+        }
+        SummarizeNoteAgent(
+            llamaClient = get(),
+            ragRetriever = ragRetriever,
+            fileSystem = get(),
+            settingsRepository = get()
+        )
+    }
+    
     // ChatService
     single<ChatService> {
         val llamaClient: LlamaClient = get()
@@ -111,10 +143,24 @@ val chatModule = module {
             null
         }
         val settingsRepository: SettingsRepository = get()
-        val createNoteAgent: CreateNoteAgent? = try {
-            get<CreateNoteAgent>()
-        } catch (e: Exception) {
-            null
+        
+        // Collect all available agents
+        val agents = buildList<org.krypton.chat.agent.ChatAgent> {
+            try {
+                add(get<CreateNoteAgent>())
+            } catch (e: Exception) {
+                // CreateNoteAgent should always be available, but handle gracefully
+            }
+            try {
+                add(get<SearchNoteAgent>())
+            } catch (e: Exception) {
+                // SearchNoteAgent may not be available if dependencies are missing
+            }
+            try {
+                add(get<SummarizeNoteAgent>())
+            } catch (e: Exception) {
+                // SummarizeNoteAgent may not be available if dependencies are missing
+            }
         }
         
         // OllamaChatService now handles retrieval internally
@@ -123,7 +169,7 @@ val chatModule = module {
             promptBuilder = promptBuilder,
             retrievalService = retrievalService,
             settingsRepository = settingsRepository,
-            createNoteAgent = createNoteAgent
+            agents = if (agents.isNotEmpty()) agents else null
         )
     }
 }

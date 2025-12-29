@@ -38,7 +38,7 @@ class OllamaChatService(
     private val promptBuilder: PromptBuilder,
     private val retrievalService: RetrievalService?,
     private val settingsRepository: SettingsRepository,
-    private val createNoteAgent: ChatAgent? = null,
+    private val agents: List<ChatAgent>? = null,
     private val idGenerator: IdGenerator = createIdGenerator(),
     private val timeProvider: TimeProvider = createTimeProvider()
 ) : ChatService {
@@ -47,22 +47,35 @@ class OllamaChatService(
         message: String,
         mode: RetrievalMode,
         threadId: String?,
-        vaultPath: String?
+        vaultPath: String?,
+        currentNotePath: String?
     ): ChatResponse = withContext(Dispatchers.IO) {
         AppLogger.action("Chat", "MessageSent", "mode=$mode, length=${message.length}")
         
         try {
             // Check agents before normal flow
-            val agentResult = createNoteAgent?.let { agent ->
+            val agentResult = agents?.firstNotNullOfOrNull { agent ->
                 try {
+                    AppLogger.i("Chat", "═══════════════════════════════════════════════════════════")
+                    AppLogger.i("Chat", "Agent called: ${agent::class.simpleName}")
+                    AppLogger.i("Chat", "  Message: $message")
+                    AppLogger.i("Chat", "  Vault: ${vaultPath ?: "none"}")
+                    AppLogger.i("Chat", "  Note: ${currentNotePath ?: "none"}")
+                    AppLogger.i("Chat", "═══════════════════════════════════════════════════════════")
+                    
                     val context = AgentContext(
                         currentVaultPath = vaultPath,
-                        settings = settingsRepository.settingsFlow.value
+                        settings = settingsRepository.settingsFlow.value,
+                        currentNotePath = currentNotePath
                     )
                     // For MVP, pass empty history (can enhance later)
-                    agent.tryHandle(message, emptyList(), context)
+                    val result = agent.tryHandle(message, emptyList(), context)
+                    if (result != null) {
+                        AppLogger.i("Chat", "Agent ${agent::class.simpleName} handled the message successfully")
+                    }
+                    result
                 } catch (e: Exception) {
-                    AppLogger.e("Chat", "Agent error (continuing with normal flow): ${e.message}", e)
+                    AppLogger.e("Chat", "Agent ${agent::class.simpleName} error (continuing with normal flow): ${e.message}", e)
                     null
                 }
             }
@@ -96,6 +109,69 @@ class OllamaChatService(
                             metadata = ChatResponseMetadata(
                                 sources = emptyList(),
                                 additionalInfo = mapOf("agent" to "CreateNoteAgent", "action" to "note_created")
+                            )
+                        )
+                    }
+                    
+                    is AgentResult.NotesFound -> {
+                        val responseText = buildString {
+                            appendLine("Found ${agentResult.results.size} note(s) matching \"${agentResult.query}\":")
+                            appendLine()
+                            agentResult.results.forEachIndexed { index, match ->
+                                appendLine("${index + 1}. **${match.title}**")
+                                appendLine("   - File: `${match.filePath}`")
+                                appendLine("   - Relevance: ${String.format("%.0f", match.score * 100)}%")
+                                appendLine("   - Snippet: ${match.snippet}")
+                                if (index < agentResult.results.size - 1) {
+                                    appendLine()
+                                }
+                            }
+                        }
+                        
+                        val assistantMessage = ChatMessage(
+                            id = idGenerator.generateId(),
+                            role = ChatRole.ASSISTANT,
+                            content = responseText,
+                            timestamp = timeProvider.currentTimeMillis()
+                        )
+                        
+                        ChatResponse(
+                            message = assistantMessage,
+                            retrievalMode = mode,
+                            metadata = ChatResponseMetadata(
+                                sources = emptyList(),
+                                additionalInfo = mapOf("agent" to "SearchNoteAgent", "action" to "notes_found", "count" to agentResult.results.size.toString())
+                            )
+                        )
+                    }
+                    
+                    is AgentResult.NoteSummarized -> {
+                        val responseText = buildString {
+                            appendLine("**Summary: ${agentResult.title}**")
+                            appendLine()
+                            appendLine(agentResult.summary)
+                            if (agentResult.sourceFiles.isNotEmpty()) {
+                                appendLine()
+                                appendLine("**Sources:**")
+                                agentResult.sourceFiles.forEach { filePath ->
+                                    appendLine("- `$filePath`")
+                                }
+                            }
+                        }
+                        
+                        val assistantMessage = ChatMessage(
+                            id = idGenerator.generateId(),
+                            role = ChatRole.ASSISTANT,
+                            content = responseText,
+                            timestamp = timeProvider.currentTimeMillis()
+                        )
+                        
+                        ChatResponse(
+                            message = assistantMessage,
+                            retrievalMode = mode,
+                            metadata = ChatResponseMetadata(
+                                sources = emptyList(),
+                                additionalInfo = mapOf("agent" to "SummarizeNoteAgent", "action" to "note_summarized", "sources" to agentResult.sourceFiles.size.toString())
                             )
                         )
                     }

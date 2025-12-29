@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
@@ -62,6 +63,7 @@ fun ChatPanel(
     val messages by chatStateHolder.messages.collectAsState()
     val isLoading by chatStateHolder.isLoading.collectAsState()
     val chatStatus by chatStateHolder.status.collectAsState()
+    val agentMessage by chatStateHolder.agentMessage.collectAsState()
     
     // Extract error message from status
     val error = (chatStatus as? UiStatus.Error)?.message
@@ -74,9 +76,9 @@ fun ChatPanel(
     // Optimistic user message (shown immediately when sent)
     var optimisticUserMessage by remember { mutableStateOf<ChatMessage?>(null) }
     
-    // Combine actual messages with optimistic message for display
-    val displayMessages = remember(messages, optimisticUserMessage) {
-        if (optimisticUserMessage != null && messages.isEmpty()) {
+    // Combine actual messages with optimistic message and agent message for display
+    val displayMessages = remember(messages, optimisticUserMessage, agentMessage) {
+        val baseMessages = if (optimisticUserMessage != null && messages.isEmpty()) {
             listOf(optimisticUserMessage!!)
         } else if (optimisticUserMessage != null && messages.isNotEmpty()) {
             // Check if optimistic message is already in the real messages
@@ -88,6 +90,13 @@ fun ChatPanel(
             }
         } else {
             messages
+        }
+        
+        // Add agent message if present (temporary message shown while agent is processing)
+        if (agentMessage != null) {
+            baseMessages + agentMessage!!
+        } else {
+            baseMessages
         }
     }
     
@@ -125,12 +134,23 @@ fun ChatPanel(
         }
     }
     val settingsRepository: org.krypton.data.repository.SettingsRepository = remember { koin.get() }
+    val currentSettings by settingsRepository.settingsFlow.collectAsState()
+    
     var multiQueryEnabled by remember { 
-        mutableStateOf(false) 
+        mutableStateOf(currentSettings.rag.multiQueryEnabled)
     }
     
-    // Reranking toggle state (disabled by default)
-    var rerankingEnabled by remember { mutableStateOf(false) }
+    // Reranking toggle state - initialized from settings
+    var rerankingEnabled by remember { mutableStateOf(currentSettings.rag.rerankingEnabled) }
+    
+    // Sync toggles with settings changes
+    LaunchedEffect(currentSettings.rag.multiQueryEnabled) {
+        multiQueryEnabled = currentSettings.rag.multiQueryEnabled
+    }
+    
+    LaunchedEffect(currentSettings.rag.rerankingEnabled) {
+        rerankingEnabled = currentSettings.rag.rerankingEnabled
+    }
     
     // Error state for Tavily toggle attempts without API key
     var tavilyError by remember { mutableStateOf<String?>(null) }
@@ -191,6 +211,9 @@ fun ChatPanel(
     
     // Get current vault path
     val currentVaultPath = editorStateHolder?.currentDirectory?.value?.toString()
+    
+    // Get current note path
+    val currentNotePath = editorStateHolder?.activeDocument?.value?.path
     
     // Monitor sync status and disable RAG if ChromaDB becomes unavailable
     LaunchedEffect(syncStatus, ragEnabled) {
@@ -606,8 +629,18 @@ fun ChatPanel(
                                     if (ragEnabled) {
                                         val newValue = !rerankingEnabled
                                         rerankingEnabled = newValue
-                                        // Update RagService reranking state
-                                        // Reranking is controlled via RagQueryOptions, not a service method
+                                        // Log the state change
+                                        AppLogger.d("ChatPanel", "Reranking ${if (newValue) "enabled" else "disabled"}")
+                                        // Update settings repository
+                                        coroutineScope.launch {
+                                            settingsRepository.update { currentSettings ->
+                                                currentSettings.copy(
+                                                    rag = currentSettings.rag.copy(
+                                                        rerankingEnabled = newValue
+                                                    )
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             ) {
@@ -745,8 +778,8 @@ fun ChatPanel(
                                 )
                                 optimisticUserMessage = optimisticMessage
                                 
-                                // Send message with current retrieval mode and vault path
-                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath)
+                                // Send message with current retrieval mode, vault path, and current note path
+                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
                             }
                         }
                     ) {

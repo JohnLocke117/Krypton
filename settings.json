@@ -73,6 +73,7 @@
         "displayK": 5,
         "queryRewritingEnabled": false,
         "multiQueryEnabled": false,
+        "rerankingEnabled": false,
         "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M"
     }
 }

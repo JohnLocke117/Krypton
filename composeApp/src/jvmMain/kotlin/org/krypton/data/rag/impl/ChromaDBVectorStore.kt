@@ -127,11 +127,21 @@ class ChromaDBVectorStore(
     
     /**
      * Creates a new collection in ChromaDB and caches the collection ID.
+     * 
+     * @param forceCreate If true, uses get_or_create=false to force creation of a new collection.
+     *                    If false, uses get_or_create=true to get existing or create new.
      */
-    private suspend fun createCollection() = withContext(Dispatchers.IO) {
+    private suspend fun createCollection(forceCreate: Boolean = false) = withContext(Dispatchers.IO) {
+        // #region agent log
+        try {
+            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"ChromaDBVectorStore.kt:createCollection","message":"createCollection entry","data":{"collectionName":"$collectionName","forceCreate":$forceCreate,"get_or_create":${!forceCreate}},"timestamp":${System.currentTimeMillis()}}
+""")
+        } catch (e: Exception) {}
+        // #endregion
+        
         val request = CreateCollectionRequest(
             name = collectionName,
-            get_or_create = true,
+            get_or_create = !forceCreate,
             metadata = null,
             configuration = null,
             schema = null
@@ -144,16 +154,31 @@ class ChromaDBVectorStore(
         
         if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
             val errorBody = response.body<String>()
+            // #region agent log
+            try {
+                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"ChromaDBVectorStore.kt:createCollection","message":"Create failed","data":{"status":"${response.status}","error":"$errorBody"},"timestamp":${System.currentTimeMillis()}}
+""")
+            } catch (e: Exception) {}
+            // #endregion
             throw ChromaDBException("Failed to create collection: ${response.status} - $errorBody")
         }
         
         // Parse collection ID from response
         val collectionResponse: CollectionResponse = response.body()
-        collectionId = collectionResponse.id
+        val newCollectionId = collectionResponse.id
+        
+        // #region agent log
+        try {
+            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"B,C","location":"ChromaDBVectorStore.kt:createCollection","message":"Collection created/retrieved","data":{"newCollectionId":"$newCollectionId","oldCollectionId":"$collectionId","forceCreate":$forceCreate},"timestamp":${System.currentTimeMillis()}}
+""")
+        } catch (e: Exception) {}
+        // #endregion
+        
+        collectionId = newCollectionId
         
         AppLogger.i("ChromaDBVectorStore", "Collection Created/Retrieved Successfully")
         AppLogger.i("ChromaDBVectorStore", "  Collection Name: $collectionName")
-        AppLogger.i("ChromaDBVectorStore", "  Collection ID: ${collectionResponse.id}")
+        AppLogger.i("ChromaDBVectorStore", "  Collection ID: $newCollectionId")
         AppLogger.d("ChromaDBVectorStore", "Collection ID cached for future operations")
     }
     
@@ -208,7 +233,67 @@ class ChromaDBVectorStore(
             // ChromaDB v2 API returns 201 Created for successful add operations
             if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
                 val errorBody = response.body<String>()
-                throw ChromaDBException("Failed to upsert chunks: ${response.status} - $errorBody")
+                
+                // Check for dimension mismatch error
+                if (response.status == HttpStatusCode.BadRequest && 
+                    errorBody.contains("dimension", ignoreCase = true)) {
+                    AppLogger.w("ChromaDBVectorStore", "Dimension mismatch detected: $errorBody")
+                    AppLogger.i("ChromaDBVectorStore", "Attempting to fix by recreating collection with correct dimension")
+                    
+                    // Get actual embedding dimension from chunks
+                    val actualDimension = embeddings.firstOrNull()?.size
+                    if (actualDimension != null) {
+                        AppLogger.i("ChromaDBVectorStore", "Detected actual embedding dimension: $actualDimension")
+                        
+                        // Delete and recreate collection, then retry
+                        try {
+                            deleteCollection()
+                            collectionId = null
+                            embeddingDimension = null
+                            
+                            // Force create a new collection (don't use get_or_create which might find old one)
+                            createCollection(forceCreate = true)
+                            
+                            // Get the new collection ID after recreation
+                            val newCollectionId = collectionId
+                                ?: throw ChromaDBException("Collection ID not available after recreation")
+                            
+                            // Retry the upsert
+                            val retryRequest = AddRequest(
+                                ids = ids,
+                                embeddings = embeddings,
+                                documents = documents,
+                                metadatas = metadatas,
+                                uris = null
+                            )
+                            
+                            val retryResponse = client.post("$collectionsBasePath/$newCollectionId/add") {
+                                contentType(ContentType.Application.Json)
+                                setBody(retryRequest)
+                            }
+                            
+                            if (retryResponse.status == HttpStatusCode.OK || retryResponse.status == HttpStatusCode.Created) {
+                                AppLogger.i("ChromaDBVectorStore", "Successfully upserted after recreating collection with dimension $actualDimension")
+                                AppLogger.d("ChromaDBVectorStore", "Upserted ${chunks.size} chunks into collection '$collectionName'")
+                                // Update cached dimension
+                                embeddingDimension = actualDimension
+                                return@withContext
+                            } else {
+                                val retryErrorBody = retryResponse.body<String>()
+                                AppLogger.e("ChromaDBVectorStore", "Retry failed after recreating collection: ${retryResponse.status} - $retryErrorBody")
+                                throw ChromaDBException("Failed to upsert chunks after recreating collection: ${retryResponse.status} - $retryErrorBody")
+                            }
+                        } catch (recreateException: Exception) {
+                            AppLogger.e("ChromaDBVectorStore", "Failed to recreate collection: ${recreateException.message}", recreateException)
+                            throw ChromaDBException("Failed to upsert chunks: dimension mismatch and recreation failed - ${recreateException.message}", recreateException)
+                        }
+                    } else {
+                        AppLogger.e("ChromaDBVectorStore", "Cannot determine embedding dimension from chunks")
+                        throw ChromaDBException("Failed to upsert chunks: dimension mismatch - ${response.status} - $errorBody")
+                    }
+                } else {
+                    throw ChromaDBException("Failed to upsert chunks: ${response.status} - $errorBody")
+                }
             }
             
             AppLogger.d("ChromaDBVectorStore", "Upserted ${chunks.size} chunks into collection '$collectionName'")
@@ -263,7 +348,183 @@ class ChromaDBVectorStore(
             
             if (response.status != HttpStatusCode.OK) {
                 val errorBody = response.body<String>()
-                throw ChromaDBException("Failed to search: ${response.status} - $errorBody")
+                
+                // Check for dimension mismatch error
+                if (response.status == HttpStatusCode.BadRequest && 
+                    errorBody.contains("dimension", ignoreCase = true)) {
+                    AppLogger.w("ChromaDBVectorStore", "Dimension mismatch detected in search: $errorBody")
+                    AppLogger.i("ChromaDBVectorStore", "Query embedding dimension: ${queryEmbedding.vector.size}, attempting to fix by recreating collection")
+                    
+                    // Get actual embedding dimension from query
+                    val actualDimension = queryEmbedding.vector.size
+                    if (actualDimension > 0) {
+                        AppLogger.i("ChromaDBVectorStore", "Detected actual embedding dimension: $actualDimension")
+                        
+                        // Delete and recreate collection, then retry
+                        try {
+                            // #region agent log
+                            try {
+                                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C,D","location":"ChromaDBVectorStore.kt:search","message":"Starting collection recreation","data":{"actualDimension":$actualDimension,"currentCollectionId":"$collectionId","collectionName":"$collectionName"},"timestamp":${System.currentTimeMillis()}}
+""")
+                            } catch (e: Exception) {}
+                            // #endregion
+                            
+                            deleteCollection()
+                            collectionId = null
+                            embeddingDimension = null
+                            
+                            // #region agent log
+                            try {
+                                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"ChromaDBVectorStore.kt:search","message":"Cache cleared, checking if collection still exists","data":{"collectionName":"$collectionName"},"timestamp":${System.currentTimeMillis()}}
+""")
+                            } catch (e: Exception) {}
+                            // #endregion
+                            
+                            // Check if collection still exists by name (should not exist after deletion)
+                            val stillExists = getCollectionIdFromName(collectionName)
+                            
+                            // #region agent log
+                            try {
+                                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"B,C","location":"ChromaDBVectorStore.kt:search","message":"Collection existence check","data":{"stillExists":${stillExists != null},"foundId":"$stillExists"},"timestamp":${System.currentTimeMillis()}}
+""")
+                            } catch (e: Exception) {}
+                            // #endregion
+                            
+                            // Force create a new collection (don't use get_or_create which might find old one)
+                            createCollection(forceCreate = true)
+                            
+                            // Get the new collection ID after recreation
+                            val newCollectionId = collectionId
+                                ?: throw ChromaDBException("Collection ID not available after recreation")
+                            
+                            // #region agent log
+                            try {
+                                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"ChromaDBVectorStore.kt:search","message":"Collection recreated","data":{"newCollectionId":"$newCollectionId"},"timestamp":${System.currentTimeMillis()}}
+""")
+                            } catch (e: Exception) {}
+                            // #endregion
+                            
+                            // Initialize collection with correct dimension by adding a dummy document
+                            // This ensures ChromaDB knows the expected dimension before we search
+                            AppLogger.d("ChromaDBVectorStore", "Initializing collection with dimension $actualDimension using dummy document")
+                            val dummyEmbedding = List(actualDimension) { 0f }
+                            val initRequest = AddRequest(
+                                ids = listOf("__dimension_init__"),
+                                embeddings = listOf(dummyEmbedding),
+                                documents = listOf("__dimension_init__"),
+                                metadatas = listOf(buildJsonObject {
+                                    put("__init__", JsonPrimitive("true"))
+                                }),
+                                uris = null
+                            )
+                            
+                            val initResponse = client.post("$collectionsBasePath/$newCollectionId/add") {
+                                contentType(ContentType.Application.Json)
+                                setBody(initRequest)
+                            }
+                            
+                            if (initResponse.status != HttpStatusCode.OK && initResponse.status != HttpStatusCode.Created) {
+                                val initErrorBody = initResponse.body<String>()
+                                // #region agent log
+                                try {
+                                    java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"ChromaDBVectorStore.kt:search","message":"Dummy init failed","data":{"status":"${initResponse.status}","error":"$initErrorBody","actualDimension":$actualDimension},"timestamp":${System.currentTimeMillis()}}
+""")
+                                } catch (e: Exception) {}
+                                // #endregion
+                                AppLogger.w("ChromaDBVectorStore", "Failed to initialize collection dimension: ${initResponse.status} - $initErrorBody. Continuing with search anyway.")
+                            } else {
+                                // #region agent log
+                                try {
+                                    java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"ChromaDBVectorStore.kt:search","message":"Dummy init succeeded","data":{"actualDimension":$actualDimension},"timestamp":${System.currentTimeMillis()}}
+""")
+                                } catch (e: Exception) {}
+                                // #endregion
+                                AppLogger.d("ChromaDBVectorStore", "Collection initialized with dimension $actualDimension")
+                                // Update cached dimension
+                                embeddingDimension = actualDimension
+                            }
+                            
+                            // Retry the search
+                            val retryRequest = QueryRequest(
+                                query_embeddings = listOf(queryEmbedding.vector),
+                                n_results = topK,
+                                where = whereClause,
+                                where_document = null,
+                                ids = null,
+                                include = listOf("documents", "metadatas", "distances")
+                            )
+                            
+                            val retryResponse = client.post("$collectionsBasePath/$newCollectionId/query") {
+                                contentType(ContentType.Application.Json)
+                                setBody(retryRequest)
+                            }
+                            
+                            // #region agent log
+                            try {
+                                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"E","location":"ChromaDBVectorStore.kt:search","message":"Retry search response","data":{"status":"${retryResponse.status}","actualDimension":$actualDimension},"timestamp":${System.currentTimeMillis()}}
+""")
+                            } catch (e: Exception) {}
+                            // #endregion
+                            
+                            if (retryResponse.status == HttpStatusCode.OK) {
+                                AppLogger.i("ChromaDBVectorStore", "Successfully searched after recreating collection with dimension $actualDimension")
+                                // Continue with processing retryResponse below
+                                val queryResponse: QueryResponse = retryResponse.body()
+                                
+                                // Convert ChromaDB response to SearchResult list with similarity scores
+                                val results = mutableListOf<SearchResult>()
+                                
+                                if (queryResponse.ids != null && queryResponse.ids.isNotEmpty()) {
+                                    val ids = queryResponse.ids[0]
+                                    val documents = queryResponse.documents?.get(0) ?: emptyList()
+                                    val metadatas = queryResponse.metadatas?.get(0) ?: emptyList()
+                                    val distances = queryResponse.distances?.get(0) ?: emptyList()
+                                    
+                                    for (i in ids.indices) {
+                                        val id = ids[i]
+                                        val document = documents.getOrNull(i) ?: ""
+                                        val metadataJson = metadatas.getOrNull(i) ?: buildJsonObject { }
+                                        val distance = distances.getOrNull(i) ?: 1.0f
+                                        
+                                        val similarity = (1.0 - distance.toDouble()).coerceIn(0.0, 1.0)
+                                        
+                                        val metadata = buildMap<String, String> {
+                                            metadataJson.forEach { (key, value) ->
+                                                if (value is JsonPrimitive && value.isString) {
+                                                    put(key, value.content)
+                                                }
+                                            }
+                                        }
+                                        
+                                        val chunk = RagChunk(
+                                            id = id,
+                                            text = document,
+                                            metadata = metadata,
+                                            embedding = null
+                                        )
+                                        results.add(SearchResult(chunk = chunk, similarity = similarity))
+                                    }
+                                }
+                                
+                                AppLogger.d("ChromaDBVectorStore", "Query Completed Successfully after dimension fix")
+                                AppLogger.d("ChromaDBVectorStore", "  Results Returned: ${results.size} chunks")
+                                return@withContext results
+                            } else {
+                                val retryErrorBody = retryResponse.body<String>()
+                                AppLogger.e("ChromaDBVectorStore", "Retry search failed after recreating collection: ${retryResponse.status} - $retryErrorBody")
+                                throw ChromaDBException("Failed to search after recreating collection: ${retryResponse.status} - $retryErrorBody")
+                            }
+                        } catch (recreateException: Exception) {
+                            AppLogger.e("ChromaDBVectorStore", "Failed to recreate collection for search: ${recreateException.message}", recreateException)
+                            throw ChromaDBException("Failed to search: dimension mismatch and recreation failed - ${recreateException.message}", recreateException)
+                        }
+                    } else {
+                        AppLogger.e("ChromaDBVectorStore", "Cannot determine embedding dimension from query")
+                        throw ChromaDBException("Failed to search: dimension mismatch - ${response.status} - $errorBody")
+                    }
+                } else {
+                    throw ChromaDBException("Failed to search: ${response.status} - $errorBody")
+                }
             }
             
             val queryResponse: QueryResponse = response.body()
@@ -355,6 +616,112 @@ class ChromaDBVectorStore(
     }
     
     /**
+     * Deletes the collection (without recreating it).
+     * Used when we need to recreate the collection with a different embedding dimension.
+     * 
+     * If the collection doesn't exist (404), treats it as already deleted and returns successfully.
+     */
+    private suspend fun deleteCollection() = withContext(Dispatchers.IO) {
+        // #region agent log
+        try {
+            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A,B,C","location":"ChromaDBVectorStore.kt:deleteCollection","message":"deleteCollection entry","data":{"collectionName":"$collectionName","cachedCollectionId":"$collectionId"},"timestamp":${System.currentTimeMillis()}}
+""")
+        } catch (e: Exception) {}
+        // #endregion
+        
+        try {
+            val collectionIdToUse = collectionId
+                ?: getCollectionIdFromName(collectionName)
+                ?: run {
+                    // #region agent log
+                    try {
+                        java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"ChromaDBVectorStore.kt:deleteCollection","message":"No collection ID found","data":{"collectionName":"$collectionName"},"timestamp":${System.currentTimeMillis()}}
+""")
+                    } catch (e: Exception) {}
+                    // #endregion
+                    AppLogger.w("ChromaDBVectorStore", "Cannot delete collection: ID not available, assuming already deleted")
+                    return@withContext // Collection doesn't exist, treat as success
+                }
+            
+            // #region agent log
+            try {
+                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"ChromaDBVectorStore.kt:deleteCollection","message":"Attempting deletion","data":{"collectionIdToUse":"$collectionIdToUse","collectionName":"$collectionName"},"timestamp":${System.currentTimeMillis()}}
+""")
+            } catch (e: Exception) {}
+            // #endregion
+            
+            val deleteRequest = DeleteCollectionRequest(
+                new_name = null,
+                new_metadata = null,
+                new_configuration = null
+            )
+            
+            val deleteResponse = client.delete("$collectionsBasePath/$collectionIdToUse") {
+                contentType(ContentType.Application.Json)
+                setBody(deleteRequest)
+            }
+            
+            // #region agent log
+            try {
+                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A,D","location":"ChromaDBVectorStore.kt:deleteCollection","message":"Delete response","data":{"status":"${deleteResponse.status}","collectionIdToUse":"$collectionIdToUse"},"timestamp":${System.currentTimeMillis()}}
+""")
+            } catch (e: Exception) {}
+            // #endregion
+            
+            if (deleteResponse.status == HttpStatusCode.OK || deleteResponse.status == HttpStatusCode.NoContent) {
+                AppLogger.i("ChromaDBVectorStore", "Deleted collection '$collectionName' for dimension mismatch fix")
+            } else if (deleteResponse.status == HttpStatusCode.NotFound) {
+                // Collection doesn't exist by ID, try deleting by name
+                // #region agent log
+                try {
+                    java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"ChromaDBVectorStore.kt:deleteCollection","message":"Delete by ID returned 404, trying by name","data":{"collectionIdToUse":"$collectionIdToUse","collectionName":"$collectionName"},"timestamp":${System.currentTimeMillis()}}
+""")
+                } catch (e: Exception) {}
+                // #endregion
+                
+                // Try deleting by name instead
+                val deleteByNameResponse = client.delete("$collectionsBasePath/$collectionName") {
+                    contentType(ContentType.Application.Json)
+                    setBody(deleteRequest)
+                }
+                
+                // #region agent log
+                try {
+                    java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"ChromaDBVectorStore.kt:deleteCollection","message":"Delete by name response","data":{"status":"${deleteByNameResponse.status}","collectionName":"$collectionName"},"timestamp":${System.currentTimeMillis()}}
+""")
+                } catch (e: Exception) {}
+                // #endregion
+                
+                if (deleteByNameResponse.status == HttpStatusCode.OK || deleteByNameResponse.status == HttpStatusCode.NoContent) {
+                    AppLogger.i("ChromaDBVectorStore", "Deleted collection '$collectionName' by name for dimension mismatch fix")
+                } else if (deleteByNameResponse.status == HttpStatusCode.NotFound) {
+                    AppLogger.d("ChromaDBVectorStore", "Collection '$collectionName' does not exist (404), treating as already deleted")
+                } else {
+                    val errorBody = deleteByNameResponse.body<String>()
+                    AppLogger.w("ChromaDBVectorStore", "Failed to delete collection by name: ${deleteByNameResponse.status} - $errorBody")
+                    // Don't throw - treat as already deleted
+                }
+            } else {
+                val errorBody = deleteResponse.body<String>()
+                AppLogger.w("ChromaDBVectorStore", "Failed to delete collection: ${deleteResponse.status} - $errorBody")
+                throw ChromaDBException("Failed to delete collection: ${deleteResponse.status} - $errorBody")
+            }
+        } catch (e: ChromaDBException) {
+            // Re-throw ChromaDBException as-is
+            throw e
+        } catch (e: Exception) {
+            // For other exceptions (e.g., network errors), check if it's a 404
+            val errorMsg = e.message?.lowercase() ?: ""
+            if (errorMsg.contains("404") || errorMsg.contains("not found")) {
+                AppLogger.d("ChromaDBVectorStore", "Collection deletion returned 404, treating as already deleted")
+                return@withContext // Treat as success
+            }
+            AppLogger.e("ChromaDBVectorStore", "Error deleting collection: ${e.message}", e)
+            throw ChromaDBException("Failed to delete collection: ${e.message}", e)
+        }
+    }
+    
+    /**
      * Upserts chunks with vault metadata (vault_path and file_hash).
      * 
      * @param chunks List of RagChunk objects to store
@@ -423,8 +790,64 @@ class ChromaDBVectorStore(
             // ChromaDB v2 API returns 201 Created for successful add operations
             if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
                 val errorBody = response.body<String>()
-                AppLogger.e("ChromaDBVectorStore", "Failed to upsert chunks with metadata: ${response.status} - $errorBody")
-                throw ChromaDBException("Failed to upsert chunks: ${response.status} - $errorBody")
+                
+                // Check for dimension mismatch error
+                if (response.status == HttpStatusCode.BadRequest && 
+                    errorBody.contains("dimension", ignoreCase = true)) {
+                    AppLogger.w("ChromaDBVectorStore", "Dimension mismatch detected: $errorBody")
+                    AppLogger.i("ChromaDBVectorStore", "Attempting to fix by recreating collection with correct dimension")
+                    
+                    // Get actual embedding dimension from chunks
+                    val actualDimension = embeddings.firstOrNull()?.size
+                    if (actualDimension != null) {
+                        AppLogger.i("ChromaDBVectorStore", "Detected actual embedding dimension: $actualDimension")
+                        
+                        // Delete and recreate collection, then retry
+                        try {
+                            deleteCollection()
+                            collectionId = null
+                            embeddingDimension = null
+                            ensureCollection()
+                            
+                            // Get the new collection ID after recreation
+                            val newCollectionId = collectionId
+                                ?: throw ChromaDBException("Collection ID not available after recreation")
+                            
+                            // Retry the upsert
+                            val retryRequest = AddRequest(
+                                ids = ids,
+                                embeddings = embeddings,
+                                documents = documents,
+                                metadatas = metadatas,
+                                uris = null
+                            )
+                            
+                            val retryAddUrl = "$collectionsBasePath/$newCollectionId/add"
+                            val retryResponse = client.post(retryAddUrl) {
+                                contentType(ContentType.Application.Json)
+                                setBody(retryRequest)
+                            }
+                            
+                            if (retryResponse.status == HttpStatusCode.OK || retryResponse.status == HttpStatusCode.Created) {
+                                AppLogger.i("ChromaDBVectorStore", "Successfully upserted after recreating collection with dimension $actualDimension")
+                                return@withContext
+                            } else {
+                                val retryErrorBody = retryResponse.body<String>()
+                                AppLogger.e("ChromaDBVectorStore", "Retry failed after recreating collection: ${retryResponse.status} - $retryErrorBody")
+                                throw ChromaDBException("Failed to upsert chunks after recreating collection: ${retryResponse.status} - $retryErrorBody")
+                            }
+                        } catch (recreateException: Exception) {
+                            AppLogger.e("ChromaDBVectorStore", "Failed to recreate collection: ${recreateException.message}", recreateException)
+                            throw ChromaDBException("Failed to upsert chunks: dimension mismatch and recreation failed - ${recreateException.message}", recreateException)
+                        }
+                    } else {
+                        AppLogger.e("ChromaDBVectorStore", "Cannot determine embedding dimension from chunks")
+                        throw ChromaDBException("Failed to upsert chunks: dimension mismatch - ${response.status} - $errorBody")
+                    }
+                } else {
+                    AppLogger.e("ChromaDBVectorStore", "Failed to upsert chunks with metadata: ${response.status} - $errorBody")
+                    throw ChromaDBException("Failed to upsert chunks: ${response.status} - $errorBody")
+                }
             }
             
             AppLogger.i("ChromaDBVectorStore", "Upserted ${chunks.size} chunks with metadata into collection '$collectionName'")
@@ -551,58 +974,122 @@ class ChromaDBVectorStore(
     
     /**
      * Gets the embedding dimension for the collection.
-     * Tries to detect from existing documents, falls back to 768 (nomic-embed-text:v1.5 default).
+     * Tries to detect from existing documents, tries common dimensions (768, 1024) if detection fails.
      */
     private suspend fun getEmbeddingDimension(collectionIdToUse: String): Int = withContext(Dispatchers.IO) {
+        // #region agent log
+        try {
+            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"getEmbeddingDimension entry","data":{"cachedDimension":"$embeddingDimension","collectionIdToUse":"$collectionIdToUse"},"timestamp":${System.currentTimeMillis()}}
+""")
+        } catch (e: Exception) {}
+        // #endregion
+        
         // Return cached dimension if available
         if (embeddingDimension != null) {
+            // #region agent log
+            try {
+                java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Using cached dimension","data":{"dimension":$embeddingDimension},"timestamp":${System.currentTimeMillis()}}
+""")
+            } catch (e: Exception) {}
+            // #endregion
             return@withContext embeddingDimension!!
         }
         
-        // Default to 768 for nomic-embed-text:v1.5 (most common case)
-        var detectedDimension = 768
+        // Try common dimensions: 768 (nomic-embed-text) and 1024 (mxbai-embed-large)
+        val dimensionsToTry = listOf(768, 1024)
+        var detectedDimension: Int? = null
         
-        try {
-            // Try to get dimension from an existing document in the collection
-            // Query with a minimal request to get one document with embeddings
-            val dummyEmbedding = FloatArray(768) { 0f } // Start with 768 (nomic-embed-text:v1.5)
-            val request = QueryRequest(
-                query_embeddings = listOf(dummyEmbedding.toList()),
-                n_results = 1,
-                where = null,
-                where_document = null,
-                ids = null,
-                include = listOf("embeddings")
-            )
-            
-            val response = client.post("$collectionsBasePath/$collectionIdToUse/query") {
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
-            
-            if (response.status == HttpStatusCode.OK) {
-                val queryResponse: QueryResponse = response.body()
-                // Check if we got embeddings back
-                val embeddings = queryResponse.embeddings?.get(0)
-                if (embeddings != null && embeddings.isNotEmpty() && embeddings[0].isNotEmpty()) {
-                    detectedDimension = embeddings[0].size
-                    AppLogger.d("ChromaDBVectorStore", "Detected embedding dimension from collection: $detectedDimension")
-                } else {
-                    // Collection might be empty, use default
-                    AppLogger.d("ChromaDBVectorStore", "Collection appears empty, using default embedding dimension: 768")
+        // First, try to get dimension from an existing document in the collection
+        for (dim in dimensionsToTry) {
+            try {
+                // #region agent log
+                try {
+                    java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Trying to detect dimension","data":{"tryingDimension":$dim},"timestamp":${System.currentTimeMillis()}}
+""")
+                } catch (e: Exception) {}
+                // #endregion
+                
+                val dummyEmbedding = FloatArray(dim) { 0f }
+                val request = QueryRequest(
+                    query_embeddings = listOf(dummyEmbedding.toList()),
+                    n_results = 1,
+                    where = null,
+                    where_document = null,
+                    ids = null,
+                    include = listOf("embeddings")
+                )
+                
+                val response = client.post("$collectionsBasePath/$collectionIdToUse/query") {
+                    contentType(ContentType.Application.Json)
+                    setBody(request)
                 }
-            } else if (response.status == HttpStatusCode.UnprocessableEntity) {
-                // 422 error might indicate dimension mismatch, but we'll use 768 as default
-                // The actual query will handle the error and we can retry
-                AppLogger.w("ChromaDBVectorStore", "Query returned 422, collection may be empty or dimension mismatch. Using default 768.")
+                
+                if (response.status == HttpStatusCode.OK) {
+                    val queryResponse: QueryResponse = response.body()
+                    // Check if we got embeddings back
+                    val embeddings = queryResponse.embeddings?.get(0)
+                    if (embeddings != null && embeddings.isNotEmpty() && embeddings[0].isNotEmpty()) {
+                        detectedDimension = embeddings[0].size
+                        // #region agent log
+                        try {
+                            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Detected dimension from embeddings","data":{"detectedDimension":$detectedDimension},"timestamp":${System.currentTimeMillis()}}
+""")
+                        } catch (e: Exception) {}
+                        // #endregion
+                        AppLogger.d("ChromaDBVectorStore", "Detected embedding dimension from collection: $detectedDimension")
+                        break
+                    } else {
+                        // Query succeeded but no embeddings returned - collection might be empty
+                        // Try the dimension we used for the query as it worked
+                        detectedDimension = dim
+                        // #region agent log
+                        try {
+                            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Query succeeded with dimension, using it","data":{"dimension":$dim},"timestamp":${System.currentTimeMillis()}}
+""")
+                        } catch (e: Exception) {}
+                        // #endregion
+                        AppLogger.d("ChromaDBVectorStore", "Query succeeded with dimension $dim, collection may be empty. Using dimension $dim.")
+                        break
+                    }
+                } else if (response.status == HttpStatusCode.UnprocessableEntity || response.status == HttpStatusCode.BadRequest) {
+                    // Dimension mismatch - try next dimension
+                    val errorBody = response.body<String>()
+                    // #region agent log
+                    try {
+                        java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Dimension mismatch, trying next","data":{"triedDimension":$dim,"status":"${response.status}","error":"$errorBody"},"timestamp":${System.currentTimeMillis()}}
+""")
+                    } catch (e: Exception) {}
+                    // #endregion
+                    continue // Try next dimension
+                }
+            } catch (e: Exception) {
+                // #region agent log
+                try {
+                    java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Exception trying dimension","data":{"triedDimension":$dim,"error":"${e.message}"},"timestamp":${System.currentTimeMillis()}}
+""")
+                } catch (ex: Exception) {}
+                // #endregion
+                continue // Try next dimension
             }
-        } catch (e: Exception) {
-            AppLogger.w("ChromaDBVectorStore", "Failed to detect embedding dimension: ${e.message}. Using default 768.")
+        }
+        
+        // If we couldn't detect, default to 1024 (mxbai-embed-large is now the default)
+        val finalDimension = detectedDimension ?: 1024
+        
+        // #region agent log
+        try {
+            java.io.File("/Users/vararya/Varun/Code/Krypton/.cursor/debug.log").appendText("""{"sessionId":"debug-session","runId":"run1","hypothesisId":"F","location":"ChromaDBVectorStore.kt:getEmbeddingDimension","message":"Final dimension determined","data":{"finalDimension":$finalDimension,"detectedDimension":"$detectedDimension"},"timestamp":${System.currentTimeMillis()}}
+""")
+        } catch (e: Exception) {}
+        // #endregion
+        
+        if (detectedDimension == null) {
+            AppLogger.w("ChromaDBVectorStore", "Could not detect embedding dimension, defaulting to 1024 (mxbai-embed-large)")
         }
         
         // Cache and return the dimension
-        embeddingDimension = detectedDimension
-        return@withContext detectedDimension
+        embeddingDimension = finalDimension
+        return@withContext finalDimension
     }
     
     /**
