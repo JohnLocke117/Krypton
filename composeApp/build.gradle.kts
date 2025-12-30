@@ -112,6 +112,9 @@ tasks.register<JavaExec>("run") {
     val compileTask = tasks.named("compileKotlinJvm")
     dependsOn(compileTask)
     
+    // Ensure resources are processed before running
+    dependsOn("processJvmMainResources")
+    
     // Set classpath to include compiled classes, processed resources, and dependencies
     val runtimeClasspath = project.configurations.getByName("jvmMainRuntimeClasspath")
     val outputDirs = compileTask.get().outputs.files

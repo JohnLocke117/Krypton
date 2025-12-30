@@ -57,7 +57,7 @@
         "telemetryEnabled": false
     },
     "rag": {
-        "vectorBackend": "CHROMADB",
+        "vectorBackend": "CHROMA_CLOUD",
         "llamaBaseUrl": "http://localhost:11434",
         "embeddingBaseUrl": "http://localhost:11434",
         "chromaBaseUrl": "http://localhost:8000",
@@ -77,7 +77,7 @@
         "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M"
     },
     "llm": {
-        "provider": "GEMINI",
+        "provider": "OLLAMA",
         "ollamaBaseUrl": "http://localhost:11434",
         "ollamaModel": "llama3.1:8b",
         "geminiModel": "gemini-2.5-flash"

@@ -25,6 +25,8 @@ import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.database_search
 import krypton.composeapp.generated.resources.globe
 import krypton.composeapp.generated.resources.leaderboard
+import krypton.composeapp.generated.resources.network
+import krypton.composeapp.generated.resources.polyline
 import krypton.composeapp.generated.resources.rag
 import krypton.composeapp.generated.resources.send
 import org.krypton.ObsidianThemeValues
@@ -483,194 +485,81 @@ fun ChatPanel(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left side: RAG controls
+                    // Left side: Controls
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // RAG icon (if RAG components are available)
-                        if (ragAvailable) {
-                            // 1. RAG toggle icon (first)
+                        // 1. Network icon (Model Selector) - first, always available
+                        Box {
                             AppIconWithTooltip(
-                                tooltip = "RAG",
+                                tooltip = when (selectedLlmProvider) {
+                                    LlmProvider.OLLAMA -> "Ollama"
+                                    LlmProvider.GEMINI -> "Gemini API"
+                                },
                                 modifier = Modifier.size(24.dp),
-                                enabled = syncStatus != SyncStatus.UNAVAILABLE,
+                                enabled = true,
                                 position = TooltipPosition.ABOVE,
                                 onClick = {
-                                    if (ragEnabled) {
-                                        // Disable RAG
-                                        ragEnabled = false
-                                        // Disable reranking and multi-query when RAG is disabled
-                                        rerankingEnabled = false
-                                        // Reranking is controlled via RagQueryOptions, not a service method
-                                        multiQueryEnabled = false
-                                        AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
-                                    } else {
-                                        // Enable RAG - use activation manager
-                                        coroutineScope.launch {
-                                            if (ragActivationManager != null && currentVaultPath != null) {
-                                                // First check if collection exists and has data
-                                                val hasVaultData = extendedRagComponents?.base?.vectorStore?.hasVaultData(currentVaultPath) ?: false
-                                                
-                                                if (!hasVaultData) {
-                                                    // Collection doesn't exist or has no data - show prompt
-                                                    showIngestionPrompt = true
-                                                } else {
-                                                    // Collection exists and has data - check sync status
-                                                    val status = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                    if (status == SyncStatus.OUT_OF_SYNC) {
-                                                        // Show re-index prompt
-                                                        showReindexPrompt = true
-                                                    } else {
-                                                        // No prompt needed, activate directly
-                                                        // Use ingestionScope for long-running operations
-                                                        ingestionScope.launch {
-                                                            val result = ragActivationManager.activateRag(
-                                                                vaultPath = currentVaultPath,
-                                                                onIngestionNeeded = { false }, // Already checked
-                                                                onReindexNeeded = { false }, // Not needed
-                                                                onIngestionProgress = { filePath, progress ->
-                                                                    withContext(Dispatchers.Main) {
-                                                                        isIngesting = true
-                                                                    }
-                                                                }
-                                                            )
-                                                        
-                                                            // Handle result
-                                                            when (result) {
-                                                                RagActivationResult.ENABLED -> {
-                                                                    // Update UI state on main thread
-                                                                    withContext(Dispatchers.Main) {
-                                                                        ragEnabled = true
-                                                                        // Keep reranking and multi-query disabled by default
-                                                                        rerankingEnabled = false
-                                                                        // Reranking is controlled via RagQueryOptions, not a service method
-                                                                        multiQueryEnabled = false
-                                                                        isIngesting = false
-                                                                    }
-                                                                    // Check sync status on IO thread, then update UI
-                                                                    val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
-                                                                    withContext(Dispatchers.Main) {
-                                                                        syncStatus = newSyncStatus
-                                                                    }
-                                                                }
-                                                                RagActivationResult.CANCELLED -> {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        isIngesting = false
-                                                                    }
-                                                                }
-                                                                RagActivationResult.ERROR -> {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        val errorMsg = "Failed to activate RAG. Please check ChromaDB connection."
-                                                                        rebuildStatus = UiStatus.Error(
-                                                                            errorMsg,
-                                                                            recoverable = true
-                                                                        )
-                                                                        isIngesting = false
-                                                                        AppLogger.e("ChatPanel", errorMsg)
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            } else {
-                                                // Fallback: just enable RAG
-                                                ragEnabled = true
-                                                // Keep reranking and multi-query disabled by default
-                                                rerankingEnabled = false
-                                                // Reranking is controlled via RagQueryOptions, not a service method
-                                                multiQueryEnabled = false
-                                            }
-                                        }
-                                    }
+                                    AppLogger.d("ChatPanel", "LLM Provider dropdown clicked")
+                                    llmProviderDropdownExpanded = !llmProviderDropdownExpanded
                                 }
                             ) {
                                 Image(
-                                    painter = painterResource(Res.drawable.rag),
-                                    contentDescription = "RAG",
+                                    painter = painterResource(Res.drawable.network),
+                                    contentDescription = "LLM Provider",
                                     modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(
-                                        when {
-                                            syncStatus == SyncStatus.UNAVAILABLE -> theme.TextTertiary
-                                            ragEnabled -> theme.Accent
-                                            else -> theme.TextSecondary
-                                        }
-                                    )
+                                    colorFilter = ColorFilter.tint(theme.TextPrimary)
                                 )
                             }
-                            
-                            // 2. Circular sync indicator (second) - outlined red circle when RAG off
-                            syncStatus?.let { status ->
-                                if (ragEnabled) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                when (status) {
-                                                    SyncStatus.SYNCED -> Color(0xFF4CAF50) // Green
-                                                    SyncStatus.OUT_OF_SYNC, SyncStatus.NOT_INDEXED -> Color(0xFFFFC107) // Yellow
-                                                    SyncStatus.UNAVAILABLE -> Color(0xFFF44336) // Red
-                                                }
-                                            )
-                                    )
-                                }
-                            }
-                            if (!ragEnabled) {
-                                // Outlined red circle when RAG is off
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .border(
-                                            width = 1.5.dp,
-                                            color = Color(0xFFF44336), // Red
-                                            shape = CircleShape
+                            DropdownMenu(
+                                expanded = llmProviderDropdownExpanded,
+                                onDismissRequest = { 
+                                    AppLogger.d("ChatPanel", "LLM Provider dropdown dismissed")
+                                    llmProviderDropdownExpanded = false 
+                                },
+                                modifier = Modifier
+                                    .background(theme.BackgroundElevated)
+                                    .widthIn(max = 150.dp)
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Ollama",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = theme.TextPrimary
                                         )
-                                )
-                            }
-                            
-                            // 3. LLM Provider dropdown (third) - always available
-                            Box {
-                                TextButton(
+                                    },
                                     onClick = {
-                                        AppLogger.d("ChatPanel", "LLM Provider dropdown clicked")
-                                        llmProviderDropdownExpanded = !llmProviderDropdownExpanded
+                                        coroutineScope.launch {
+                                            settingsRepository.update { current ->
+                                                current.copy(
+                                                    llm = current.llm.copy(provider = LlmProvider.OLLAMA)
+                                                )
+                                            }
+                                        }
+                                        llmProviderDropdownExpanded = false
+                                        llmProviderError = null
                                     },
-                                    modifier = Modifier.height(24.dp),
-                                    colors = ButtonDefaults.textButtonColors(
-                                        contentColor = theme.TextPrimary
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                ) {
-                                    Text(
-                                        text = when (selectedLlmProvider) {
-                                            LlmProvider.OLLAMA -> "Ollama"
-                                            LlmProvider.GEMINI -> "Gemini"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = theme.TextPrimary
                                     )
-                                }
-                                DropdownMenu(
-                                    expanded = llmProviderDropdownExpanded,
-                                    onDismissRequest = { 
-                                        AppLogger.d("ChatPanel", "LLM Provider dropdown dismissed")
-                                        llmProviderDropdownExpanded = false 
+                                )
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = "Gemini API",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = theme.TextPrimary
+                                        )
                                     },
-                                    modifier = Modifier
-                                        .background(theme.BackgroundElevated)
-                                        .widthIn(max = 150.dp)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Ollama",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = theme.TextPrimary
-                                            )
-                                        },
-                                        onClick = {
+                                    onClick = {
+                                        // Validate API key before switching
+                                        val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
+                                        if (apiKey.isNullOrBlank()) {
+                                            llmProviderError = "GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API."
+                                            llmProviderDropdownExpanded = false
+                                            // Revert to Ollama
                                             coroutineScope.launch {
                                                 settingsRepository.update { current ->
                                                     current.copy(
@@ -678,290 +567,27 @@ fun ChatPanel(
                                                     )
                                                 }
                                             }
-                                            llmProviderDropdownExpanded = false
-                                            llmProviderError = null
-                                        },
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = theme.TextPrimary
-                                        )
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "Gemini API",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = theme.TextPrimary
-                                            )
-                                        },
-                                        onClick = {
-                                            // Validate API key before switching
-                                            val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
-                                            if (apiKey.isNullOrBlank()) {
-                                                llmProviderError = "GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API."
-                                                llmProviderDropdownExpanded = false
-                                                // Revert to Ollama
-                                                coroutineScope.launch {
-                                                    settingsRepository.update { current ->
-                                                        current.copy(
-                                                            llm = current.llm.copy(provider = LlmProvider.OLLAMA)
-                                                        )
-                                                    }
-                                                }
-                                                return@DropdownMenuItem
-                                            }
-                                            
-                                            coroutineScope.launch {
-                                                settingsRepository.update { current ->
-                                                    current.copy(
-                                                        llm = current.llm.copy(provider = LlmProvider.GEMINI)
-                                                    )
-                                                }
-                                            }
-                                            llmProviderDropdownExpanded = false
-                                            llmProviderError = null
-                                        },
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = theme.TextPrimary
-                                        )
-                                    )
-                                }
-                            }
-                            
-                            // 4. DB dropdown (fourth) - reduced opacity when RAG off
-                            Box {
-                                TextButton(
-                                    onClick = {
-                                        AppLogger.d("ChatPanel", "Vector DB dropdown clicked, ragEnabled=$ragEnabled, currentExpanded=$dropdownExpanded")
-                                        if (ragEnabled) {
-                                            dropdownExpanded = !dropdownExpanded
-                                            AppLogger.d("ChatPanel", "Dropdown expanded set to: $dropdownExpanded")
-                                        } else {
-                                            AppLogger.d("ChatPanel", "RAG not enabled, dropdown not opening")
+                                            return@DropdownMenuItem
                                         }
-                                    },
-                                    enabled = ragEnabled,
-                                    modifier = Modifier.height(24.dp),
-                                    colors = ButtonDefaults.textButtonColors(
-                                        contentColor = if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f)
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                                ) {
-                                    Text(
-                                        text = getBackendDisplayName(selectedBackend),
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = dropdownExpanded && ragEnabled,
-                                    onDismissRequest = { 
-                                        AppLogger.d("ChatPanel", "Dropdown dismissed")
-                                        dropdownExpanded = false 
-                                    },
-                                    modifier = Modifier
-                                        .background(theme.BackgroundElevated)
-                                        .widthIn(max = 150.dp)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "ChromaDB",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = theme.TextPrimary
-                                            )
-                                        },
-                                        onClick = {
-                                            coroutineScope.launch {
-                                                settingsRepository.update { current ->
-                                                    current.copy(
-                                                        rag = current.rag.copy(vectorBackend = VectorBackend.CHROMADB)
-                                                    )
-                                                }
-                                            }
-                                            dropdownExpanded = false
-                                        },
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = theme.TextPrimary
-                                        )
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = "ChromaDB Cloud",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = theme.TextPrimary
-                                            )
-                                        },
-                                        onClick = {
-                                            // Validate API key before switching
-                                            val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
-                                            if (apiKey.isNullOrBlank()) {
-                                                tavilyError = "CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud."
-                                                dropdownExpanded = false
-                                                return@DropdownMenuItem
-                                            }
-                                            
-                                            coroutineScope.launch {
-                                                settingsRepository.update { current ->
-                                                    current.copy(
-                                                        rag = current.rag.copy(vectorBackend = VectorBackend.CHROMA_CLOUD)
-                                                    )
-                                                }
-                                            }
-                                            dropdownExpanded = false
-                                        },
-                                        colors = MenuDefaults.itemColors(
-                                            textColor = theme.TextPrimary
-                                        )
-                                    )
-                                }
-                            }
-                            
-                            // 5. Multi-query option (fifth) - visible but disabled when RAG off
-                            AppIconWithTooltip(
-                                tooltip = "Multi-Query",
-                                modifier = Modifier.size(24.dp),
-                                enabled = ragEnabled,
-                                position = TooltipPosition.ABOVE,
-                                onClick = {
-                                    if (ragEnabled) {
-                                        val newValue = !multiQueryEnabled
-                                        multiQueryEnabled = newValue
-                                        // Log the state change
-                                        AppLogger.d("ChatPanel", "Multi-Query ${if (newValue) "enabled" else "disabled"}")
-                                        // Update settings
+                                        
                                         coroutineScope.launch {
-                                            settingsRepository.update { currentSettings ->
-                                                currentSettings.copy(
-                                                    rag = currentSettings.rag.copy(
-                                                        multiQueryEnabled = newValue
-                                                    )
+                                            settingsRepository.update { current ->
+                                                current.copy(
+                                                    llm = current.llm.copy(provider = LlmProvider.GEMINI)
                                                 )
                                             }
                                         }
-                                    }
-                                }
-                            ) {
-                                Image(
-                                    painter = painterResource(Res.drawable.arrow_split),
-                                    contentDescription = "Multi-Query",
-                                    modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(
-                                        if (ragEnabled && multiQueryEnabled) {
-                                            theme.Accent
-                                        } else {
-                                            theme.TextSecondary.copy(alpha = if (ragEnabled) 1f else 0.5f)
-                                        }
+                                        llmProviderDropdownExpanded = false
+                                        llmProviderError = null
+                                    },
+                                    colors = MenuDefaults.itemColors(
+                                        textColor = theme.TextPrimary
                                     )
                                 )
                             }
-                            
-                            // 6. Reranking toggle (sixth) - visible but disabled when RAG off
-                            AppIconWithTooltip(
-                                tooltip = "Reranking",
-                                modifier = Modifier.size(24.dp),
-                                enabled = ragEnabled,
-                                position = TooltipPosition.ABOVE,
-                                onClick = {
-                                    if (ragEnabled) {
-                                        val newValue = !rerankingEnabled
-                                        rerankingEnabled = newValue
-                                        // Log the state change
-                                        AppLogger.d("ChatPanel", "Reranking ${if (newValue) "enabled" else "disabled"}")
-                                        // Update settings repository
-                                        coroutineScope.launch {
-                                            settingsRepository.update { currentSettings ->
-                                                currentSettings.copy(
-                                                    rag = currentSettings.rag.copy(
-                                                        rerankingEnabled = newValue
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            ) {
-                                Image(
-                                    painter = painterResource(Res.drawable.leaderboard),
-                                    contentDescription = "Reranking",
-                                    modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(
-                                        if (ragEnabled && rerankingEnabled) {
-                                            theme.Accent
-                                        } else {
-                                            theme.TextSecondary.copy(alpha = if (ragEnabled) 1f else 0.5f)
-                                        }
-                                    )
-                                )
-                            }
-                            
-                            // 7. Manual re-index (seventh) - always available
-                            AppIconWithTooltip(
-                                tooltip = "Rebuild Vector Database",
-                                modifier = Modifier.size(24.dp),
-                                enabled = currentVaultPath != null && 
-                                         extendedRagComponents != null &&
-                                         syncStatus != SyncStatus.UNAVAILABLE &&
-                                         rebuildStatus !is UiStatus.Loading &&
-                                         !isIngesting,
-                                position = TooltipPosition.ABOVE,
-                                onClick = {
-                                    if (currentVaultPath != null && extendedRagComponents != null) {
-                                        // Use ingestionScope for long-running operation
-                                        ingestionScope.launch {
-                                            try {
-                                                withContext(Dispatchers.Main) {
-                                                    rebuildStatus = UiStatus.Loading
-                                                    isIngesting = true
-                                                }
-                                                
-                                                // Get existing metadata to enable incremental indexing
-                                                val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
-                                                val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
-                                                
-                                                extendedRagComponents.base.indexer.indexVault(
-                                                    rootPath = currentVaultPath,
-                                                    existingFileHashes = existingHashes
-                                                )
-                                                
-                                                // Update sync status on IO thread, then update UI
-                                                val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
-                                                withContext(Dispatchers.Main) {
-                                                    syncStatus = newSyncStatus
-                                                    rebuildStatus = UiStatus.Success
-                                                    isIngesting = false
-                                                }
-                                            } catch (e: Exception) {
-                                                withContext(Dispatchers.Main) {
-                                                    rebuildStatus = UiStatus.Error(
-                                                        e.message ?: "Failed to rebuild vector database",
-                                                        recoverable = true
-                                                    )
-                                                    isIngesting = false
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ) {
-                                Image(
-                                    painter = painterResource(Res.drawable.database_search),
-                                    contentDescription = "Rebuild Vector Database",
-                                    modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(
-                                        when {
-                                            syncStatus == SyncStatus.UNAVAILABLE ||
-                                            rebuildStatus is UiStatus.Loading ||
-                                            isIngesting -> theme.TextSecondary
-                                            else -> theme.TextPrimary
-                                        }
-                                    )
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.size(24.dp))
                         }
                         
-                        // Globe icon (Tavily web search) - after RAG controls
+                        // 2. Globe icon (Tavily web search) - second
                         AppIconWithTooltip(
                             tooltip = "Web Search",
                             modifier = Modifier.size(24.dp),
@@ -991,6 +617,402 @@ fun ChatPanel(
                                     }
                                 )
                             )
+                        }
+                        
+                        // RAG controls wrapped in bordered box (if RAG components are available)
+                        if (ragAvailable) {
+                            Surface(
+                                modifier = Modifier
+                                    .border(
+                                        width = 1.dp,
+                                        color = theme.Border,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color.Transparent
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 3. RAG toggle icon (third)
+                                    AppIconWithTooltip(
+                                        tooltip = "RAG",
+                                        modifier = Modifier.size(24.dp),
+                                        enabled = syncStatus != SyncStatus.UNAVAILABLE,
+                                        position = TooltipPosition.ABOVE,
+                                        onClick = {
+                                            if (ragEnabled) {
+                                                // Disable RAG
+                                                ragEnabled = false
+                                                // Disable reranking and multi-query when RAG is disabled
+                                                rerankingEnabled = false
+                                                // Reranking is controlled via RagQueryOptions, not a service method
+                                                multiQueryEnabled = false
+                                                AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
+                                            } else {
+                                                // Enable RAG - use activation manager
+                                                coroutineScope.launch {
+                                                    if (ragActivationManager != null && currentVaultPath != null) {
+                                                        // First check if collection exists and has data
+                                                        val hasVaultData = extendedRagComponents?.base?.vectorStore?.hasVaultData(currentVaultPath) ?: false
+                                                        
+                                                        if (!hasVaultData) {
+                                                            // Collection doesn't exist or has no data - show prompt
+                                                            showIngestionPrompt = true
+                                                        } else {
+                                                            // Collection exists and has data - check sync status
+                                                            val status = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                            if (status == SyncStatus.OUT_OF_SYNC) {
+                                                                // Show re-index prompt
+                                                                showReindexPrompt = true
+                                                            } else {
+                                                                // No prompt needed, activate directly
+                                                                // Use ingestionScope for long-running operations
+                                                                ingestionScope.launch {
+                                                                    val result = ragActivationManager.activateRag(
+                                                                        vaultPath = currentVaultPath,
+                                                                        onIngestionNeeded = { false }, // Already checked
+                                                                        onReindexNeeded = { false }, // Not needed
+                                                                        onIngestionProgress = { filePath, progress ->
+                                                                            withContext(Dispatchers.Main) {
+                                                                                isIngesting = true
+                                                                            }
+                                                                        }
+                                                                    )
+                                                                
+                                                                    // Handle result
+                                                                    when (result) {
+                                                                        RagActivationResult.ENABLED -> {
+                                                                            // Update UI state on main thread
+                                                                            withContext(Dispatchers.Main) {
+                                                                                ragEnabled = true
+                                                                                // Keep reranking and multi-query disabled by default
+                                                                                rerankingEnabled = false
+                                                                                // Reranking is controlled via RagQueryOptions, not a service method
+                                                                                multiQueryEnabled = false
+                                                                                isIngesting = false
+                                                                            }
+                                                                            // Check sync status on IO thread, then update UI
+                                                                            val newSyncStatus = extendedRagComponents?.vaultSyncService?.checkSyncStatus(currentVaultPath)
+                                                                            withContext(Dispatchers.Main) {
+                                                                                syncStatus = newSyncStatus
+                                                                            }
+                                                                        }
+                                                                        RagActivationResult.CANCELLED -> {
+                                                                            withContext(Dispatchers.Main) {
+                                                                                isIngesting = false
+                                                                            }
+                                                                        }
+                                                                        RagActivationResult.ERROR -> {
+                                                                            withContext(Dispatchers.Main) {
+                                                                                val errorMsg = "Failed to activate RAG. Please check ChromaDB connection."
+                                                                                rebuildStatus = UiStatus.Error(
+                                                                                    errorMsg,
+                                                                                    recoverable = true
+                                                                                )
+                                                                                isIngesting = false
+                                                                                AppLogger.e("ChatPanel", errorMsg)
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    } else {
+                                                        // Fallback: just enable RAG
+                                                        ragEnabled = true
+                                                        // Keep reranking and multi-query disabled by default
+                                                        rerankingEnabled = false
+                                                        // Reranking is controlled via RagQueryOptions, not a service method
+                                                        multiQueryEnabled = false
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Image(
+                                            painter = painterResource(Res.drawable.rag),
+                                            contentDescription = "RAG",
+                                            modifier = Modifier.size(20.dp),
+                                            colorFilter = ColorFilter.tint(
+                                                when {
+                                                    syncStatus == SyncStatus.UNAVAILABLE -> theme.TextTertiary
+                                                    ragEnabled -> theme.Accent
+                                                    else -> theme.TextSecondary
+                                                }
+                                            )
+                                        )
+                                    }
+                                    
+                                    // 4. Circular sync indicator (fourth) - outlined red circle when RAG off
+                                    syncStatus?.let { status ->
+                                        if (ragEnabled) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        when (status) {
+                                                            SyncStatus.SYNCED -> Color(0xFF4CAF50) // Green
+                                                            SyncStatus.OUT_OF_SYNC, SyncStatus.NOT_INDEXED -> Color(0xFFFFC107) // Yellow
+                                                            SyncStatus.UNAVAILABLE -> Color(0xFFF44336) // Red
+                                                        }
+                                                    )
+                                            )
+                                        }
+                                    }
+                                    if (!ragEnabled) {
+                                        // Outlined red circle when RAG is off
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .border(
+                                                    width = 1.5.dp,
+                                                    color = Color(0xFFF44336), // Red
+                                                    shape = CircleShape
+                                                )
+                                        )
+                                    }
+                            
+                                    // 5. Polyline icon (VectorDB selector) - fifth
+                                    Box {
+                                        AppIconWithTooltip(
+                                            tooltip = getBackendDisplayName(selectedBackend),
+                                            modifier = Modifier.size(24.dp),
+                                            enabled = ragEnabled,
+                                            position = TooltipPosition.ABOVE,
+                                            onClick = {
+                                                AppLogger.d("ChatPanel", "Vector DB dropdown clicked, ragEnabled=$ragEnabled, currentExpanded=$dropdownExpanded")
+                                                if (ragEnabled) {
+                                                    dropdownExpanded = !dropdownExpanded
+                                                    AppLogger.d("ChatPanel", "Dropdown expanded set to: $dropdownExpanded")
+                                                } else {
+                                                    AppLogger.d("ChatPanel", "RAG not enabled, dropdown not opening")
+                                                }
+                                            }
+                                        ) {
+                                            Image(
+                                                painter = painterResource(Res.drawable.polyline),
+                                                contentDescription = "Vector DB",
+                                                modifier = Modifier.size(20.dp),
+                                                colorFilter = ColorFilter.tint(
+                                                    if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f)
+                                                )
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = dropdownExpanded && ragEnabled,
+                                            onDismissRequest = { 
+                                                AppLogger.d("ChatPanel", "Dropdown dismissed")
+                                                dropdownExpanded = false 
+                                            },
+                                            modifier = Modifier
+                                                .background(theme.BackgroundElevated)
+                                                .widthIn(max = 150.dp)
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "ChromaDB",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = theme.TextPrimary
+                                                    )
+                                                },
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        settingsRepository.update { current ->
+                                                            current.copy(
+                                                                rag = current.rag.copy(vectorBackend = VectorBackend.CHROMADB)
+                                                            )
+                                                        }
+                                                    }
+                                                    dropdownExpanded = false
+                                                },
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = theme.TextPrimary
+                                                )
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = "ChromaDB Cloud",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = theme.TextPrimary
+                                                    )
+                                                },
+                                                onClick = {
+                                                    // Validate API key before switching
+                                                    val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
+                                                    if (apiKey.isNullOrBlank()) {
+                                                        tavilyError = "CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud."
+                                                        dropdownExpanded = false
+                                                        return@DropdownMenuItem
+                                                    }
+                                                    
+                                                    coroutineScope.launch {
+                                                        settingsRepository.update { current ->
+                                                            current.copy(
+                                                                rag = current.rag.copy(vectorBackend = VectorBackend.CHROMA_CLOUD)
+                                                            )
+                                                        }
+                                                    }
+                                                    dropdownExpanded = false
+                                                },
+                                                colors = MenuDefaults.itemColors(
+                                                    textColor = theme.TextPrimary
+                                                )
+                                            )
+                                        }
+                                    }
+                            
+                                    // 6. Multi-query option (sixth) - visible but disabled when RAG off
+                                    AppIconWithTooltip(
+                                        tooltip = "Multi-Query",
+                                        modifier = Modifier.size(24.dp),
+                                        enabled = ragEnabled,
+                                        position = TooltipPosition.ABOVE,
+                                        onClick = {
+                                            if (ragEnabled) {
+                                                val newValue = !multiQueryEnabled
+                                                multiQueryEnabled = newValue
+                                                // Log the state change
+                                                AppLogger.d("ChatPanel", "Multi-Query ${if (newValue) "enabled" else "disabled"}")
+                                                // Update settings
+                                                coroutineScope.launch {
+                                                    settingsRepository.update { currentSettings ->
+                                                        currentSettings.copy(
+                                                            rag = currentSettings.rag.copy(
+                                                                multiQueryEnabled = newValue
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Image(
+                                            painter = painterResource(Res.drawable.arrow_split),
+                                            contentDescription = "Multi-Query",
+                                            modifier = Modifier.size(20.dp),
+                                            colorFilter = ColorFilter.tint(
+                                                if (ragEnabled && multiQueryEnabled) {
+                                                    theme.Accent
+                                                } else {
+                                                    theme.TextSecondary.copy(alpha = if (ragEnabled) 1f else 0.5f)
+                                                }
+                                            )
+                                        )
+                                    }
+                            
+                                    // 7. Reranking toggle (seventh) - visible but disabled when RAG off
+                                    AppIconWithTooltip(
+                                tooltip = "Reranking",
+                                modifier = Modifier.size(24.dp),
+                                enabled = ragEnabled,
+                                position = TooltipPosition.ABOVE,
+                                onClick = {
+                                    if (ragEnabled) {
+                                        val newValue = !rerankingEnabled
+                                        rerankingEnabled = newValue
+                                        // Log the state change
+                                        AppLogger.d("ChatPanel", "Reranking ${if (newValue) "enabled" else "disabled"}")
+                                        // Update settings repository
+                                        coroutineScope.launch {
+                                            settingsRepository.update { currentSettings ->
+                                                currentSettings.copy(
+                                                    rag = currentSettings.rag.copy(
+                                                        rerankingEnabled = newValue
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                    ) {
+                                        Image(
+                                            painter = painterResource(Res.drawable.leaderboard),
+                                            contentDescription = "Reranking",
+                                            modifier = Modifier.size(20.dp),
+                                            colorFilter = ColorFilter.tint(
+                                                if (ragEnabled && rerankingEnabled) {
+                                                    theme.Accent
+                                                } else {
+                                                    theme.TextSecondary.copy(alpha = if (ragEnabled) 1f else 0.5f)
+                                                }
+                                            )
+                                        )
+                                    }
+                                    
+                                    // 8. Manual re-index (eighth) - always available
+                                    AppIconWithTooltip(
+                                        tooltip = "Rebuild Vector Database",
+                                        modifier = Modifier.size(24.dp),
+                                        enabled = currentVaultPath != null && 
+                                                 extendedRagComponents != null &&
+                                                 syncStatus != SyncStatus.UNAVAILABLE &&
+                                                 rebuildStatus !is UiStatus.Loading &&
+                                                 !isIngesting,
+                                        position = TooltipPosition.ABOVE,
+                                        onClick = {
+                                            if (currentVaultPath != null && extendedRagComponents != null) {
+                                                // Use ingestionScope for long-running operation
+                                                ingestionScope.launch {
+                                                    try {
+                                                        withContext(Dispatchers.Main) {
+                                                            rebuildStatus = UiStatus.Loading
+                                                            isIngesting = true
+                                                        }
+                                                        
+                                                        // Get existing metadata to enable incremental indexing
+                                                        val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
+                                                        val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
+                                                        
+                                                        extendedRagComponents.base.indexer.indexVault(
+                                                            rootPath = currentVaultPath,
+                                                            existingFileHashes = existingHashes
+                                                        )
+                                                        
+                                                        // Update sync status on IO thread, then update UI
+                                                        val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
+                                                        withContext(Dispatchers.Main) {
+                                                            syncStatus = newSyncStatus
+                                                            rebuildStatus = UiStatus.Success
+                                                            isIngesting = false
+                                                        }
+                                                    } catch (e: Exception) {
+                                                        withContext(Dispatchers.Main) {
+                                                            rebuildStatus = UiStatus.Error(
+                                                                e.message ?: "Failed to rebuild vector database",
+                                                                recoverable = true
+                                                            )
+                                                            isIngesting = false
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Image(
+                                            painter = painterResource(Res.drawable.database_search),
+                                            contentDescription = "Rebuild Vector Database",
+                                            modifier = Modifier.size(20.dp),
+                                            colorFilter = ColorFilter.tint(
+                                                when {
+                                                    syncStatus == SyncStatus.UNAVAILABLE ||
+                                                    rebuildStatus is UiStatus.Loading ||
+                                                    isIngesting -> theme.TextSecondary
+                                                    else -> theme.TextPrimary
+                                                }
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
                         }
                     }
                     

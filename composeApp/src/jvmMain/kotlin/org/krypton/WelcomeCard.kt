@@ -11,7 +11,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.polymer
+import krypton.composeapp.generated.resources.polyline
 
 @Composable
 fun WelcomeCard(
@@ -39,7 +39,7 @@ fun WelcomeCard(
         ) {
             // App logo/icon
             Image(
-                painter = painterResource(Res.drawable.polymer),
+                painter = painterResource(Res.drawable.polyline),
                 contentDescription = "Krypton",
                 modifier = Modifier.size(64.dp)
             )

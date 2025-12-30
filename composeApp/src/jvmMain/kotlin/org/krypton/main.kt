@@ -8,7 +8,6 @@ import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.polymer
 import org.krypton.di.allModules
 import org.krypton.util.initializeKermit
 import org.krypton.util.AppLogger
@@ -32,7 +31,6 @@ fun main() = application {
             exitApplication()
         },
         title = "Krypton",
-        icon = painterResource(Res.drawable.polymer),
         state = WindowState(size = DpSize(1400.dp, 900.dp))
     ) {
         // Customize title bar appearance on macOS
