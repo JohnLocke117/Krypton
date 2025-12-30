@@ -60,7 +60,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun LeftSidebar(
     state: org.krypton.ui.state.EditorStateHolder,
-    onFolderSelected: (java.nio.file.Path?) -> Unit,
+    onFolderSelected: (String?) -> Unit,
     theme: ObsidianThemeValues,
     settingsRepository: SettingsRepository?,
     modifier: Modifier = Modifier
@@ -155,7 +155,7 @@ fun LeftSidebar(
 @Composable
 private fun FilesPanel(
     state: org.krypton.ui.state.EditorStateHolder,
-    onFolderSelected: (java.nio.file.Path?) -> Unit,
+    onFolderSelected: (String?) -> Unit,
     theme: ObsidianThemeValues,
     settingsRepository: SettingsRepository?,
     modifier: Modifier = Modifier
@@ -184,17 +184,23 @@ private fun FilesPanel(
  * Recursively searches for files matching the query in the given directory.
  * Case-insensitive file name search.
  */
-suspend fun searchFilesByName(rootPath: Path, query: String): List<Path> = withContext(Dispatchers.IO) {
-    if (query.isEmpty() || !Files.exists(rootPath) || !Files.isDirectory(rootPath)) {
+suspend fun searchFilesByName(rootPath: String, query: String): List<String> = withContext(Dispatchers.IO) {
+    if (query.isEmpty()) {
         return@withContext emptyList()
     }
     
     try {
-        Files.walk(rootPath)
+        val rootPathObj = java.nio.file.Paths.get(rootPath)
+        if (!Files.exists(rootPathObj) || !Files.isDirectory(rootPathObj)) {
+            return@withContext emptyList()
+        }
+        
+        Files.walk(rootPathObj)
             .filter { Files.isRegularFile(it) }
             .filter { 
                 it.fileName.toString().contains(query, ignoreCase = true)
             }
+            .map { it.toString() }
             .toList()
     } catch (e: Exception) {
         AppLogger.e("SearchPanel", "Failed to search files: ${e.message}", e)
@@ -210,7 +216,7 @@ private fun SearchPanel(
 ) {
     val currentDirectory by state.currentDirectory.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<Path>>(emptyList()) }
+    var searchResults by remember { mutableStateOf<List<String>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     val clearButtonInteractionSource = remember { MutableInteractionSource() }
     val isClearButtonHovered by clearButtonInteractionSource.collectIsHoveredAsState()
@@ -456,16 +462,18 @@ private fun highlightMatch(text: String, query: String, textColor: Color): Annot
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SearchResultItem(
-    filePath: Path,
-    rootPath: Path,
+    filePath: String,
+    rootPath: String,
     searchQuery: String,
     theme: ObsidianThemeValues,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val fileName = filePath.fileName.toString()
+    val filePathObj = java.nio.file.Paths.get(filePath)
+    val rootPathObj = java.nio.file.Paths.get(rootPath)
+    val fileName = filePathObj.fileName.toString()
     val relativePath = try {
-        val relPath = rootPath.relativize(filePath)
+        val relPath = rootPathObj.relativize(filePathObj)
         val pathStr = relPath.toString().replace('\\', '/')
         // If the relative path is empty or just ".", the file is in root
         // Show "./" prefix to make it clear it's a path
@@ -483,10 +491,10 @@ private fun SearchResultItem(
     } catch (e: Exception) {
         // If relativize fails, try to construct path from parent
         try {
-            val parent = filePath.parent
-            if (parent != null && parent != rootPath) {
+            val parent = filePathObj.parent
+            if (parent != null && parent != rootPathObj) {
                 try {
-                    val parentRel = rootPath.relativize(parent).toString().replace('\\', '/')
+                    val parentRel = rootPathObj.relativize(parent).toString().replace('\\', '/')
                     if (parentRel.isEmpty() || parentRel == ".") {
                         "./$fileName"
                     } else {
@@ -536,7 +544,7 @@ private fun SearchResultItem(
         ) {
             // File icon
             Image(
-                painter = painterResource(getFileIcon(filePath)),
+                painter = painterResource(getFileIcon(filePathObj)),
                 contentDescription = "File",
                 modifier = Modifier
                     .size(18.dp)
@@ -569,7 +577,7 @@ private fun SearchResultItem(
     }
 }
 
-private fun getFileIcon(path: Path): DrawableResource {
+private fun getFileIcon(path: java.nio.file.Path): DrawableResource {
     val fileName = path.fileName.toString()
     val extension = fileName.substringAfterLast('.', "").lowercase()
     return when (extension) {
@@ -698,7 +706,7 @@ private fun SidebarTopBar(
 @Composable
 private fun SidebarBottomBar(
     state: org.krypton.ui.state.EditorStateHolder,
-    onFolderSelected: (Path?) -> Unit,
+    onFolderSelected: (String?) -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
@@ -709,7 +717,11 @@ private fun SidebarBottomBar(
     // We use the same height as top bar for consistency, but FolderNameBar will determine its own height
     if (currentDirectory != null) {
         FolderNameBar(
-            folderName = currentDirectory!!.fileName.toString(),
+            folderName = try {
+                java.nio.file.Paths.get(currentDirectory!!).fileName.toString()
+            } catch (e: Exception) {
+                currentDirectory!!.substringAfterLast('/', currentDirectory!!)
+            },
             onFolderClick = { /* Will be handled by FolderMenu */ },
             onSettingsClick = { state.openSettingsDialog() },
             onFolderSelected = onFolderSelected,

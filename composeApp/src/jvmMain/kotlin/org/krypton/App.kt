@@ -8,397 +8,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.Font
-import org.jetbrains.compose.ui.tooling.preview.Preview
-import java.io.File
-import javax.swing.JFileChooser
-import javax.swing.filechooser.FileSystemView
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.UbuntuSans_Regular
-import org.krypton.chat.ChatService
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.rag.RagComponents
 import org.krypton.ui.state.ChatStateHolder
 import org.krypton.ui.state.EditorStateHolder
 import org.krypton.ui.state.SearchStateHolder
 import org.krypton.util.Logger
-import org.krypton.util.createLogger
 import org.krypton.Settings
-import org.krypton.AppThemeColors
-import org.krypton.rememberAppColors
-import org.krypton.LocalAppColors
 import org.krypton.CatppuccinMochaColors
-import org.koin.core.context.GlobalContext
+import org.krypton.platform.VaultPicker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-
-@Composable
-@Preview
-fun App() {
-    val ubuntuFontFamily = FontFamily(
-        Font(Res.font.UbuntuSans_Regular)
-    )
-
-    // Initialize logger
-    val logger = remember { createLogger("App") }
-
-    // Inject dependencies via Koin
-    val koin = remember { GlobalContext.get() }
-    val settingsRepository: SettingsRepository = remember { koin.get() }
-    val editorStateHolder: EditorStateHolder = remember { koin.get() }
-    val chatStateHolder: ChatStateHolder = remember { koin.get() }
-    val searchStateHolder: SearchStateHolder = remember { koin.get() }
-    val ragComponents: RagComponents? = remember { 
-        try { 
-            koin.getOrNull<RagComponents>() 
-        } catch (e: Exception) { 
-            null 
-        } 
-    }
-    
-    val settings: Settings by settingsRepository.settingsFlow.collectAsState()
-    val colorScheme = buildColorSchemeFromSettings(settings)
-    val theme = rememberObsidianTheme(settings)
-    
-    // Create theme colors and app colors
-    val themeColors = remember(settings) { AppThemeColors(settings) }
-    val appColors = rememberAppColors(themeColors)
-    
-    // Observe state from state holders
-    val editorDomainState by editorStateHolder.domainState.collectAsState()
-    val leftSidebarVisible by editorStateHolder.leftSidebarVisible.collectAsState()
-    val rightSidebarVisible by editorStateHolder.rightSidebarVisible.collectAsState()
-    val leftSidebarWidth by editorStateHolder.leftSidebarWidth.collectAsState()
-    val rightSidebarWidth by editorStateHolder.rightSidebarWidth.collectAsState()
-    val activeRibbonButton by editorStateHolder.activeRibbonButton.collectAsState()
-    val activeRightPanel by editorStateHolder.activeRightPanel.collectAsState()
-    val settingsDialogOpen by editorStateHolder.settingsDialogOpen.collectAsState()
-    val showRecentFoldersDialog by editorStateHolder.showRecentFoldersDialog.collectAsState()
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = MaterialTheme.typography.copy(
-            displayLarge = MaterialTheme.typography.displayLarge.copy(fontFamily = ubuntuFontFamily),
-            displayMedium = MaterialTheme.typography.displayMedium.copy(fontFamily = ubuntuFontFamily),
-            displaySmall = MaterialTheme.typography.displaySmall.copy(fontFamily = ubuntuFontFamily),
-            headlineLarge = MaterialTheme.typography.headlineLarge.copy(fontFamily = ubuntuFontFamily),
-            headlineMedium = MaterialTheme.typography.headlineMedium.copy(fontFamily = ubuntuFontFamily),
-            headlineSmall = MaterialTheme.typography.headlineSmall.copy(fontFamily = ubuntuFontFamily),
-            titleLarge = MaterialTheme.typography.titleLarge.copy(fontFamily = ubuntuFontFamily),
-            titleMedium = MaterialTheme.typography.titleMedium.copy(fontFamily = ubuntuFontFamily),
-            titleSmall = MaterialTheme.typography.titleSmall.copy(fontFamily = ubuntuFontFamily),
-            bodyLarge = MaterialTheme.typography.bodyLarge.copy(fontFamily = ubuntuFontFamily),
-            bodyMedium = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = ubuntuFontFamily,
-                fontSize = org.krypton.config.UiDefaults.DEFAULT_TAB_FONT_SIZE.sp
-            ),
-            bodySmall = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = ubuntuFontFamily,
-                fontSize = org.krypton.config.UiDefaults.DEFAULT_TAB_FONT_SIZE.sp
-            ),
-            labelLarge = MaterialTheme.typography.labelLarge.copy(fontFamily = ubuntuFontFamily),
-            labelMedium = MaterialTheme.typography.labelMedium.copy(fontFamily = ubuntuFontFamily),
-            labelSmall = MaterialTheme.typography.labelSmall.copy(fontFamily = ubuntuFontFamily)
-        )
-    ) {
-        val coroutineScope = rememberCoroutineScope()
-        
-        // Auto-indexing is disabled - ingestion only happens when user explicitly enables RAG
-        // This prevents automatic ingestion on file save
-        LaunchedEffect(ragComponents) {
-            editorStateHolder.onFileSaved = null
-        }
-        
-        // Load last opened folder on startup
-        LaunchedEffect(Unit) {
-            val lastFolder = settings.app.recentFolders.firstOrNull()
-            if (lastFolder != null) {
-                try {
-                    val path = java.nio.file.Paths.get(lastFolder)
-                    if (java.nio.file.Files.exists(path) && java.nio.file.Files.isDirectory(path)) {
-                        editorStateHolder.changeDirectoryWithHistory(path)
-                    }
-                } catch (e: Exception) {
-                    // Invalid path, ignore
-                }
-            }
-        }
-
-        CompositionLocalProvider(LocalAppColors provides appColors) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(CatppuccinMochaColors.Base)
-                    .onKeyEvent { event ->
-                        // Don't process keyboard shortcuts when settings dialog is open
-                        if (!settingsDialogOpen) {
-                            handleKeyboardShortcut(event, editorStateHolder)
-                        } else {
-                            false // Let text fields handle the events
-                        }
-                    }
-            ) {
-                AppContent(
-                    editorStateHolder = editorStateHolder,
-                    searchStateHolder = searchStateHolder,
-                    chatStateHolder = chatStateHolder,
-                    settings = settings,
-                    theme = theme,
-                    settingsRepository = settingsRepository,
-                    leftSidebarVisible = leftSidebarVisible,
-                    rightSidebarVisible = rightSidebarVisible,
-                    leftSidebarWidth = leftSidebarWidth,
-                    rightSidebarWidth = rightSidebarWidth,
-                    activeRibbonButton = activeRibbonButton,
-                    activeRightPanel = activeRightPanel
-                )
-                
-                AppDialogs(
-                    editorStateHolder = editorStateHolder,
-                    settings = settings,
-                    theme = theme,
-                    settingsRepository = settingsRepository,
-                    ragComponents = ragComponents,
-                    coroutineScope = coroutineScope,
-                    logger = logger,
-                    showRecentFoldersDialog = showRecentFoldersDialog,
-                    settingsDialogOpen = settingsDialogOpen
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AppContent(
-    editorStateHolder: EditorStateHolder,
-    searchStateHolder: SearchStateHolder,
-    chatStateHolder: ChatStateHolder,
-    settings: Settings,
-    theme: ObsidianThemeValues,
-    settingsRepository: SettingsRepository,
-    leftSidebarVisible: Boolean,
-    rightSidebarVisible: Boolean,
-    leftSidebarWidth: Double,
-    rightSidebarWidth: Double,
-    activeRibbonButton: org.krypton.ui.state.RibbonButton,
-    activeRightPanel: org.krypton.ui.state.RightPanelType
-) {
-    val density = LocalDensity.current
-    val editorDomainState by editorStateHolder.domainState.collectAsState()
-    
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Top Ribbon
-        TopRibbon()
-        
-        // Middle Row: Left Ribbon, Workspace Card, Right Ribbon
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            // Left Ribbon
-            LeftRibbon(
-                state = editorStateHolder,
-                modifier = Modifier.fillMaxHeight()
-            )
-
-            // Workspace Card - wraps the three panes
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .border(1.dp, theme.BorderVariant, RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                color = Color.Transparent,
-                tonalElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Left Sidebar
-                    LeftSidebar(
-                        state = editorStateHolder,
-                        onFolderSelected = {
-                            openFolderDialog { selectedPath ->
-                                handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
-                            }
-                        },
-                        theme = theme,
-                        settingsRepository = settingsRepository,
-                        modifier = Modifier.fillMaxHeight()
-                    )
-
-                    // Left Resizable Splitter
-                    if (leftSidebarVisible) {
-                        var dragStartWidth by remember(leftSidebarWidth) { mutableStateOf(leftSidebarWidth) }
-                        var totalDragDp by remember { mutableStateOf(0.0) }
-                        
-                        ResizableSplitter(
-                            onDrag = { deltaPx ->
-                                val deltaDp = with(density) { deltaPx.toDp().value }
-                                totalDragDp += deltaDp
-                                val newWidth = dragStartWidth + totalDragDp
-                                editorStateHolder.updateLeftSidebarWidth(newWidth)
-                            },
-                            theme = theme,
-                            onDragStart = {
-                                dragStartWidth = leftSidebarWidth
-                                totalDragDp = 0.0
-                            },
-                            onDragEnd = {
-                                totalDragDp = 0.0
-                            }
-                        )
-                    }
-
-                    // Center Editor Area
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .background(CatppuccinMochaColors.Base)
-                    ) {
-                        TabBar(
-                            state = editorStateHolder,
-                            settings = settings,
-                            theme = theme,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        TextEditor(
-                            state = editorStateHolder,
-                            settingsRepository = settingsRepository,
-                            onOpenFolder = {
-                                openFolderDialog { selectedPath ->
-                                    handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // Right Resizable Splitter
-                    if (rightSidebarVisible) {
-                        var dragStartWidth by remember(rightSidebarWidth) { mutableStateOf(rightSidebarWidth) }
-                        var totalDragDp by remember { mutableStateOf(0.0) }
-                        
-                        ResizableSplitter(
-                            onDrag = { deltaPx ->
-                                val deltaDp = with(density) { deltaPx.toDp().value }
-                                totalDragDp += deltaDp
-                                // For right panel, dragging left (negative delta) increases width
-                                val newWidth = dragStartWidth - totalDragDp
-                                editorStateHolder.updateRightSidebarWidth(newWidth)
-                            },
-                            theme = theme,
-                            onDragStart = {
-                                dragStartWidth = rightSidebarWidth
-                                totalDragDp = 0.0
-                            },
-                            onDragEnd = {
-                                totalDragDp = 0.0
-                            }
-                        )
-                    }
-
-                    // Right Sidebar
-                    RightSidebar(
-                        state = editorStateHolder,
-                        theme = theme,
-                        chatStateHolder = chatStateHolder,
-                        settings = settings,
-                        modifier = Modifier.fillMaxHeight()
-                    )
-                }
-            }
-            
-            // Right Ribbon
-            RightRibbon(
-                state = editorStateHolder,
-                modifier = Modifier.fillMaxHeight()
-            )
-        }
-        
-        // Bottom Ribbon
-        BottomRibbon()
-    }
-}
-
-@Composable
-private fun AppDialogs(
-    editorStateHolder: EditorStateHolder,
-    settings: Settings,
-    theme: ObsidianThemeValues,
-    settingsRepository: SettingsRepository,
-    ragComponents: RagComponents?,
-    coroutineScope: CoroutineScope,
-    logger: Logger,
-    showRecentFoldersDialog: Boolean,
-    settingsDialogOpen: Boolean
-) {
-    // Settings Dialog
-    if (settingsDialogOpen) {
-        SettingsDialog(
-            state = editorStateHolder,
-            settingsRepository = settingsRepository,
-            onOpenSettingsJson = {
-                editorStateHolder.openSettingsJson()
-            },
-            onReindex = {
-                ragComponents?.indexer?.let { indexer ->
-                    coroutineScope.launch {
-                        try {
-                            indexer.indexVault("")
-                        } catch (e: Exception) {
-                            logger.error("Reindex failed: ${e.message}", e)
-                        }
-                    }
-                }
-            },
-            onDismiss = {
-                editorStateHolder.closeSettingsDialog()
-            }
-        )
-    }
-    
-    // Recent Folders Dialog
-    if (showRecentFoldersDialog) {
-        RecentFoldersDialog(
-            recentFolders = settings.app.recentFolders,
-            onFolderSelected = { path ->
-                editorStateHolder.changeDirectoryWithHistory(path)
-            },
-            onOpenNewFolder = {
-                openFolderDialog { selectedPath ->
-                    handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
-                }
-            },
-            onDismiss = {
-                editorStateHolder.dismissRecentFoldersDialog()
-            },
-            theme = theme
-        )
-    }
-    
-    // Flashcards Dialog
-    val flashcardsUiState by editorStateHolder.flashcardsUiState.collectAsState()
-    FlashcardsScreen(
-        state = flashcardsUiState,
-        onNext = { editorStateHolder.nextCard() },
-        onPrev = { editorStateHolder.prevCard() },
-        onToggleAnswer = { editorStateHolder.toggleAnswer() },
-        onClose = { editorStateHolder.closeFlashcards() },
-        theme = theme
-    )
-}
+import androidx.compose.ui.input.key.*
 
 private fun handleKeyboardShortcut(
     keyEvent: KeyEvent,
@@ -458,54 +84,23 @@ private fun handleKeyboardShortcut(
 }
 
 private fun handleFolderSelection(
-    selectedPath: java.nio.file.Path?,
+    selectedPath: String?,
     editorStateHolder: EditorStateHolder,
     settingsRepository: SettingsRepository
 ) {
     selectedPath?.let { path ->
-        val file = path.toFile()
-        if (file.isDirectory) {
+        val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
+        val isDirectory = fileSystem.isDirectory(path)
+        if (isDirectory) {
             editorStateHolder.changeDirectoryWithHistory(path)
         } else {
-            val parentPath = file.parentFile?.toPath()
+            // Extract parent directory from path string
+            val lastSeparator = path.lastIndexOf('/')
+            val parentPath = if (lastSeparator > 0) path.substring(0, lastSeparator) else null
             if (parentPath != null) {
                 editorStateHolder.changeDirectoryWithHistory(parentPath)
             }
             editorStateHolder.openTab(path)
         }
-    }
-}
-
-fun openFolderDialog(onResult: (java.nio.file.Path?) -> Unit) {
-    val fileChooser = JFileChooser(FileSystemView.getFileSystemView().homeDirectory)
-    fileChooser.fileSelectionMode = JFileChooser.FILES_AND_DIRECTORIES
-    fileChooser.dialogTitle = "Select Folder or File"
-    
-    val result = fileChooser.showOpenDialog(null)
-    if (result == JFileChooser.APPROVE_OPTION) {
-        val selectedFile = fileChooser.selectedFile
-        onResult(selectedFile.toPath())
-    } else {
-        onResult(null)
-    }
-}
-
-fun openSettingsFileDialog(onResult: (java.nio.file.Path?) -> Unit) {
-    val fileChooser = JFileChooser(FileSystemView.getFileSystemView().homeDirectory)
-    fileChooser.fileSelectionMode = JFileChooser.FILES_ONLY
-    fileChooser.dialogTitle = "Select Settings JSON File"
-    fileChooser.fileFilter = object : javax.swing.filechooser.FileFilter() {
-        override fun accept(f: java.io.File): Boolean {
-            return f.isDirectory || f.name.lowercase().endsWith(".json")
-        }
-        override fun getDescription(): String = "JSON Files (*.json)"
-    }
-    
-    val result = fileChooser.showOpenDialog(null)
-    if (result == JFileChooser.APPROVE_OPTION) {
-        val selectedFile = fileChooser.selectedFile
-        onResult(selectedFile.toPath())
-    } else {
-        onResult(null)
     }
 }

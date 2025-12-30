@@ -36,6 +36,7 @@ fun SettingsDialog(
     onOpenSettingsJson: () -> Unit,
     onReindex: (() -> Unit)? = null,
     onDismiss: () -> Unit,
+    vaultPicker: org.krypton.platform.VaultPicker? = null,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -196,7 +197,9 @@ fun SettingsDialog(
                                     .verticalScroll(rememberScrollState())
                                     .padding(24.dp),
                                 theme = theme,
-                                settingsRepository = settingsRepository
+                                settingsRepository = settingsRepository,
+                                vaultPicker = vaultPicker,
+                                onOpenSettingsJson = onOpenSettingsJson
                             )
                         }
                     }
@@ -374,7 +377,9 @@ private fun SettingsContent(
     onReindex: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     theme: ObsidianThemeValues,
-    settingsRepository: org.krypton.data.repository.SettingsRepository
+    settingsRepository: org.krypton.data.repository.SettingsRepository,
+    vaultPicker: org.krypton.platform.VaultPicker?,
+    onOpenSettingsJson: () -> Unit
 ) {
     Column(
         modifier = modifier,
@@ -397,7 +402,9 @@ private fun SettingsContent(
                     settings = settings,
                     onSettingsChange = onSettingsChange,
                     theme = theme,
-                    settingsRepository = settingsRepository
+                    settingsRepository = settingsRepository,
+                    vaultPicker = vaultPicker,
+                    onOpenSettingsJson = onOpenSettingsJson
                 )
             }
             SettingsCategory.Editor -> {
@@ -445,11 +452,21 @@ private fun GeneralSettings(
     settings: Settings,
     onSettingsChange: (Settings) -> Unit,
     theme: ObsidianThemeValues,
-    settingsRepository: org.krypton.data.repository.SettingsRepository
+    settingsRepository: org.krypton.data.repository.SettingsRepository,
+    vaultPicker: org.krypton.platform.VaultPicker?,
+    onOpenSettingsJson: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val koin = remember { org.koin.core.context.GlobalContext.get() }
+    val settingsConfigProvider = remember { 
+        try {
+            koin.getOrNull<org.krypton.platform.SettingsConfigProvider>()
+        } catch (e: Exception) {
+            null
+        }
+    }
     val currentSettingsFilePath = remember { 
-        org.krypton.data.repository.impl.SettingsConfigManager.getSettingsFilePath()
+        settingsConfigProvider?.getSettingsFilePath() ?: "settings.json"
     }
     var settingsFilePath by remember { mutableStateOf(currentSettingsFilePath) }
     
@@ -475,17 +492,22 @@ private fun GeneralSettings(
             )
             Button(
                 onClick = {
-                    org.krypton.openSettingsFileDialog { selectedPath ->
-                        selectedPath?.let { path ->
-                            val pathString = path.toString()
-                            if (org.krypton.data.repository.impl.SettingsConfigManager.setSettingsFilePath(pathString)) {
-                                settingsFilePath = pathString
-                                // Reload settings from the new file
-                                coroutineScope.launch {
+                    if (vaultPicker != null) {
+                        coroutineScope.launch {
+                            val selectedPath: String? = vaultPicker.pickFile(
+                                filter = org.krypton.platform.FileFilter("JSON Files", listOf("json"))
+                            )
+                            selectedPath?.let { pathString: String ->
+                                val settingsConfigProvider = org.koin.core.context.GlobalContext.get().get<org.krypton.platform.SettingsConfigProvider>()
+                                if (settingsConfigProvider.setSettingsFilePath(pathString)) {
+                                    settingsFilePath = pathString
+                                    // Reload settings from the new file
                                     settingsRepository.reloadFromDisk()
                                 }
                             }
                         }
+                    } else {
+                        onOpenSettingsJson()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(

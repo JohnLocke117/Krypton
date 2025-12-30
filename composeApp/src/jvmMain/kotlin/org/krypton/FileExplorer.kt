@@ -61,9 +61,9 @@ import krypton.composeapp.generated.resources.unknown_document
 @Composable
 fun FileExplorer(
     state: org.krypton.ui.state.EditorStateHolder,
-    onFolderSelected: (Path?) -> Unit,
+    onFolderSelected: (String?) -> Unit,
     recentFolders: List<String>,
-    onRecentFolderSelected: (Path) -> Unit,
+    onRecentFolderSelected: (String) -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
@@ -80,9 +80,9 @@ fun FileExplorer(
 @Composable
 fun FileExplorerContent(
     state: org.krypton.ui.state.EditorStateHolder,
-    onFolderSelected: (Path?) -> Unit,
+    onFolderSelected: (String?) -> Unit,
     recentFolders: List<String>,
-    onRecentFolderSelected: (Path) -> Unit,
+    onRecentFolderSelected: (String) -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
@@ -101,7 +101,7 @@ fun FileExplorerContent(
     var treeVersion by remember { mutableStateOf(0) }
 
     // Helper function to build tree with expanded state preservation
-    fun buildTreeWithStatePreservation(dir: Path): FileTreeNode? {
+    fun buildTreeWithStatePreservation(dir: String): FileTreeNode? {
         // Collect currently expanded paths
         val expandedPaths = mutableSetOf<Path>()
         fileTree?.let { tree ->
@@ -114,8 +114,9 @@ fun FileExplorerContent(
             collectExpandedPaths(tree)
         }
         
-        // Build new tree
-        val newTree = FileTreeBuilder.buildTree(dir) ?: return null
+        // Build new tree - convert String to Path for FileTreeBuilder
+        val dirPath = java.nio.file.Paths.get(dir)
+        val newTree = FileTreeBuilder.buildTree(dirPath) ?: return null
         newTree.isExpanded = true
         
         // Restore expanded state
@@ -131,10 +132,11 @@ fun FileExplorerContent(
     }
 
     // Helper function to expand a folder by path in the tree
-    fun expandFolder(path: Path) {
+    fun expandFolder(path: String) {
         fileTree?.let { tree ->
-            fun expandNode(node: FileTreeNode, targetPath: Path): Boolean {
-                if (node.path == targetPath && node.isDirectory) {
+            fun expandNode(node: FileTreeNode, targetPath: String): Boolean {
+                val targetPathObj = java.nio.file.Paths.get(targetPath)
+                if (node.path == targetPathObj && node.isDirectory) {
                     node.isExpanded = true
                     treeVersion++ // Trigger recomposition
                     return true
@@ -316,7 +318,7 @@ fun FileExplorerContent(
                                 val path = java.nio.file.Paths.get(folderPath)
                                 val file = path.toFile()
                                 if (file.exists() && file.isDirectory) {
-                                    onRecentFolderSelected(path)
+                                    onRecentFolderSelected(folderPath)
                                 }
                             } catch (e: Exception) {
                                 // Invalid path, skip
@@ -407,9 +409,10 @@ fun FileExplorerContent(
                                         // Use FileSystem from state holder's dependency
                                         // For now, assume it's a file if it's not a directory
                                         val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
-                                        if (!fileSystem.isDirectory(path.toString())) {
-                                            AppLogger.action("FileExplorer", "FileOpened", path.toString())
-                                            state.openTab(path)
+                                        val pathString = path.toString()
+                                        if (!fileSystem.isDirectory(pathString)) {
+                                            AppLogger.action("FileExplorer", "FileOpened", pathString)
+                                            state.openTab(pathString)
                                         }
                                     },
                                     onFolderToggle = { node ->
@@ -500,11 +503,11 @@ fun TreeItem(
     val editingParentPath by state.editingParentPath.collectAsState()
     
     val isRenaming = editingMode == org.krypton.core.domain.editor.FileTreeEditMode.Renaming && 
-        editingItemPath == node.path
+        editingItemPath == node.path.toString()
     
     // Check if we're creating in this parent
     val isCreatingInThisParent = node.isDirectory && 
-        editingParentPath == node.path && 
+        editingParentPath == node.path.toString() && 
         (editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
          editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)
 
@@ -514,19 +517,19 @@ fun TreeItem(
                 listOf(
                     ContextMenuItem("New File") {
                         // Select the node first, then create
-                        state.selectExplorerNode(node.path)
+                        state.selectExplorerNode(node.path.toString())
                         state.startCreatingNewFile()
                     },
                     ContextMenuItem("New Folder") {
                         // Select the node first, then create
-                        state.selectExplorerNode(node.path)
+                        state.selectExplorerNode(node.path.toString())
                         state.startCreatingNewFolder()
                     },
                     ContextMenuItem("Rename") {
-                        state.startRenamingItem(node.path)
+                        state.startRenamingItem(node.path.toString())
                     },
                     ContextMenuItem("Delete") {
-                        state.deleteItem(node.path)
+                        state.deleteItem(node.path.toString())
                     }
                 )
             }
@@ -565,7 +568,7 @@ fun TreeItem(
                     .clickable(enabled = !isRenaming) {
                         if (!isRenaming) {
                             // Update selection when clicking on a node
-                            state.selectExplorerNode(node.path)
+                            state.selectExplorerNode(node.path.toString())
                             if (node.isDirectory) {
                                 onFolderToggle(node)
                             } else {
@@ -620,7 +623,7 @@ fun TreeItem(
                     InlineTreeTextField(
                         initialName = node.name,
                         onConfirm = { newName ->
-                            state.confirmRename(node.path, newName)
+                            state.confirmRename(node.path.toString(), newName)
                             onTreeRefresh()
                         },
                         onCancel = {
@@ -665,9 +668,9 @@ fun TreeItem(
                     theme = theme,
                     onConfirm = { name ->
                         if (isCreatingFile) {
-                            state.confirmCreateFile(name, node.path)
+                            state.confirmCreateFile(name, node.path.toString())
                         } else {
-                            state.confirmCreateFolder(name, node.path)
+                            state.confirmCreateFolder(name, node.path.toString())
                         }
                         onTreeRefresh()
                     },
@@ -913,13 +916,17 @@ private fun PanelIconButton(
 
 @Composable
 private fun DeleteConfirmationDialog(
-    path: Path,
+    path: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
-    val isDirectory = fileSystem.isDirectory(path.toString())
-    val itemName = path.fileName.toString()
+    val isDirectory = fileSystem.isDirectory(path)
+    val itemName = try {
+        java.nio.file.Paths.get(path).fileName.toString()
+    } catch (e: Exception) {
+        path.substringAfterLast('/', path)
+    }
     val message = if (isDirectory) {
         "Are you sure you want to delete the folder \"$itemName\" and all its contents?\n\nThis action cannot be undone."
     } else {

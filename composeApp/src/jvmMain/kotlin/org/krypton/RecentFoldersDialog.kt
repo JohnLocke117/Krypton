@@ -11,13 +11,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import java.nio.file.Path
-import java.nio.file.Paths
-
 @Composable
 fun RecentFoldersDialog(
     recentFolders: List<String>,
-    onFolderSelected: (Path) -> Unit,
+    onFolderSelected: (String) -> Unit,
     onOpenNewFolder: () -> Unit,
     onDismiss: () -> Unit,
     theme: ObsidianThemeValues,
@@ -55,8 +52,7 @@ fun RecentFoldersDialog(
                             theme = theme,
                             onClick = {
                                 try {
-                                    val path = Paths.get(folderPath)
-                                    onFolderSelected(path)
+                                    onFolderSelected(folderPath)
                                     onDismiss()
                                 } catch (e: Exception) {
                                     // Invalid path, skip
@@ -117,7 +113,7 @@ private fun RecentFolderItem(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = Paths.get(path).fileName.toString(),
+                    text = path.substringAfterLast("/", path),
                     style = MaterialTheme.typography.bodyMedium,
                     color = theme.TextPrimary,
                     maxLines = 1,

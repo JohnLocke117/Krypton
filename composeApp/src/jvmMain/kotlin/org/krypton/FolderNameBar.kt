@@ -30,7 +30,7 @@ fun FolderNameBar(
     folderName: String,
     onFolderClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onFolderSelected: (Path?) -> Unit,
+    onFolderSelected: (String?) -> Unit,
     onCloseFolder: () -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier

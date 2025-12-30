@@ -110,6 +110,6 @@ fun main() = application {
             }
         }
         
-        App()
+        org.krypton.ui.KryptonApp()
     }
 }
