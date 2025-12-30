@@ -33,7 +33,7 @@ fun RagSettings(
                     )
                 }
             },
-            description = "Vector backend type (CHROMADB)",
+            description = "Vector backend type (CHROMADB, CHROMA_CLOUD)",
             theme = theme
         )
 

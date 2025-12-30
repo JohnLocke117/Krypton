@@ -67,7 +67,8 @@ data class AppSettings(
 
 @Serializable
 enum class VectorBackend {
-    CHROMADB
+    CHROMADB,
+    CHROMA_CLOUD
 }
 
 @Serializable

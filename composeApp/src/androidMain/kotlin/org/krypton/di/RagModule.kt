@@ -8,7 +8,10 @@ import org.krypton.rag.*
 import org.krypton.data.rag.impl.HttpLlamaClient
 import org.krypton.data.rag.impl.HttpEmbedder
 import org.krypton.data.rag.impl.ChromaDBVectorStore
+import org.krypton.data.rag.impl.ChromaCloudVectorStore
 import org.krypton.data.rag.impl.RagServiceImpl
+import org.krypton.util.SecretsLoader
+import org.krypton.VectorBackend
 import org.krypton.rag.reranker.DedicatedOllamaReranker
 import org.krypton.rag.reranker.LlmbasedFallbackReranker
 import org.krypton.util.AppLogger
@@ -46,17 +49,47 @@ val ragModule = module {
     }
     
     // VectorStore for storing and searching embeddings
-    single<VectorStore> {
+    // Using factory instead of single to allow recreation when settings change
+    factory<VectorStore> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
         val ragSettings = settingsRepository.settingsFlow.value.rag
         val httpEngine: HttpClientEngine = get()
-        ChromaDBVectorStore(
-            baseUrl = ragSettings.chromaBaseUrl,
-            collectionName = ragSettings.chromaCollectionName,
-            httpClientEngine = httpEngine,
-            tenant = ragSettings.chromaTenant,
-            database = ragSettings.chromaDatabase
-        )
+        
+        when (ragSettings.vectorBackend) {
+            VectorBackend.CHROMADB -> ChromaDBVectorStore(
+                baseUrl = ragSettings.chromaBaseUrl,
+                collectionName = ragSettings.chromaCollectionName,
+                httpClientEngine = httpEngine,
+                tenant = ragSettings.chromaTenant,
+                database = ragSettings.chromaDatabase
+            )
+            VectorBackend.CHROMA_CLOUD -> {
+                val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
+                val host = SecretsLoader.loadSecret("CHROMA_HOST") ?: "api.trychroma.com"
+                val tenant = SecretsLoader.loadSecret("CHROMA_TENANT") ?: "default"
+                val database = SecretsLoader.loadSecret("CHROMA_DATABASE") ?: "defaultDB"
+                
+                if (apiKey.isNullOrBlank()) {
+                    throw IllegalStateException("CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud.")
+                }
+                
+                // Ensure baseUrl uses https
+                val baseUrl = if (host.startsWith("http://") || host.startsWith("https://")) {
+                    host
+                } else {
+                    "https://$host"
+                }
+                
+                ChromaCloudVectorStore(
+                    baseUrl = baseUrl,
+                    collectionName = ragSettings.chromaCollectionName,
+                    httpClientEngine = httpEngine,
+                    apiKey = apiKey,
+                    tenant = tenant,
+                    database = database
+                )
+            }
+        }
     }
     
     // LlamaClient for LLM operations (used by both RAG service and reranker)
@@ -184,7 +217,8 @@ val ragModule = module {
             // Get notes root from settings (if available)
             val notesRoot = null // TODO: Get from settings or current directory
             
-            // Get LlamaClient and Reranker (may fall back to NoopReranker if initialization fails)
+            // Get VectorStore, LlamaClient and Reranker (may fall back to NoopReranker if initialization fails)
+            val vectorStore: VectorStore = get()
             val llamaClient: LlamaClient = get()
             val reranker: Reranker = try {
                 get<Reranker>()
@@ -197,6 +231,7 @@ val ragModule = module {
                 config = config,
                 notesRoot = notesRoot,
                 httpClientEngineFactory = org.krypton.rag.HttpClientEngineFactory(httpEngine),
+                vectorStore = vectorStore,
                 llamaClient = llamaClient,
                 reranker = reranker
             )

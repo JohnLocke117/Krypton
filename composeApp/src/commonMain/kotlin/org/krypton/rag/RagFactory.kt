@@ -52,6 +52,7 @@ expect class HttpClientEngineFactory
  * @param config RAG configuration
  * @param notesRoot Root directory containing markdown notes (null = current directory)
  * @param httpClientEngineFactory Factory for creating HTTP client engine (platform-specific)
+ * @param vectorStore VectorStore instance (optional, will be created if not provided - for backward compatibility)
  * @param llamaClient LlamaClient instance (optional, will be created if not provided)
  * @param reranker Reranker instance (optional, will use NoopReranker if not provided)
  */
@@ -59,6 +60,7 @@ expect fun createRagComponents(
     config: RagConfig,
     notesRoot: String?,
     httpClientEngineFactory: HttpClientEngineFactory,
+    vectorStore: VectorStore? = null,
     llamaClient: LlamaClient? = null,
     reranker: Reranker? = null
 ): RagComponents

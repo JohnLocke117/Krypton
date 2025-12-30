@@ -56,6 +56,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.geometry.Rect
 import org.krypton.ui.AppIconWithTooltip
 import org.krypton.ui.TooltipPosition
 import org.krypton.chat.ui.ChatMessageList
@@ -165,9 +167,14 @@ fun ChatPanel(
     // Error state for Tavily toggle attempts without API key
     var tavilyError by remember { mutableStateOf<String?>(null) }
     
-    // RAG pipeline selection state
-    var selectedBackend by remember { mutableStateOf(VectorBackend.CHROMADB) }
+    // RAG pipeline selection state - sync with settings
+    var selectedBackend by remember { mutableStateOf(currentSettings.rag.vectorBackend) }
     var dropdownExpanded by remember { mutableStateOf(false) }
+    
+    // Sync selectedBackend with settings changes
+    LaunchedEffect(currentSettings.rag.vectorBackend) {
+        selectedBackend = currentSettings.rag.vectorBackend
+    }
     
     // Rebuild status state
     var rebuildStatus by remember { mutableStateOf<UiStatus?>(null) }
@@ -321,6 +328,7 @@ fun ChatPanel(
     fun getBackendDisplayName(backend: VectorBackend): String {
         return when (backend) {
             VectorBackend.CHROMADB -> "ChromaDB"
+            VectorBackend.CHROMA_CLOUD -> "ChromaDB Cloud"
         }
     }
 
@@ -611,31 +619,35 @@ fun ChatPanel(
                             }
                             
                             // 3. DB dropdown (third) - reduced opacity when RAG off
-                            ExposedDropdownMenuBox(
-                                expanded = dropdownExpanded && ragEnabled,
-                                onExpandedChange = { if (ragEnabled) dropdownExpanded = it }
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .height(24.dp)
-                                        .menuAnchor()
-                                        .clickable(enabled = ragEnabled) {
-                                            if (ragEnabled) {
-                                                dropdownExpanded = !dropdownExpanded
-                                            }
-                                        },
-                                    contentAlignment = Alignment.Center
+                            Box {
+                                TextButton(
+                                    onClick = {
+                                        AppLogger.d("ChatPanel", "Vector DB dropdown clicked, ragEnabled=$ragEnabled, currentExpanded=$dropdownExpanded")
+                                        if (ragEnabled) {
+                                            dropdownExpanded = !dropdownExpanded
+                                            AppLogger.d("ChatPanel", "Dropdown expanded set to: $dropdownExpanded")
+                                        } else {
+                                            AppLogger.d("ChatPanel", "RAG not enabled, dropdown not opening")
+                                        }
+                                    },
+                                    enabled = ragEnabled,
+                                    modifier = Modifier.height(24.dp),
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f)
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                 ) {
                                     Text(
                                         text = getBackendDisplayName(selectedBackend),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f),
-                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                        style = MaterialTheme.typography.bodySmall
                                     )
                                 }
-                                ExposedDropdownMenu(
+                                DropdownMenu(
                                     expanded = dropdownExpanded && ragEnabled,
-                                    onDismissRequest = { dropdownExpanded = false },
+                                    onDismissRequest = { 
+                                        AppLogger.d("ChatPanel", "Dropdown dismissed")
+                                        dropdownExpanded = false 
+                                    },
                                     modifier = Modifier
                                         .background(theme.BackgroundElevated)
                                         .widthIn(max = 150.dp)
@@ -649,7 +661,43 @@ fun ChatPanel(
                                             )
                                         },
                                         onClick = {
-                                            selectedBackend = VectorBackend.CHROMADB
+                                            coroutineScope.launch {
+                                                settingsRepository.update { current ->
+                                                    current.copy(
+                                                        rag = current.rag.copy(vectorBackend = VectorBackend.CHROMADB)
+                                                    )
+                                                }
+                                            }
+                                            dropdownExpanded = false
+                                        },
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = theme.TextPrimary
+                                        )
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "ChromaDB Cloud",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = theme.TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            // Validate API key before switching
+                                            val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
+                                            if (apiKey.isNullOrBlank()) {
+                                                tavilyError = "CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud."
+                                                dropdownExpanded = false
+                                                return@DropdownMenuItem
+                                            }
+                                            
+                                            coroutineScope.launch {
+                                                settingsRepository.update { current ->
+                                                    current.copy(
+                                                        rag = current.rag.copy(vectorBackend = VectorBackend.CHROMA_CLOUD)
+                                                    )
+                                                }
+                                            }
                                             dropdownExpanded = false
                                         },
                                         colors = MenuDefaults.itemColors(

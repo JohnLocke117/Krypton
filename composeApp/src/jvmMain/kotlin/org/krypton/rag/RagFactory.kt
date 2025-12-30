@@ -134,9 +134,15 @@ fun createRagComponentsLegacy(
 fun createExtendedRagComponents(
     config: RagConfig,
     notesRoot: String?,
-    httpClientEngine: HttpClientEngine
+    httpClientEngine: HttpClientEngine,
+    vectorStore: VectorStore? = null
 ): ExtendedRagComponents {
-    val base = createRagComponents(config, notesRoot, HttpClientEngineFactory(httpClientEngine))
+    val base = createRagComponents(
+        config = config,
+        notesRoot = notesRoot,
+        httpClientEngineFactory = HttpClientEngineFactory(httpClientEngine),
+        vectorStore = vectorStore
+    )
     
     val healthService = ChromaDBHealthService(
         baseUrl = config.chromaBaseUrl,

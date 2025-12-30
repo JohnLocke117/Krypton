@@ -33,8 +33,7 @@ kotlin {
             implementation(libs.kotlinx.serializationJson)
             implementation(libs.kermit)
             implementation("org.jetbrains:markdown:0.5.2")
-            // Material Icons Extended (for Android, JVM will use compose.desktop which includes icons)
-            implementation("androidx.compose.material:material-icons-extended:1.7.6")
+            // Material Icons are included in Compose Multiplatform, no need for separate dependency
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

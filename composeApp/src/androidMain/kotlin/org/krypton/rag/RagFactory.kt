@@ -21,13 +21,14 @@ actual fun createRagComponents(
     config: RagConfig,
     notesRoot: String?,
     httpClientEngineFactory: HttpClientEngineFactory,
+    vectorStore: VectorStore?,
     llamaClient: LlamaClient?,
     reranker: Reranker?
 ): RagComponents {
     val httpClientEngine = httpClientEngineFactory.engine
     
-    // Create ChromaDB vector store
-    val vectorStore = ChromaDBVectorStore(
+    // Use provided VectorStore or create one for backward compatibility
+    val vectorStoreToUse = vectorStore ?: ChromaDBVectorStore(
         baseUrl = config.chromaBaseUrl,
         collectionName = config.chromaCollectionName,
         httpClientEngine = httpClientEngine,
@@ -62,7 +63,7 @@ actual fun createRagComponents(
         fileSystem = fileSystem,
         chunker = chunker,
         embedder = embedder,
-        vectorStore = vectorStore
+        vectorStore = vectorStoreToUse
     )
     
     // Create query preprocessor (optional, only if rewriting or multi-query is enabled)
@@ -78,7 +79,7 @@ actual fun createRagComponents(
     // Create RAG service
     val ragService = RagServiceImpl(
         embedder = embedder,
-        vectorStore = vectorStore,
+        vectorStore = vectorStoreToUse,
         llamaClient = llamaClientToUse,
         similarityThreshold = config.similarityThreshold,
         maxK = config.maxK,
@@ -90,7 +91,7 @@ actual fun createRagComponents(
     )
     
     return RagComponents(
-        vectorStore = vectorStore,
+        vectorStore = vectorStoreToUse,
         embedder = embedder,
         llamaClient = llamaClientToUse,
         indexer = indexer,
