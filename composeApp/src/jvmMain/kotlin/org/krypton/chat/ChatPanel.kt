@@ -30,6 +30,7 @@ import krypton.composeapp.generated.resources.send
 import org.krypton.ObsidianThemeValues
 import org.krypton.CatppuccinMochaColors
 import org.krypton.VectorBackend
+import org.krypton.LlmProvider
 import org.krypton.ui.state.UiStatus
 import org.krypton.rag.RagComponents
 import org.krypton.rag.SyncStatus
@@ -166,6 +167,16 @@ fun ChatPanel(
     
     // Error state for Tavily toggle attempts without API key
     var tavilyError by remember { mutableStateOf<String?>(null) }
+    
+    // LLM provider selection state - sync with settings
+    var selectedLlmProvider by remember { mutableStateOf(currentSettings.llm.provider) }
+    var llmProviderDropdownExpanded by remember { mutableStateOf(false) }
+    var llmProviderError by remember { mutableStateOf<String?>(null) }
+    
+    // Sync selectedLlmProvider with settings changes
+    LaunchedEffect(currentSettings.llm.provider) {
+        selectedLlmProvider = currentSettings.llm.provider
+    }
     
     // RAG pipeline selection state - sync with settings
     var selectedBackend by remember { mutableStateOf(currentSettings.rag.vectorBackend) }
@@ -338,9 +349,11 @@ fun ChatPanel(
         ChatStatusBar(
             rebuildStatus = rebuildStatus,
             tavilyError = tavilyError,
+            llmProviderError = llmProviderError,
             chatError = error,
             onDismissRebuildStatus = { rebuildStatus = null },
             onDismissTavilyError = { tavilyError = null },
+            onDismissLlmProviderError = { llmProviderError = null },
             onDismissChatError = { chatStateHolder.clearError() },
             theme = theme
         )
@@ -618,7 +631,103 @@ fun ChatPanel(
                                 )
                             }
                             
-                            // 3. DB dropdown (third) - reduced opacity when RAG off
+                            // 3. LLM Provider dropdown (third) - always available
+                            Box {
+                                TextButton(
+                                    onClick = {
+                                        AppLogger.d("ChatPanel", "LLM Provider dropdown clicked")
+                                        llmProviderDropdownExpanded = !llmProviderDropdownExpanded
+                                    },
+                                    modifier = Modifier.height(24.dp),
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = theme.TextPrimary
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        text = when (selectedLlmProvider) {
+                                            LlmProvider.OLLAMA -> "Ollama"
+                                            LlmProvider.GEMINI -> "Gemini"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = llmProviderDropdownExpanded,
+                                    onDismissRequest = { 
+                                        AppLogger.d("ChatPanel", "LLM Provider dropdown dismissed")
+                                        llmProviderDropdownExpanded = false 
+                                    },
+                                    modifier = Modifier
+                                        .background(theme.BackgroundElevated)
+                                        .widthIn(max = 150.dp)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Ollama",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = theme.TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                settingsRepository.update { current ->
+                                                    current.copy(
+                                                        llm = current.llm.copy(provider = LlmProvider.OLLAMA)
+                                                    )
+                                                }
+                                            }
+                                            llmProviderDropdownExpanded = false
+                                            llmProviderError = null
+                                        },
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = theme.TextPrimary
+                                        )
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "Gemini API",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = theme.TextPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            // Validate API key before switching
+                                            val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
+                                            if (apiKey.isNullOrBlank()) {
+                                                llmProviderError = "GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API."
+                                                llmProviderDropdownExpanded = false
+                                                // Revert to Ollama
+                                                coroutineScope.launch {
+                                                    settingsRepository.update { current ->
+                                                        current.copy(
+                                                            llm = current.llm.copy(provider = LlmProvider.OLLAMA)
+                                                        )
+                                                    }
+                                                }
+                                                return@DropdownMenuItem
+                                            }
+                                            
+                                            coroutineScope.launch {
+                                                settingsRepository.update { current ->
+                                                    current.copy(
+                                                        llm = current.llm.copy(provider = LlmProvider.GEMINI)
+                                                    )
+                                                }
+                                            }
+                                            llmProviderDropdownExpanded = false
+                                            llmProviderError = null
+                                        },
+                                        colors = MenuDefaults.itemColors(
+                                            textColor = theme.TextPrimary
+                                        )
+                                    )
+                                }
+                            }
+                            
+                            // 4. DB dropdown (fourth) - reduced opacity when RAG off
                             Box {
                                 TextButton(
                                     onClick = {
@@ -707,7 +816,7 @@ fun ChatPanel(
                                 }
                             }
                             
-                            // 4. Multi-query option (fourth) - visible but disabled when RAG off
+                            // 5. Multi-query option (fifth) - visible but disabled when RAG off
                             AppIconWithTooltip(
                                 tooltip = "Multi-Query",
                                 modifier = Modifier.size(24.dp),
@@ -746,7 +855,7 @@ fun ChatPanel(
                                 )
                             }
                             
-                            // 5. Reranking toggle (fifth) - visible but disabled when RAG off
+                            // 6. Reranking toggle (sixth) - visible but disabled when RAG off
                             AppIconWithTooltip(
                                 tooltip = "Reranking",
                                 modifier = Modifier.size(24.dp),
@@ -785,7 +894,7 @@ fun ChatPanel(
                                 )
                             }
                             
-                            // 6. Manual re-index (sixth) - always available
+                            // 7. Manual re-index (seventh) - always available
                             AppIconWithTooltip(
                                 tooltip = "Rebuild Vector Database",
                                 modifier = Modifier.size(24.dp),

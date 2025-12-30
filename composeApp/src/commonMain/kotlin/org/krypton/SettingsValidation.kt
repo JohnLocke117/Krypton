@@ -90,11 +90,36 @@ fun validateSettings(settings: Settings): ValidationResult {
 fun migrateSettings(settings: Settings): Settings {
     var migrated = settings
 
+    // Migrate LLM settings from RagSettings to LlmSettings if needed
+    // This handles backward compatibility when old settings have llamaBaseUrl/llamaModel in rag
+    val llmSettings = if (settings.llm.provider == LlmProvider.OLLAMA && 
+                          settings.llm.ollamaBaseUrl == org.krypton.config.RagDefaults.DEFAULT_LLM.baseUrl &&
+                          settings.llm.ollamaModel == org.krypton.config.RagDefaults.DEFAULT_LLM.modelName) {
+        // Check if we have old values in rag settings
+        val oldBaseUrl = settings.rag.llamaBaseUrl
+        val oldModel = settings.rag.llamaModel
+        
+        if (oldBaseUrl != null || oldModel != null) {
+            // Migrate from old rag settings
+            settings.llm.copy(
+                ollamaBaseUrl = oldBaseUrl ?: settings.llm.ollamaBaseUrl,
+                ollamaModel = oldModel ?: settings.llm.ollamaModel
+            )
+        } else {
+            settings.llm
+        }
+    } else {
+        settings.llm
+    }
+    
+    if (llmSettings != settings.llm) {
+        migrated = migrated.copy(llm = llmSettings)
+    }
+
     // Handle version migrations
-    when (settings.version) {
+    when (migrated.version) {
         1 -> {
-            // Current version, no migration needed
-            migrated = settings
+            // Current version, migration above handles LLM settings
         }
         // Future migrations can be added here:
         // 2 -> { ... }
@@ -102,7 +127,7 @@ fun migrateSettings(settings: Settings): Settings {
         else -> {
             // Unknown version, apply defaults for missing fields
             // For now, just ensure version is updated
-            migrated = settings.copy(version = 1)
+            migrated = migrated.copy(version = 1)
         }
     }
 

@@ -17,9 +17,11 @@ import org.krypton.ui.state.UiStatus
 fun ChatStatusBar(
     rebuildStatus: UiStatus?,
     tavilyError: String?,
+    llmProviderError: String?,
     chatError: String?,
     onDismissRebuildStatus: () -> Unit,
     onDismissTavilyError: () -> Unit,
+    onDismissLlmProviderError: () -> Unit,
     onDismissChatError: () -> Unit,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
@@ -140,6 +142,40 @@ fun ChatStatusBar(
                     )
                     TextButton(
                         onClick = onDismissTavilyError,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Dismiss")
+                    }
+                }
+            }
+        }
+        
+        // LLM Provider error message (non-blocking)
+        llmProviderError?.let { errorMsg ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = errorMsg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = onDismissLlmProviderError,
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )

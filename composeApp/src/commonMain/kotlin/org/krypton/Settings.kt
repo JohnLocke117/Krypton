@@ -72,16 +72,32 @@ enum class VectorBackend {
 }
 
 @Serializable
+enum class LlmProvider {
+    OLLAMA,
+    GEMINI
+}
+
+@Serializable
+data class LlmSettings(
+    val provider: LlmProvider = LlmProvider.OLLAMA,
+    val ollamaBaseUrl: String = org.krypton.config.RagDefaults.DEFAULT_LLM.baseUrl,
+    val ollamaModel: String = org.krypton.config.RagDefaults.DEFAULT_LLM.modelName,
+    val geminiModel: String = "gemini-2.5-flash"
+)
+
+@Serializable
 data class RagSettings(
     val vectorBackend: VectorBackend = org.krypton.config.RagDefaults.DEFAULT_VECTOR_BACKEND,
-    val llamaBaseUrl: String = org.krypton.config.RagDefaults.DEFAULT_LLM.baseUrl,
+    @Deprecated("Use Settings.llm.ollamaBaseUrl instead")
+    val llamaBaseUrl: String? = null, // Deprecated, kept for backward compatibility
     val embeddingBaseUrl: String = org.krypton.config.RagDefaults.Embedding.DEFAULT_BASE_URL,
     val chromaBaseUrl: String = org.krypton.config.RagDefaults.ChromaDb.DEFAULT_BASE_URL,
     val chromaCollectionName: String = org.krypton.config.RagDefaults.ChromaDb.DEFAULT_COLLECTION_NAME,
     val chromaTenant: String = org.krypton.config.RagDefaults.ChromaDb.DEFAULT_TENANT,
     val chromaDatabase: String = org.krypton.config.RagDefaults.ChromaDb.DEFAULT_DATABASE,
     val ragEnabled: Boolean = true,
-    val llamaModel: String = org.krypton.config.RagDefaults.DEFAULT_LLM.modelName,
+    @Deprecated("Use Settings.llm.ollamaModel instead")
+    val llamaModel: String? = null, // Deprecated, kept for backward compatibility
     val embeddingModel: String = org.krypton.config.RagDefaults.Embedding.DEFAULT_MODEL,
     val topK: Int = org.krypton.config.RagDefaults.Retrieval.DEFAULT_TOP_K,
     val similarityThreshold: Float = org.krypton.config.RagDefaults.Retrieval.DEFAULT_SIMILARITY_THRESHOLD,
@@ -100,6 +116,7 @@ data class Settings(
     val ui: UISettings = UISettings(),
     val colors: ColorSettings = ColorSettings(),
     val app: AppSettings = AppSettings(),
-    val rag: RagSettings = RagSettings()
+    val rag: RagSettings = RagSettings(),
+    val llm: LlmSettings = LlmSettings()
 )
 

@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.krypton.VectorBackend
+import org.krypton.LlmProvider
 
 @Composable
 fun RagSettings(
@@ -21,6 +22,79 @@ fun RagSettings(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        Text(
+            text = "LLM Provider Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        InlineTextField(
+            label = "LLM Provider",
+            value = settings.llm.provider.name,
+            onValueChange = { newValue ->
+                LlmProvider.values().find { it.name.equals(newValue, ignoreCase = true) }?.let { provider ->
+                    onSettingsChange(
+                        settings.copy(
+                            llm = settings.llm.copy(provider = provider)
+                        )
+                    )
+                }
+            },
+            description = "LLM provider (OLLAMA, GEMINI)",
+            theme = theme
+        )
+        
+        if (settings.llm.provider == LlmProvider.OLLAMA) {
+            InlineTextField(
+                label = "Ollama Model",
+                value = settings.llm.ollamaModel,
+                onValueChange = { newValue ->
+                    onSettingsChange(
+                        settings.copy(
+                            llm = settings.llm.copy(ollamaModel = newValue)
+                        )
+                    )
+                },
+                description = "Ollama generator model name (e.g., llama3.2:1b)",
+                theme = theme
+            )
+            
+            InlineTextField(
+                label = "Ollama Base URL",
+                value = settings.llm.ollamaBaseUrl,
+                onValueChange = { newValue ->
+                    onSettingsChange(
+                        settings.copy(
+                            llm = settings.llm.copy(ollamaBaseUrl = newValue)
+                        )
+                    )
+                },
+                theme = theme
+            )
+        } else {
+            InlineTextField(
+                label = "Gemini Model",
+                value = settings.llm.geminiModel,
+                onValueChange = { newValue ->
+                    onSettingsChange(
+                        settings.copy(
+                            llm = settings.llm.copy(geminiModel = newValue)
+                        )
+                    )
+                },
+                description = "Gemini model name (e.g., gemini-2.5-flash)",
+                theme = theme
+            )
+        }
+        
+        Divider(color = theme.Border)
+        
+        Text(
+            text = "Vector Backend Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
         InlineTextField(
             label = "Vector Backend",
             value = settings.rag.vectorBackend.name,
@@ -34,20 +108,6 @@ fun RagSettings(
                 }
             },
             description = "Vector backend type (CHROMADB, CHROMA_CLOUD)",
-            theme = theme
-        )
-
-        InlineTextField(
-            label = "Generator Model",
-            value = settings.rag.llamaModel,
-            onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(llamaModel = newValue)
-                    )
-                )
-            },
-            description = "Ollama generator model name (e.g., llama3.2:1b)",
             theme = theme
         )
 
@@ -66,19 +126,6 @@ fun RagSettings(
         )
 
         Divider(color = theme.Border)
-
-        InlineTextField(
-            label = "Llama Base URL",
-            value = settings.rag.llamaBaseUrl,
-            onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(llamaBaseUrl = newValue)
-                    )
-                )
-            },
-            theme = theme
-        )
 
         InlineTextField(
             label = "Embedding Base URL",

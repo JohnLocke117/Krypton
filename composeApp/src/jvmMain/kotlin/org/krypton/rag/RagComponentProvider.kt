@@ -30,13 +30,13 @@ object RagComponentProvider {
             
             val config = RagConfig(
                 vectorBackend = ragSettings.vectorBackend,
-                llamaBaseUrl = ragSettings.llamaBaseUrl,
+                llamaBaseUrl = ragSettings.llamaBaseUrl ?: RagDefaults.DEFAULT_LLM.baseUrl,
                 embeddingBaseUrl = ragSettings.embeddingBaseUrl,
                 chromaBaseUrl = ragSettings.chromaBaseUrl,
                 chromaCollectionName = ragSettings.chromaCollectionName,
                 chromaTenant = ragSettings.chromaTenant,
                 chromaDatabase = ragSettings.chromaDatabase,
-                llamaModel = ragSettings.llamaModel,
+                llamaModel = ragSettings.llamaModel ?: RagDefaults.DEFAULT_LLM.modelName,
                 embeddingModel = ragSettings.embeddingModel
             )
             

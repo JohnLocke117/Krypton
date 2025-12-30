@@ -6,12 +6,14 @@ import org.krypton.data.rag.impl.HttpOllamaModelRegistry
 import org.krypton.data.rag.impl.OllamaModelRegistry
 import org.krypton.rag.*
 import org.krypton.data.rag.impl.HttpLlamaClient
+import org.krypton.data.rag.impl.GeminiClient
 import org.krypton.data.rag.impl.HttpEmbedder
 import org.krypton.data.rag.impl.ChromaDBVectorStore
 import org.krypton.data.rag.impl.ChromaCloudVectorStore
 import org.krypton.data.rag.impl.RagServiceImpl
 import org.krypton.util.SecretsLoader
 import org.krypton.VectorBackend
+import org.krypton.LlmProvider
 import org.krypton.rag.reranker.DedicatedOllamaReranker
 import org.krypton.rag.reranker.LlmbasedFallbackReranker
 import org.krypton.util.AppLogger
@@ -27,10 +29,11 @@ val ragModule = module {
     // Ollama model registry for checking model availability
     single<OllamaModelRegistry> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
-        val ragSettings = settingsRepository.settingsFlow.value.rag
+        val settings = settingsRepository.settingsFlow.value
+        val llmSettings = settings.llm
         val httpEngine: HttpClientEngine = get()
         HttpOllamaModelRegistry(
-            baseUrl = ragSettings.llamaBaseUrl,
+            baseUrl = llmSettings.ollamaBaseUrl,
             httpClientEngine = httpEngine
         )
     }
@@ -93,16 +96,39 @@ val ragModule = module {
     }
     
     // LlamaClient for LLM operations (used by both RAG service and reranker)
-    single<LlamaClient> {
+    // Using factory instead of single to allow recreation when provider changes
+    factory<LlamaClient> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
-        val ragSettings = settingsRepository.settingsFlow.value.rag
+        val settings = settingsRepository.settingsFlow.value
+        val llmSettings = settings.llm
         val httpEngine: HttpClientEngine = get()
-        HttpLlamaClient(
-            baseUrl = ragSettings.llamaBaseUrl,
-            model = ragSettings.llamaModel,
-            apiPath = "/api/generate",
-            httpClientEngine = httpEngine
-        )
+        
+        when (llmSettings.provider) {
+            LlmProvider.OLLAMA -> {
+                HttpLlamaClient(
+                    baseUrl = llmSettings.ollamaBaseUrl,
+                    model = llmSettings.ollamaModel,
+                    apiPath = "/api/generate",
+                    httpClientEngine = httpEngine
+                )
+            }
+            LlmProvider.GEMINI -> {
+                val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
+                val baseUrl = SecretsLoader.loadSecret("GEMINI_API_BASE_URL")
+                    ?: "https://generativelanguage.googleapis.com/v1beta/models/${llmSettings.geminiModel}:generateContent"
+                
+                if (apiKey.isNullOrBlank()) {
+                    throw IllegalStateException("GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API.")
+                }
+                
+                GeminiClient(
+                    apiKey = apiKey,
+                    baseUrl = baseUrl,
+                    model = llmSettings.geminiModel,
+                    httpClientEngine = httpEngine
+                )
+            }
+        }
     }
     
     // Reranker with conditional binding and fallback logic
@@ -136,7 +162,8 @@ val ragModule = module {
                     modelName = rerankerModel!!
                 )
             } else {
-                val generatorModel = ragSettings.llamaModel
+                val settings = settingsRepository.settingsFlow.value
+                val generatorModel = settings.llm.ollamaModel
                 if (rerankerModel != null) {
                     AppLogger.i("RagModule", "Dedicated reranker model '$rerankerModel' not found, falling back to generator LLM: $generatorModel")
                 } else {
@@ -158,15 +185,16 @@ val ragModule = module {
             val ragSettings = settingsRepository.settingsFlow.value.rag
             val httpEngine: HttpClientEngine = get()
             
+            val llmSettings = settingsRepository.settingsFlow.value.llm
             val config = RagConfig(
                 vectorBackend = ragSettings.vectorBackend,
-                llamaBaseUrl = ragSettings.llamaBaseUrl,
+                llamaBaseUrl = llmSettings.ollamaBaseUrl,
                 embeddingBaseUrl = ragSettings.embeddingBaseUrl,
                 chromaBaseUrl = ragSettings.chromaBaseUrl,
                 chromaCollectionName = ragSettings.chromaCollectionName,
                 chromaTenant = ragSettings.chromaTenant,
                 chromaDatabase = ragSettings.chromaDatabase,
-                llamaModel = ragSettings.llamaModel,
+                llamaModel = llmSettings.ollamaModel,
                 embeddingModel = ragSettings.embeddingModel,
                 similarityThreshold = ragSettings.similarityThreshold,
                 maxK = ragSettings.maxK,
@@ -247,16 +275,17 @@ val ragModule = module {
                 val httpEngine: HttpClientEngine = get()
                 val vectorStore: VectorStore = get()
                 
+                val llmSettings = settingsRepository.settingsFlow.value.llm
                 createExtendedRagComponents(
                     config = RagConfig(
                         vectorBackend = ragSettings.vectorBackend,
-                        llamaBaseUrl = ragSettings.llamaBaseUrl,
+                        llamaBaseUrl = llmSettings.ollamaBaseUrl,
                         embeddingBaseUrl = ragSettings.embeddingBaseUrl,
                         chromaBaseUrl = ragSettings.chromaBaseUrl,
                         chromaCollectionName = ragSettings.chromaCollectionName,
                         chromaTenant = ragSettings.chromaTenant,
                         chromaDatabase = ragSettings.chromaDatabase,
-                        llamaModel = ragSettings.llamaModel,
+                        llamaModel = llmSettings.ollamaModel,
                         embeddingModel = ragSettings.embeddingModel,
                         similarityThreshold = ragSettings.similarityThreshold,
                         maxK = ragSettings.maxK,

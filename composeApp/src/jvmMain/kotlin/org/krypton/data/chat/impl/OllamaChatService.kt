@@ -261,8 +261,14 @@ class OllamaChatService(
             val errorMessage = e.message?.lowercase() ?: ""
             if (errorMessage.contains("model") || errorMessage.contains("not found") || 
                 errorMessage.contains("invalid") || errorMessage.contains("404")) {
-                val ragSettings = settingsRepository.settingsFlow.value.rag
-                throw ChatException("Error occurred, please check model name. Generator model: ${ragSettings.llamaModel}, Embedding model: ${ragSettings.embeddingModel}", e)
+                val settings = settingsRepository.settingsFlow.value
+                val llmSettings = settings.llm
+                val ragSettings = settings.rag
+                val modelName = when (llmSettings.provider) {
+                    org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
+                    org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
+                }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
             }
             throw e
         } catch (e: RagException) {
@@ -270,8 +276,14 @@ class OllamaChatService(
             val errorMessage = e.message?.lowercase() ?: ""
             if (errorMessage.contains("model") || errorMessage.contains("not found") || 
                 errorMessage.contains("invalid") || errorMessage.contains("404")) {
-                val ragSettings = settingsRepository.settingsFlow.value.rag
-                throw ChatException("Error occurred, please check model name. Generator model: ${ragSettings.llamaModel}, Embedding model: ${ragSettings.embeddingModel}", e)
+                val settings = settingsRepository.settingsFlow.value
+                val llmSettings = settings.llm
+                val ragSettings = settings.rag
+                val modelName = when (llmSettings.provider) {
+                    org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
+                    org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
+                }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
             }
             throw ChatException("RAG failed: ${e.message}", e)
         } catch (e: IOException) {
@@ -282,8 +294,14 @@ class OllamaChatService(
             val errorMessage = e.message?.lowercase() ?: ""
             if (errorMessage.contains("model") || errorMessage.contains("not found") || 
                 errorMessage.contains("invalid") || errorMessage.contains("404")) {
-                val ragSettings = settingsRepository.settingsFlow.value.rag
-                throw ChatException("Error occurred, please check model name. Generator model: ${ragSettings.llamaModel}, Embedding model: ${ragSettings.embeddingModel}", e)
+                val settings = settingsRepository.settingsFlow.value
+                val llmSettings = settings.llm
+                val ragSettings = settings.rag
+                val modelName = when (llmSettings.provider) {
+                    org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
+                    org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
+                }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
             }
             throw ChatException("Unexpected chat error: ${e.message}", e)
         }

@@ -39,7 +39,10 @@ class CreateNoteAgent(
         chatHistory: List<ChatMessage>,
         context: AgentContext
     ): AgentResult? {
-        val modelName = context.settings.rag.llamaModel
+        val modelName = when (context.settings.llm.provider) {
+            org.krypton.LlmProvider.OLLAMA -> context.settings.llm.ollamaModel
+            org.krypton.LlmProvider.GEMINI -> context.settings.llm.geminiModel
+        }
         AppLogger.i("CreateNoteAgent", "Starting query - message: \"$message\", model: $modelName")
         
         // Check if vault is open

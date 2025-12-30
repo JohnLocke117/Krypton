@@ -98,7 +98,8 @@ val chatModule = module {
     
     // CreateNoteAgent (for note creation functionality)
     // All dependencies (LlamaClient, FileSystem, SettingsRepository) are always available
-    single<CreateNoteAgent> {
+    // Using factory to get fresh LlamaClient when provider changes
+    factory<CreateNoteAgent> {
         CreateNoteAgent(
             llamaClient = get(),
             fileSystem = get(),
@@ -121,7 +122,8 @@ val chatModule = module {
     }
     
     // SummarizeNoteAgent (for note summarization functionality)
-    single<SummarizeNoteAgent> {
+    // Using factory to get fresh LlamaClient when provider changes
+    factory<SummarizeNoteAgent> {
         val ragRetriever: RagRetriever? = try {
             get<RagRetriever>()
         } catch (e: Exception) {
@@ -136,7 +138,8 @@ val chatModule = module {
     }
     
     // FlashcardService (for flashcard generation functionality)
-    single<FlashcardService> {
+    // Using factory to get fresh LlamaClient when provider changes
+    factory<FlashcardService> {
         FlashcardServiceImpl(
             fileSystem = get(),
             llamaClient = get()
@@ -144,7 +147,8 @@ val chatModule = module {
     }
     
     // ChatService
-    single<ChatService> {
+    // Using factory to get fresh LlamaClient when provider changes
+    factory<ChatService> {
         val llamaClient: LlamaClient = get()
         val promptBuilder: PromptBuilder = get()
         val retrievalService: RetrievalService? = try {

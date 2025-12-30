@@ -75,5 +75,11 @@
         "multiQueryEnabled": true,
         "rerankingEnabled": true,
         "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M"
+    },
+    "llm": {
+        "provider": "GEMINI",
+        "ollamaBaseUrl": "http://localhost:11434",
+        "ollamaModel": "llama3.1:8b",
+        "geminiModel": "gemini-2.5-flash"
     }
 }
