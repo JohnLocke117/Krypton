@@ -2,7 +2,11 @@ package org.krypton.data.files.impl
 
 import org.krypton.data.files.FileSystem
 import org.krypton.data.files.FileError
+import org.krypton.platform.VaultRoot
+import org.krypton.platform.NoteFile
 import org.krypton.util.AppLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -229,6 +233,102 @@ class JvmFileSystem : FileSystem {
             }
         } catch (e: Exception) {
             AppLogger.e("JvmFileSystem", "Failed to move file to trash: $path", e)
+            false
+        }
+    }
+    
+    override suspend fun listNotes(root: VaultRoot): List<NoteFile> = withContext(Dispatchers.IO) {
+        try {
+            val rootPath = Paths.get(root.id)
+            if (!Files.exists(rootPath) || !Files.isDirectory(rootPath)) {
+                return@withContext emptyList()
+            }
+            
+            Files.walk(rootPath)
+                .filter { Files.isRegularFile(it) }
+                .filter { it.fileName.toString().endsWith(".md", ignoreCase = true) }
+                .map { filePath ->
+                    val relativePath = rootPath.relativize(filePath).toString().replace('\\', '/')
+                    val fileName = filePath.fileName.toString()
+                    val nameWithoutExt = fileName.removeSuffix(".md").removeSuffix(".MD")
+                    NoteFile(
+                        path = relativePath,
+                        name = nameWithoutExt,
+                        fullPath = relativePath
+                    )
+                }
+                .toList()
+        } catch (e: Exception) {
+            AppLogger.e("JvmFileSystem", "Failed to list notes in vault: ${root.id}", e)
+            emptyList()
+        }
+    }
+    
+    override suspend fun readNote(root: VaultRoot, noteFile: NoteFile): String? = withContext(Dispatchers.IO) {
+        try {
+            val rootPath = Paths.get(root.id)
+            val filePath = rootPath.resolve(noteFile.path)
+            if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+                Files.readString(filePath)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            AppLogger.e("JvmFileSystem", "Failed to read note: ${noteFile.path}", e)
+            null
+        }
+    }
+    
+    override suspend fun writeNote(root: VaultRoot, noteFile: NoteFile, content: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val rootPath = Paths.get(root.id)
+            val filePath = rootPath.resolve(noteFile.path)
+            // Ensure parent directory exists
+            filePath.parent?.let { Files.createDirectories(it) }
+            Files.writeString(
+                filePath,
+                content,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE
+            )
+            true
+        } catch (e: Exception) {
+            AppLogger.e("JvmFileSystem", "Failed to write note: ${noteFile.path}", e)
+            false
+        }
+    }
+    
+    override suspend fun createNote(root: VaultRoot, noteFile: NoteFile): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val rootPath = Paths.get(root.id)
+            val filePath = rootPath.resolve(noteFile.path)
+            if (!Files.exists(filePath)) {
+                // Ensure parent directory exists
+                filePath.parent?.let { Files.createDirectories(it) }
+                Files.createFile(filePath)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            AppLogger.e("JvmFileSystem", "Failed to create note: ${noteFile.path}", e)
+            false
+        }
+    }
+    
+    override suspend fun deleteNote(root: VaultRoot, noteFile: NoteFile): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val rootPath = Paths.get(root.id)
+            val filePath = rootPath.resolve(noteFile.path)
+            if (Files.exists(filePath)) {
+                Files.delete(filePath)
+                true
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            AppLogger.e("JvmFileSystem", "Failed to delete note: ${noteFile.path}", e)
             false
         }
     }

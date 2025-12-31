@@ -11,9 +11,9 @@ interface VaultPicker {
     /**
      * Opens a dialog to pick a vault/folder.
      * 
-     * @return Selected folder path as String, or null if cancelled
+     * @return Selected vault root, or null if cancelled
      */
-    suspend fun pickVault(): String?
+    suspend fun pickVaultRoot(): VaultRoot?
     
     /**
      * Opens a dialog to pick a file.
@@ -22,6 +22,14 @@ interface VaultPicker {
      * @return Selected file path as String, or null if cancelled
      */
     suspend fun pickFile(filter: FileFilter? = null): String?
+    
+    /**
+     * @deprecated Use pickVaultRoot() instead
+     */
+    @Deprecated("Use pickVaultRoot() instead", ReplaceWith("pickVaultRoot()?.id"))
+    suspend fun pickVault(): String? {
+        return pickVaultRoot()?.id
+    }
 }
 
 /**

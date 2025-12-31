@@ -1,5 +1,8 @@
 package org.krypton.data.files
 
+import org.krypton.platform.VaultRoot
+import org.krypton.platform.NoteFile
+
 /**
  * Platform-agnostic interface for file system operations.
  * 
@@ -12,6 +15,50 @@ package org.krypton.data.files
  * and Result-based methods for structured error handling.
  */
 interface FileSystem {
+    /**
+     * Lists all markdown note files (.md) in the given vault root.
+     * 
+     * @param root Vault root to search in
+     * @return List of note files found in the vault
+     */
+    suspend fun listNotes(root: VaultRoot): List<NoteFile>
+    
+    /**
+     * Reads the content of a note file.
+     * 
+     * @param root Vault root containing the note
+     * @param noteFile Note file to read
+     * @return File content, or null if file doesn't exist or on error
+     */
+    suspend fun readNote(root: VaultRoot, noteFile: NoteFile): String?
+    
+    /**
+     * Writes content to a note file.
+     * 
+     * @param root Vault root containing the note
+     * @param noteFile Note file to write
+     * @param content Content to write
+     * @return true if successful, false otherwise
+     */
+    suspend fun writeNote(root: VaultRoot, noteFile: NoteFile, content: String): Boolean
+    
+    /**
+     * Creates a new note file.
+     * 
+     * @param root Vault root to create the note in
+     * @param noteFile Note file to create
+     * @return true if successful, false if file already exists or on error
+     */
+    suspend fun createNote(root: VaultRoot, noteFile: NoteFile): Boolean
+    
+    /**
+     * Deletes a note file.
+     * 
+     * @param root Vault root containing the note
+     * @param noteFile Note file to delete
+     * @return true if successful, false if file doesn't exist or on error
+     */
+    suspend fun deleteNote(root: VaultRoot, noteFile: NoteFile): Boolean
     /**
      * Lists all files and directories in the given directory.
      * 

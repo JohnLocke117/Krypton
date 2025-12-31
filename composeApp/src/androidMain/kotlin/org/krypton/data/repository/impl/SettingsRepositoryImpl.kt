@@ -38,8 +38,16 @@ class SettingsRepositoryImpl(
                 Settings()
             }
         } else {
-            // File doesn't exist, create default settings
-            val defaultSettings = Settings()
+            // File doesn't exist, create default settings with Android preferences
+            // Android: Prefer ChromaCloud and Gemini
+            val defaultSettings = Settings(
+                rag = Settings().rag.copy(
+                    vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
+                ),
+                llm = Settings().llm.copy(
+                    provider = org.krypton.LlmProvider.GEMINI
+                )
+            )
             persistence.saveSettingsToFile(settingsPath, defaultSettings)
             defaultSettings
         }

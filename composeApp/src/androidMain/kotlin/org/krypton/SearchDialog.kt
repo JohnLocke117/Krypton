@@ -1,12 +1,13 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,10 +19,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.resources.painterResource
-import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.keyboard_arrow_down
-import krypton.composeapp.generated.resources.close
 import org.krypton.ui.state.SearchStateHolder
 import org.krypton.ui.state.EditorStateHolder
 
@@ -142,23 +139,21 @@ fun SearchDialog(
                     onClick = { searchStateHolder.findNext() },
                     enabled = currentSearchState.hasMatches
                 ) {
-                    Image(
-                        painter = painterResource(Res.drawable.keyboard_arrow_down),
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Next",
                         modifier = Modifier.size(20.dp),
-                        colorFilter = ColorFilter.tint(
-                            if (currentSearchState.hasMatches) theme.TextPrimary else theme.TextTertiary
-                        )
+                        tint = if (currentSearchState.hasMatches) theme.TextPrimary else theme.TextTertiary
                     )
                 }
 
                 // Close button
                 IconButton(onClick = { searchStateHolder.closeSearchDialog() }) {
-                    Image(
-                        painter = painterResource(Res.drawable.close),
+                    Icon(
+                        imageVector = Icons.Default.Close,
                         contentDescription = "Close",
                         modifier = Modifier.size(20.dp),
-                        colorFilter = ColorFilter.tint(theme.TextSecondary)
+                        tint = theme.TextSecondary
                     )
                 }
             }

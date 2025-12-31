@@ -1,4 +1,3 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
@@ -18,6 +17,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,9 +28,6 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.resources.painterResource
-import krypton.composeapp.generated.resources.add
-import krypton.composeapp.generated.resources.Res
 import org.krypton.markdown.BlockNode
 import org.krypton.markdown.InlineNode
 import org.krypton.markdown.JetBrainsMarkdownEngine
@@ -193,11 +191,11 @@ private fun RightSidebarTopBar(
                             chatStateHolder.clearHistory()
                         }
                     ) {
-                        Image(
-                            painter = painterResource(Res.drawable.add),
+                        Icon(
+                            imageVector = Icons.Default.Add,
                             contentDescription = "New Chat",
                             modifier = Modifier.size(20.dp),
-                            colorFilter = ColorFilter.tint(colorScheme.onSurface)
+                            tint = colorScheme.onSurface
                         )
                     }
                 }

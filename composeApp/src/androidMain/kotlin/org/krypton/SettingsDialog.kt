@@ -1,9 +1,7 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
 import org.krypton.ui.state.SettingsCategory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -12,6 +10,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
@@ -27,9 +27,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import org.jetbrains.compose.resources.painterResource
-import krypton.composeapp.generated.resources.close
-import krypton.composeapp.generated.resources.Res
 
 @Composable
 fun SettingsDialog(
@@ -146,11 +143,11 @@ fun SettingsDialog(
                             IconButton(
                                 onClick = onDismiss
                             ) {
-                                Image(
-                                    painter = painterResource(Res.drawable.close),
+                                Icon(
+                                    imageVector = Icons.Default.Close,
                                     contentDescription = "Close",
                                     modifier = Modifier.size(20.dp),
-                                    colorFilter = ColorFilter.tint(theme.TextSecondary)
+                                    tint = theme.TextSecondary
                                 )
                             }
                         }

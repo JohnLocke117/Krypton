@@ -25,12 +25,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.CoroutineScope
@@ -47,10 +51,17 @@ import org.krypton.ui.state.UiStatus
 import org.krypton.util.Logger
 import org.krypton.Settings
 import org.krypton.CatppuccinMochaColors
+import org.krypton.LeftSidebar
+import org.krypton.RightSidebar
 import org.krypton.LocalAppColors
 import org.krypton.ObsidianThemeValues
 import org.krypton.platform.VaultPicker
+import org.krypton.platform.VaultDirectory
+import org.krypton.platform.NoteEntry
+import org.krypton.ui.state.AndroidNotesStateHolder
 import org.koin.core.context.GlobalContext
+import org.krypton.ui.MainScaffold
+import org.krypton.ui.LocalDrawerState
 
 /**
  * Mobile navigation screens
@@ -92,7 +103,29 @@ actual fun AppContent(
         }
     }
     
-    Scaffold(
+    // Track overlay/dialog state for back handling
+    var settingsDialogOpen by remember { mutableStateOf(false) }
+    val drawerState = LocalDrawerState.current
+    
+    // Handle back button - close drawers/dialogs before exiting
+    BackHandler(enabled = drawerState?.leftDrawerState?.isOpen == true || 
+                          drawerState?.rightDrawerState?.isOpen == true || 
+                          settingsDialogOpen) {
+        when {
+            drawerState?.rightDrawerState?.isOpen == true -> {
+                drawerState.scope.launch { drawerState.rightDrawerState.close() }
+            }
+            drawerState?.leftDrawerState?.isOpen == true -> {
+                drawerState.scope.launch { drawerState.leftDrawerState.close() }
+            }
+            settingsDialogOpen -> {
+                settingsDialogOpen = false
+                editorStateHolder.closeSettingsDialog()
+            }
+        }
+    }
+    
+    MainScaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Krypton") },
@@ -100,8 +133,25 @@ actual fun AppContent(
                     containerColor = theme.BackgroundElevated,
                     titleContentColor = theme.TextPrimary
                 ),
+                navigationIcon = {
+                    // Left overlay toggle (folder icon)
+                    drawerState?.let { state ->
+                        IconButton(onClick = state.onLeftToggle) {
+                            Icon(Icons.Default.Folder, contentDescription = "Files")
+                        }
+                    }
+                },
                 actions = {
-                    IconButton(onClick = { currentScreen = MobileScreen.Settings }) {
+                    // Right overlay toggle (info icon) - if available
+                    drawerState?.let { state ->
+                        IconButton(onClick = state.onRightToggle) {
+                            Icon(Icons.Default.Description, contentDescription = "Info")
+                        }
+                    }
+                    IconButton(onClick = { 
+                        settingsDialogOpen = true
+                        editorStateHolder.openSettingsDialog()
+                    }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
@@ -130,57 +180,78 @@ actual fun AppContent(
                     onClick = { currentScreen = MobileScreen.Chat }
                 )
             }
-        }
-    ) { paddingValues ->
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-                .padding(paddingValues)
-            .background(CatppuccinMochaColors.Base)
-    ) {
-            when (currentScreen) {
-                MobileScreen.NotesList -> {
-                    AndroidNotesListScreen(
-                        editorStateHolder = editorStateHolder,
-                        settingsRepository = settingsRepository,
-                        vaultPicker = vaultPicker,
-                        theme = theme,
-                        onFileSelected = {
-                            coroutineScope.launch {
-                                editorStateHolder.openTab(it)
-                                currentScreen = MobileScreen.Editor
-                            }
-                        },
-                        coroutineScope = coroutineScope
-                    )
-                }
-                MobileScreen.Editor -> {
-                    AndroidEditorScreen(
-                        editorStateHolder = editorStateHolder,
-                        settingsRepository = settingsRepository,
-                        theme = theme,
-                        onBack = { currentScreen = MobileScreen.NotesList }
-                    )
-                }
-                MobileScreen.Chat -> {
-                    AndroidChatScreen(
-                        chatStateHolder = chatStateHolder,
-                        editorStateHolder = editorStateHolder,
-                        settings = settings,
-                        theme = theme
-                    )
-                }
-                MobileScreen.Settings -> {
-                    AndroidSettingsScreen(
-                        editorStateHolder = editorStateHolder,
-                        settingsRepository = settingsRepository,
-                        theme = theme,
-                        onBack = { currentScreen = MobileScreen.NotesList }
-                    )
+        },
+        leftOverlay = {
+            LeftSidebar(
+                state = editorStateHolder,
+                onFolderSelected = { folderPath ->
+                    // Handle folder selection
+                    editorStateHolder.changeDirectoryWithHistory(folderPath)
+                },
+                theme = theme,
+                settingsRepository = settingsRepository,
+                modifier = Modifier.fillMaxHeight()
+            )
+        },
+        rightOverlay = {
+            RightSidebar(
+                state = editorStateHolder,
+                theme = theme,
+                chatStateHolder = chatStateHolder,
+                settings = settings,
+                modifier = Modifier.fillMaxHeight()
+            )
+        },
+        content = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(CatppuccinMochaColors.Base)
+            ) {
+                when (currentScreen) {
+                    MobileScreen.NotesList -> {
+                        AndroidNotesListScreen(
+                            editorStateHolder = editorStateHolder,
+                            settingsRepository = settingsRepository,
+                            vaultPicker = vaultPicker,
+                            theme = theme,
+                            onFileSelected = {
+                                coroutineScope.launch {
+                                    editorStateHolder.openTab(it)
+                                    currentScreen = MobileScreen.Editor
+                                }
+                            },
+                            coroutineScope = coroutineScope
+                        )
+                    }
+                    MobileScreen.Editor -> {
+                        AndroidEditorScreen(
+                            editorStateHolder = editorStateHolder,
+                            settingsRepository = settingsRepository,
+                            theme = theme,
+                            onBack = { currentScreen = MobileScreen.NotesList }
+                        )
+                    }
+                    MobileScreen.Chat -> {
+                        AndroidChatScreen(
+                            chatStateHolder = chatStateHolder,
+                            editorStateHolder = editorStateHolder,
+                            settings = settings,
+                            theme = theme
+                        )
+                    }
+                    MobileScreen.Settings -> {
+                        AndroidSettingsScreen(
+                            editorStateHolder = editorStateHolder,
+                            settingsRepository = settingsRepository,
+                            theme = theme,
+                            onBack = { currentScreen = MobileScreen.NotesList }
+                        )
+                    }
                 }
             }
         }
-    }
+    )
 }
 
 @Composable
@@ -252,7 +323,7 @@ actual fun AppDialogs(
 }
 
 /**
- * Mobile notes list screen - simplified file explorer
+ * Mobile notes list screen - simplified file explorer with SAF-based navigation
  */
 @Composable
 private fun AndroidNotesListScreen(
@@ -263,41 +334,90 @@ private fun AndroidNotesListScreen(
     onFileSelected: (String) -> Unit,
     coroutineScope: CoroutineScope
 ) {
-    val currentDirectory by editorStateHolder.currentDirectory.collectAsState()
-    val files by editorStateHolder.files.collectAsState()
     val koin = remember { GlobalContext.get() }
     val fileSystem = remember { koin.get<FileSystem>() }
     val context = LocalContext.current
     
-    var isLoading by remember { mutableStateOf(false) }
+    // Create Android-specific notes state holder
+    val notesStateHolder = remember {
+        AndroidNotesStateHolder(fileSystem, coroutineScope)
+    }
+    
+    val directoryStack by notesStateHolder.directoryStack.collectAsState()
+    val entries by notesStateHolder.entries.collectAsState()
+    val isLoading by notesStateHolder.isLoading.collectAsState()
+    val currentDir = notesStateHolder.currentDirectory
+    val canNavigateUp = notesStateHolder.canNavigateUp
+    
+    // Custom ActivityResultContract for SAF folder picker with proper flags
+    val folderPickerContract = object : ActivityResultContract<Uri?, Uri?>() {
+        override fun createIntent(context: Context, input: Uri?): Intent {
+            return Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+                )
+                // Only set initial URI if it's a valid tree URI that we already have permission for
+                input?.let { uri ->
+                    // Check if we have persistable permission for this URI
+                    val persistedUris = context.contentResolver.persistedUriPermissions
+                    if (persistedUris.any { it.uri == uri && it.isWritePermission && it.isReadPermission }) {
+                        putExtra(DocumentsContract.EXTRA_INITIAL_URI, uri)
+                    }
+                }
+            }
+        }
+        
+        override fun parseResult(resultCode: Int, intent: Intent?): Uri? {
+            return if (resultCode == android.app.Activity.RESULT_OK) {
+                intent?.data
+            } else {
+                null
+            }
+        }
+    }
     
     // Folder picker launcher using Storage Access Framework
     val folderPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
+        contract = folderPickerContract
     ) { uri: Uri? ->
         if (uri != null) {
             coroutineScope.launch {
                 try {
-                    // Grant persistent permission
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    )
+                    // Set vault root from SAF URI (this persists the URI in settings)
+                    val androidVaultPicker = vaultPicker as? org.krypton.platform.AndroidVaultPicker
+                    val vaultRoot = androidVaultPicker?.setVaultRootFromUri(uri)
                     
-                    // Try to get file path from URI
-                    val path = getPathFromUri(context, uri)
-                    if (path != null) {
-                        editorStateHolder.changeDirectoryWithHistory(path)
+                    if (vaultRoot != null) {
+                        // Initialize notes state holder with the new vault root
+                        val rootDirectory = VaultDirectory(
+                            uri = vaultRoot.id,
+                            displayPath = vaultRoot.displayName
+                        )
+                        notesStateHolder.initializeWithRoot(rootDirectory)
                     } else {
-                        // If we can't get a file path, try to use DocumentFile
-                        // For now, fallback to default vault
-                        val defaultPath = vaultPicker.pickVault()
-                        defaultPath?.let { editorStateHolder.changeDirectoryWithHistory(it) }
+                        // Fallback to default vault on error
+                        val defaultVaultRoot = vaultPicker.pickVaultRoot()
+                        defaultVaultRoot?.let { root ->
+                            val rootDirectory = VaultDirectory(
+                                uri = root.id,
+                                displayPath = root.displayName
+                            )
+                            notesStateHolder.initializeWithRoot(rootDirectory)
+                        }
                     }
                 } catch (e: Exception) {
                     // Fallback to default vault on error
-                    val defaultPath = vaultPicker.pickVault()
-                    defaultPath?.let { editorStateHolder.changeDirectoryWithHistory(it) }
+                    val defaultVaultRoot = vaultPicker.pickVaultRoot()
+                    defaultVaultRoot?.let { root ->
+                        val rootDirectory = VaultDirectory(
+                            uri = root.id,
+                            displayPath = root.displayName
+                        )
+                        notesStateHolder.initializeWithRoot(rootDirectory)
+                    }
                 }
             }
         }
@@ -305,18 +425,54 @@ private fun AndroidNotesListScreen(
     
     // Load vault on first launch
     LaunchedEffect(Unit) {
-        if (currentDirectory == null) {
-            isLoading = true
+        if (directoryStack.isEmpty()) {
             try {
-                val vaultPath = vaultPicker.pickVault()
-                vaultPath?.let { path ->
-                    editorStateHolder.changeDirectoryWithHistory(path)
+                val vaultRoot = vaultPicker.pickVaultRoot()
+                if (vaultRoot != null) {
+                    val rootDirectory = VaultDirectory(
+                        uri = vaultRoot.id,
+                        displayPath = vaultRoot.displayName
+                    )
+                    notesStateHolder.initializeWithRoot(rootDirectory)
                 }
             } catch (e: Exception) {
-                // Handle error
-            } finally {
-                isLoading = false
+                // Handle error - fallback to default Documents/Vault
+                try {
+                    val documentsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS)
+                    val defaultVaultDir = java.io.File(documentsDir, "Vault")
+                    if (!defaultVaultDir.exists()) {
+                        defaultVaultDir.mkdirs()
+                    }
+                    val rootDirectory = VaultDirectory(
+                        uri = defaultVaultDir.absolutePath,
+                        displayPath = "Vault"
+                    )
+                    notesStateHolder.initializeWithRoot(rootDirectory)
+                } catch (fallbackError: Exception) {
+                    // Last resort: use app internal storage
+                    val internalVaultDir = java.io.File(context.filesDir, "vault")
+                    if (!internalVaultDir.exists()) {
+                        internalVaultDir.mkdirs()
+                    }
+                    val rootDirectory = VaultDirectory(
+                        uri = internalVaultDir.absolutePath,
+                        displayPath = "Default Vault"
+                    )
+                    notesStateHolder.initializeWithRoot(rootDirectory)
+                }
             }
+        }
+    }
+    
+    // Handle vault root changes from folder picker
+    LaunchedEffect(settingsRepository.settingsFlow.value.app.vaultRootUri) {
+        val vaultRootUri = settingsRepository.settingsFlow.value.app.vaultRootUri
+        if (vaultRootUri != null && directoryStack.isEmpty()) {
+            val rootDirectory = VaultDirectory(
+                uri = vaultRootUri,
+                displayPath = "Vault"
+            )
+            notesStateHolder.initializeWithRoot(rootDirectory)
         }
     }
     
@@ -325,36 +481,26 @@ private fun AndroidNotesListScreen(
             .fillMaxSize()
             .background(CatppuccinMochaColors.Base)
     ) {
-        // Current directory path
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = theme.BackgroundElevated
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = currentDirectory ?: "No vault selected",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = theme.TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(onClick = {
-                    // Launch folder picker using SAF
-                    folderPickerLauncher.launch(null)
-                }) {
-                    Icon(Icons.Default.FolderOpen, contentDescription = "Open folder")
+        // Top bar with back button and path
+        VaultTopBar(
+            canNavigateUp = canNavigateUp,
+            currentPath = currentDir?.displayPath ?: "No vault selected",
+            onNavigateUp = { notesStateHolder.navigateUp() },
+            onOpenFolderPicker = {
+                val currentVaultUri = try {
+                    val uriString = settingsRepository.settingsFlow.value.app.vaultRootUri
+                    uriString?.let { Uri.parse(it) }
+                } catch (e: Exception) {
+                    null
                 }
-            }
-        }
+                folderPickerLauncher.launch(currentVaultUri)
+            },
+            theme = theme
+        )
         
         Divider(color = theme.Border)
         
-        // Files list
+        // Entries list (folders and files)
         if (isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -362,7 +508,7 @@ private fun AndroidNotesListScreen(
             ) {
                 CircularProgressIndicator(color = theme.Accent)
             }
-        } else if (files.isEmpty()) {
+        } else if (entries.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -378,7 +524,7 @@ private fun AndroidNotesListScreen(
                         modifier = Modifier.size(48.dp)
                     )
                     Text(
-                        text = "No files",
+                        text = "No files or folders",
                         style = MaterialTheme.typography.bodyLarge,
                         color = theme.TextSecondary
                     )
@@ -390,60 +536,135 @@ private fun AndroidNotesListScreen(
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(files) { filePath ->
-                    val fileName = filePath.substringAfterLast("/")
-                    val isDirectory = remember(filePath) {
-                        try {
-                            fileSystem.isDirectory(filePath)
-                        } catch (e: Exception) {
-                            false
-                        }
-                    }
-                    
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (isDirectory) {
-                                    coroutineScope.launch {
-                                        editorStateHolder.changeDirectoryWithHistory(filePath)
-                                    }
-                                } else {
-                                    onFileSelected(filePath)
-                                }
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = theme.Surface
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (isDirectory) Icons.Default.Folder else Icons.Default.Description,
-                                contentDescription = null,
-                                tint = if (isDirectory) theme.Accent else theme.TextSecondary
-                            )
-                            Text(
-                                text = fileName,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = theme.TextPrimary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (isDirectory) {
-                                Icon(
-                                    Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = theme.TextSecondary
-                                )
+                items(entries) { entry ->
+                    NoteEntryCard(
+                        entry = entry,
+                        onFolderClick = {
+                            if (entry is NoteEntry.Folder) {
+                                notesStateHolder.navigateIntoFolder(entry)
                             }
-                        }
-                    }
+                        },
+                        onFileClick = {
+                            if (entry is NoteEntry.File) {
+                                onFileSelected(entry.uri)
+                            }
+                        },
+                        theme = theme
+                    )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VaultTopBar(
+    canNavigateUp: Boolean,
+    currentPath: String,
+    onNavigateUp: () -> Unit,
+    onOpenFolderPicker: () -> Unit,
+    theme: ObsidianThemeValues
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = theme.BackgroundElevated
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Back button
+            IconButton(
+                enabled = canNavigateUp,
+                onClick = { if (canNavigateUp) onNavigateUp() }
+            ) {
+                Icon(
+                    Icons.Default.ArrowBack,
+                    contentDescription = "Back",
+                    tint = if (canNavigateUp) theme.TextPrimary else theme.TextSecondary
+                )
+            }
+            
+            // Current path
+            Text(
+                text = currentPath,
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            
+            // Folder picker button
+            IconButton(onClick = onOpenFolderPicker) {
+                Icon(Icons.Default.FolderOpen, contentDescription = "Open folder")
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteEntryCard(
+    entry: NoteEntry,
+    onFolderClick: () -> Unit,
+    onFileClick: () -> Unit,
+    theme: ObsidianThemeValues
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                when (entry) {
+                    is NoteEntry.Folder -> onFolderClick()
+                    is NoteEntry.File -> onFileClick()
+                }
+            },
+        colors = CardDefaults.cardColors(
+            containerColor = theme.Surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon based on entry type
+            Icon(
+                imageVector = when (entry) {
+                    is NoteEntry.Folder -> Icons.Default.Folder
+                    is NoteEntry.File -> Icons.Default.Description
+                },
+                contentDescription = null,
+                tint = when (entry) {
+                    is NoteEntry.Folder -> theme.Accent
+                    is NoteEntry.File -> theme.TextPrimary
+                },
+                modifier = Modifier.size(24.dp)
+            )
+            
+            // Entry name
+            Text(
+                text = entry.name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = theme.TextPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            
+            // Chevron for folders
+            if (entry is NoteEntry.Folder) {
+                Icon(
+                    Icons.Default.ChevronRight,
+                    contentDescription = null,
+                    tint = theme.TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

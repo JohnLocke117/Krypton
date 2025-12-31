@@ -22,6 +22,7 @@ import org.krypton.platform.VaultPicker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.krypton.*
+import org.krypton.ui.MainScaffold
 
 @Composable
 actual fun AppContent(
@@ -43,29 +44,30 @@ actual fun AppContent(
     val density = LocalDensity.current
     val editorDomainState by editorStateHolder.domainState.collectAsState()
     
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Top Ribbon
-        TopRibbon()
-        
-        // Middle Row: Left Ribbon, Workspace Card, Right Ribbon
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            // Left Ribbon
+    MainScaffold(
+        topBar = {
+            TopRibbon()
+        },
+        bottomBar = {
+            BottomRibbon()
+        },
+        leftOverlay = {
             LeftRibbon(
                 state = editorStateHolder,
                 modifier = Modifier.fillMaxHeight()
             )
-
+        },
+        rightOverlay = {
+            RightRibbon(
+                state = editorStateHolder,
+                modifier = Modifier.fillMaxHeight()
+            )
+        },
+        content = {
             // Workspace Card - wraps the three panes
             Surface(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
+                    .fillMaxSize()
                     .border(1.dp, theme.BorderVariant, RoundedCornerShape(16.dp)),
                 shape = RoundedCornerShape(16.dp),
                 color = Color.Transparent,
@@ -172,17 +174,8 @@ actual fun AppContent(
                     )
                 }
             }
-            
-            // Right Ribbon
-            RightRibbon(
-                state = editorStateHolder,
-                modifier = Modifier.fillMaxHeight()
-            )
         }
-        
-        // Bottom Ribbon
-        BottomRibbon()
-    }
+    )
 }
 
 @Composable
@@ -233,7 +226,8 @@ actual fun AppDialogs(
             },
             onOpenNewFolder = {
                 coroutineScope.launch {
-                    val selectedPath = vaultPicker.pickVault()
+                    val vaultRoot = vaultPicker.pickVaultRoot()
+                    val selectedPath = vaultRoot?.id
                     handleFolderSelection(selectedPath, editorStateHolder, settingsRepository)
                 }
             },

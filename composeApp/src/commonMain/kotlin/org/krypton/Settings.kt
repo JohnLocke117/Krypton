@@ -62,7 +62,8 @@ data class ColorSettings(
 data class AppSettings(
     val recentFolders: List<String> = emptyList(),
     val autosaveIntervalSeconds: Int = EditorDefaults.DEFAULT_AUTOSAVE_INTERVAL_SECONDS,
-    val telemetryEnabled: Boolean = false
+    val telemetryEnabled: Boolean = false,
+    val vaultRootUri: String? = null // Android: SAF tree URI, Desktop: file path
 )
 
 @Serializable

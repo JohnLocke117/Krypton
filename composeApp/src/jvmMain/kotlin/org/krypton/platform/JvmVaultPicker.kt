@@ -11,7 +11,7 @@ import javax.swing.filechooser.FileSystemView
  */
 class JvmVaultPicker : VaultPicker {
     
-    override suspend fun pickVault(): String? = withContext(Dispatchers.IO) {
+    override suspend fun pickVaultRoot(): VaultRoot? = withContext(Dispatchers.IO) {
         val fileChooser = JFileChooser(FileSystemView.getFileSystemView().homeDirectory)
         fileChooser.fileSelectionMode = JFileChooser.DIRECTORIES_ONLY
         fileChooser.dialogTitle = "Select Folder"
@@ -19,7 +19,10 @@ class JvmVaultPicker : VaultPicker {
         val result = fileChooser.showOpenDialog(null)
         if (result == JFileChooser.APPROVE_OPTION) {
             val selectedFile = fileChooser.selectedFile
-            selectedFile.absolutePath
+            VaultRoot(
+                id = selectedFile.absolutePath,
+                displayName = selectedFile.name
+            )
         } else {
             null
         }

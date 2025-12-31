@@ -1,14 +1,14 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
 import org.krypton.core.domain.editor.ViewMode
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,9 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.jetbrains.compose.resources.painterResource
-import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.polyline
 import kotlinx.coroutines.launch
 
 /**
@@ -157,11 +154,11 @@ fun TextEditor(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(Res.drawable.polyline),
+                Icon(
+                    imageVector = Icons.Default.Storage,
                     contentDescription = "Krypton",
                     modifier = Modifier.size(128.dp),
-                    alpha = 0.5f
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                 )
             }
         }

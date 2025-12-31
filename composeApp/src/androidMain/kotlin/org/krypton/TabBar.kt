@@ -1,10 +1,8 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
 import org.krypton.core.domain.editor.MarkdownDocument
 import org.krypton.core.domain.editor.ViewMode
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -14,21 +12,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.jetbrains.compose.resources.painterResource
-import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.edit_document
-import krypton.composeapp.generated.resources.read_only
-import krypton.composeapp.generated.resources.description
-import krypton.composeapp.generated.resources.close
 import org.krypton.util.PathUtils
 
 /**
@@ -107,19 +103,17 @@ fun TabBar(
                                 .clickable { state.toggleViewMode() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Image(
-                                painter = painterResource(
-                                    when (currentViewMode) {
-                                        ViewMode.LivePreview -> Res.drawable.edit_document
-                                        ViewMode.Compiled -> Res.drawable.read_only
-                                    }
-                                ),
+                            Icon(
+                                imageVector = when (currentViewMode) {
+                                    ViewMode.LivePreview -> Icons.Default.Edit
+                                    ViewMode.Compiled -> Icons.Default.Visibility
+                                },
                                 contentDescription = when (currentViewMode) {
                                     ViewMode.LivePreview -> "Live Preview"
                                     ViewMode.Compiled -> "Compiled"
                                 },
                                 modifier = Modifier.size(20.dp),
-                                colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+                                tint = colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -194,13 +188,11 @@ fun TabItem(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // File icon
-            Image(
-                painter = painterResource(Res.drawable.description),
+            Icon(
+                imageVector = Icons.Default.Description,
                 contentDescription = "File",
                 modifier = Modifier.size(16.dp),
-                colorFilter = ColorFilter.tint(
-                    if (isActive) colorScheme.primary else colorScheme.onSurfaceVariant
-                )
+                tint = if (isActive) colorScheme.primary else colorScheme.onSurfaceVariant
             )
 
             // File name
@@ -231,11 +223,11 @@ fun TabItem(
                     .clickable(onClick = onClose),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(Res.drawable.close),
+                Icon(
+                    imageVector = Icons.Default.Close,
                     contentDescription = "Close",
                     modifier = Modifier.size(14.dp),
-                    colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+                    tint = colorScheme.onSurfaceVariant
                 )
             }
         }

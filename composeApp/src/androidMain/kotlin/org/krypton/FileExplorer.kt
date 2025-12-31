@@ -1,4 +1,3 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
@@ -17,6 +16,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,17 +39,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.krypton.util.PathUtils
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.painterResource
 import org.krypton.util.AppLogger
 import org.krypton.LocalAppColors
-import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.description
-import krypton.composeapp.generated.resources.unknown_document
-import krypton.composeapp.generated.resources.keyboard_arrow_down
-import krypton.composeapp.generated.resources.chevron_right
-import krypton.composeapp.generated.resources.folder
-import krypton.composeapp.generated.resources.folder_open
 
 /**
  * File explorer composable wrapper.
@@ -460,12 +452,12 @@ fun FileExplorerContent(
  * Helper function to get the appropriate icon for a file based on its extension.
  * Returns unknown_document for files that are not .md or .txt, otherwise returns description.
  */
-private fun getFileIcon(path: String): DrawableResource {
+private fun getFileIcon(path: String): androidx.compose.ui.graphics.vector.ImageVector {
     val fileName = PathUtils.getFileName(path)
     val extension = PathUtils.getExtension(path).lowercase()
     return when (extension) {
-        "md", "txt", "markdown" -> Res.drawable.description
-        else -> Res.drawable.unknown_document
+        "md", "txt", "markdown" -> Icons.Default.Description
+        else -> Icons.Default.InsertDriveFile
     }
 }
 
@@ -557,10 +549,8 @@ fun TreeItem(
             ) {
                 // Chevron for folders
                 if (node.isDirectory) {
-                    Image(
-                        painter = painterResource(
-                            if (node.isExpanded) Res.drawable.keyboard_arrow_down else Res.drawable.chevron_right
-                        ),
+                    Icon(
+                        imageVector = if (node.isExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.ChevronRight,
                         contentDescription = if (node.isExpanded) "Expanded" else "Collapsed",
                         modifier = Modifier.size(18.dp)
                     )
@@ -571,14 +561,12 @@ fun TreeItem(
                 }
 
                 // Icon
-                Image(
-                    painter = painterResource(
-                        if (node.isDirectory) {
-                            if (node.isExpanded) Res.drawable.folder_open else Res.drawable.folder
-                        } else {
-                            getFileIcon(node.path)
-                        }
-                    ),
+                Icon(
+                    imageVector = if (node.isDirectory) {
+                        if (node.isExpanded) Icons.Default.FolderOpen else Icons.Default.Folder
+                    } else {
+                        getFileIcon(node.path)
+                    },
                     contentDescription = if (node.isDirectory) "Folder" else "File",
                     modifier = Modifier.size(18.dp)
                 )
@@ -827,10 +815,8 @@ private fun TemporaryCreateRow(
             Spacer(modifier = Modifier.width(18.dp))
             
             // Icon
-            Image(
-                painter = painterResource(
-                    if (isFile) Res.drawable.description else Res.drawable.folder
-                ),
+            Icon(
+                imageVector = if (isFile) Icons.Default.Description else Icons.Default.Folder,
                 contentDescription = if (isFile) "File" else "Folder",
                 modifier = Modifier.size(18.dp)
             )
@@ -854,7 +840,7 @@ private fun TemporaryCreateRow(
 
 @Composable
 private fun PanelIconButton(
-    icon: DrawableResource,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -868,11 +854,11 @@ private fun PanelIconButton(
         contentAlignment = Alignment.Center
     ) {
         val colorScheme = MaterialTheme.colorScheme
-        Image(
-            painter = painterResource(icon),
+        Icon(
+            imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(24.dp),
-            colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+            tint = colorScheme.onSurfaceVariant
         )
     }
 }

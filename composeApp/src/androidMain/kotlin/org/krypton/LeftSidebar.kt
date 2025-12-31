@@ -1,4 +1,3 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
@@ -16,6 +15,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,20 +25,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.painterResource
 import org.krypton.util.AppLogger
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.LocalAppColors
 import org.krypton.CatppuccinMochaColors
-import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.close
-import krypton.composeapp.generated.resources.description
-import krypton.composeapp.generated.resources.unknown_document
-import krypton.composeapp.generated.resources.file_copy
-import krypton.composeapp.generated.resources.folder_copy
-import krypton.composeapp.generated.resources.refresh
-import krypton.composeapp.generated.resources.collapse_all
 import org.krypton.util.PathUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -341,13 +332,11 @@ private fun SearchPanel(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Image(
-                            painter = painterResource(Res.drawable.close),
+                        Icon(
+                            imageVector = Icons.Default.Close,
                             contentDescription = "Clear search",
                             modifier = Modifier.size(18.dp),
-                            colorFilter = ColorFilter.tint(
-                                if (searchQuery.isNotEmpty()) theme.TextSecondary else theme.TextSecondary.copy(alpha = 0.5f)
-                            )
+                            tint = if (searchQuery.isNotEmpty()) theme.TextSecondary else theme.TextSecondary.copy(alpha = 0.5f)
                         )
                     }
                 }
@@ -553,13 +542,13 @@ private fun SearchResultItem(
             horizontalArrangement = Arrangement.spacedBy(theme.SidebarIconTextSpacing)
         ) {
             // File icon
-            Image(
-                painter = painterResource(getFileIcon(filePath)),
+            Icon(
+                imageVector = getFileIcon(filePath),
                 contentDescription = "File",
                 modifier = Modifier
                     .size(18.dp)
                     .padding(top = 2.dp), // Align icon with first line of text
-                colorFilter = ColorFilter.tint(theme.TextSecondary)
+                tint = theme.TextSecondary
             )
             
             // File name and path
@@ -587,11 +576,11 @@ private fun SearchResultItem(
     }
 }
 
-private fun getFileIcon(path: String): DrawableResource {
+private fun getFileIcon(path: String): androidx.compose.ui.graphics.vector.ImageVector {
     val extension = PathUtils.getExtension(path).lowercase()
     return when (extension) {
-        "md", "txt", "markdown" -> Res.drawable.description
-        else -> Res.drawable.unknown_document
+        "md", "txt", "markdown" -> Icons.Default.Description
+        else -> Icons.Default.InsertDriveFile
     }
 }
 
@@ -652,7 +641,7 @@ private fun SidebarTopBar(
                 ) {
                     // New File icon button
                     SidebarIconButton(
-                        icon = Res.drawable.file_copy,
+                        icon = Icons.Default.FileCopy,
                         contentDescription = "New File",
                         onClick = { 
                             state.startCreatingNewFile()
@@ -664,7 +653,7 @@ private fun SidebarTopBar(
                     
                     // New Folder icon button
                     SidebarIconButton(
-                        icon = Res.drawable.folder_copy,
+                        icon = Icons.Default.CreateNewFolder,
                         contentDescription = "New Folder",
                         onClick = { 
                             state.startCreatingNewFolder()
@@ -676,7 +665,7 @@ private fun SidebarTopBar(
                     
                     // Refresh icon button
                     SidebarIconButton(
-                        icon = Res.drawable.refresh,
+                        icon = Icons.Default.Refresh,
                         contentDescription = "Refresh",
                         onClick = { 
                             state.triggerTreeRefresh()
@@ -689,7 +678,7 @@ private fun SidebarTopBar(
                     
                     // Collapse all icon button
                     SidebarIconButton(
-                        icon = Res.drawable.collapse_all,
+                        icon = Icons.Default.UnfoldLess,
                         contentDescription = "Collapse All",
                         onClick = { 
                             state.triggerCollapseAll()
@@ -747,7 +736,7 @@ private fun SidebarBottomBar(
 
 @Composable
 private fun SidebarIconButton(
-    icon: DrawableResource,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
     theme: ObsidianThemeValues,
@@ -764,17 +753,15 @@ private fun SidebarIconButton(
         onClick = onClick
     ) {
         val colorScheme = MaterialTheme.colorScheme
-        Image(
-            painter = painterResource(icon),
+        Icon(
+            imageVector = icon,
             contentDescription = contentDescription,
             modifier = Modifier.size(20.dp),
-            colorFilter = ColorFilter.tint(
-                if (enabled) {
-                    colorScheme.onSurfaceVariant
-                } else {
-                    colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                }
-            )
+            tint = if (enabled) {
+                colorScheme.onSurfaceVariant
+            } else {
+                colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            }
         )
     }
 }

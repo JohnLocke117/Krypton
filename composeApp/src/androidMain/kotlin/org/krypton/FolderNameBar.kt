@@ -1,8 +1,6 @@
-@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
 
 package org.krypton
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,6 +9,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,10 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import org.jetbrains.compose.resources.painterResource
-import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.folder
-import krypton.composeapp.generated.resources.settings
 import org.krypton.util.PathUtils
 import org.krypton.LocalAppColors
 
@@ -97,11 +94,11 @@ fun FolderNameBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val colorScheme = MaterialTheme.colorScheme
-                    Image(
-                        painter = painterResource(Res.drawable.folder),
+                    Icon(
+                        imageVector = Icons.Default.Folder,
                         contentDescription = "Folder",
                         modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+                        tint = colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = folderName,
@@ -143,11 +140,11 @@ fun FolderNameBar(
                 contentAlignment = Alignment.Center
             ) {
                 val colorScheme = MaterialTheme.colorScheme
-                Image(
-                    painter = painterResource(Res.drawable.settings),
+                Icon(
+                    imageVector = Icons.Default.Settings,
                     contentDescription = "Settings",
                     modifier = Modifier.size(24.dp),
-                    colorFilter = ColorFilter.tint(colorScheme.onSurfaceVariant)
+                    tint = colorScheme.onSurfaceVariant
                 )
             }
         }
