@@ -4,9 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import org.krypton.chat.ChatService
 import org.krypton.core.domain.editor.EditorDomain
 import org.krypton.core.domain.flashcard.FlashcardService
-import org.krypton.core.domain.search.PatternMatcher
 import org.krypton.core.domain.search.SearchDomain
-import org.krypton.core.domain.search.JvmPatternMatcher
 import org.krypton.data.files.FileSystem
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.ui.state.ChatStateHolder
@@ -15,15 +13,20 @@ import org.krypton.ui.state.SearchStateHolder
 import org.koin.dsl.module
 
 /**
- * UI layer dependency injection module.
+ * Common UI layer dependency injection module.
  * 
  * Provides state holders and view models for UI components.
+ * This module contains platform-agnostic bindings.
+ * 
+ * Platform-specific modules should extend this module and add
+ * platform-specific bindings (e.g., PatternMatcher).
  */
-val uiModule = module {
+val commonUiModule = module {
     // Domain layer
     single<EditorDomain> { EditorDomain() }
     
-    single<PatternMatcher> { JvmPatternMatcher() }
+    // Note: PatternMatcher binding is platform-specific and should be provided
+    // by platform modules (jvmMain or androidMain)
     
     single<SearchDomain> { SearchDomain(get()) }
     

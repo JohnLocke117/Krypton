@@ -68,12 +68,12 @@ import org.krypton.chat.ui.ChatStatusBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatPanel(
+actual fun ChatPanel(
     chatStateHolder: org.krypton.ui.state.ChatStateHolder,
-    editorStateHolder: EditorStateHolder? = null,
+    editorStateHolder: EditorStateHolder?,
     theme: ObsidianThemeValues,
     settings: org.krypton.Settings,
-    modifier: Modifier = Modifier
+    modifier: Modifier
 ) {
     val messages by chatStateHolder.messages.collectAsState()
     val isLoading by chatStateHolder.isLoading.collectAsState()

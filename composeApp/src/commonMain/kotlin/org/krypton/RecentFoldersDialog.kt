@@ -11,6 +11,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+
+/**
+ * Dialog for displaying and selecting from recently opened folders.
+ * 
+ * Shows a scrollable list of recent folder paths with the ability to:
+ * - Select a recent folder to open
+ * - Open a new folder via picker
+ * 
+ * @param recentFolders List of recently opened folder paths
+ * @param onFolderSelected Callback when user selects a folder from the list
+ * @param onOpenNewFolder Callback when user clicks "Open New Folder"
+ * @param onDismiss Callback when the dialog is dismissed
+ * @param theme Theme values for styling
+ * @param modifier Modifier to apply to the dialog
+ */
 @Composable
 fun RecentFoldersDialog(
     recentFolders: List<String>,

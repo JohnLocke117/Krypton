@@ -12,7 +12,7 @@ val commonModules: List<Module> = listOf(
     ragModule,
     webModule,
     chatModule,
-    uiModule
+    commonUiModule
 )
 
 /**

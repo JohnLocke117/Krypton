@@ -1,3 +1,5 @@
+@file:OptIn(org.jetbrains.compose.resources.InternalResourceApi::class)
+
 package org.krypton
 
 import androidx.compose.foundation.BorderStroke
@@ -37,28 +39,26 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.nio.file.Paths
+import org.krypton.util.PathUtils
 import org.jetbrains.compose.resources.DrawableResource
-import org.krypton.data.files.FileSystem
-import org.koin.core.context.GlobalContext
 import org.jetbrains.compose.resources.painterResource
 import org.krypton.util.AppLogger
 import org.krypton.LocalAppColors
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.add
-import krypton.composeapp.generated.resources.chevron_right as chevronRight
-import krypton.composeapp.generated.resources.close
-import krypton.composeapp.generated.resources.description
-import krypton.composeapp.generated.resources.file_copy
-import krypton.composeapp.generated.resources.folder
-import krypton.composeapp.generated.resources.folder_open as folderOpen
-import krypton.composeapp.generated.resources.keep
-import krypton.composeapp.generated.resources.keyboard_arrow_down as keyboardArrowDown
-import krypton.composeapp.generated.resources.search
-import krypton.composeapp.generated.resources.settings
-import krypton.composeapp.generated.resources.star
-import krypton.composeapp.generated.resources.unknown_document
 
+/**
+ * File explorer composable wrapper.
+ * 
+ * This is a convenience wrapper around [FileExplorerContent] that provides
+ * the standard file explorer interface.
+ * 
+ * @param state The editor state holder managing file operations
+ * @param onFolderSelected Callback when user selects a folder via picker
+ * @param recentFolders List of recently opened folder paths
+ * @param onRecentFolderSelected Callback when user selects a recent folder
+ * @param theme Theme values for styling
+ * @param modifier Modifier to apply to the explorer
+ */
 @Composable
 fun FileExplorer(
     state: org.krypton.ui.state.EditorStateHolder,
@@ -78,6 +78,25 @@ fun FileExplorer(
     )
 }
 
+/**
+ * File explorer content composable providing hierarchical file tree navigation.
+ * 
+ * Features:
+ * - Hierarchical file tree with expand/collapse
+ * - File and folder creation via context menu
+ * - File and folder renaming
+ * - File and folder deletion with confirmation
+ * - Recent folders list when no folder is open
+ * - Click-outside to cancel editing
+ * - Auto-expand folders when creating items inside them
+ * 
+ * @param state The editor state holder managing file operations and tree state
+ * @param onFolderSelected Callback when user selects a folder via picker
+ * @param recentFolders List of recently opened folder paths
+ * @param onRecentFolderSelected Callback when user selects a recent folder
+ * @param theme Theme values for styling
+ * @param modifier Modifier to apply to the explorer content
+ */
 @Composable
 fun FileExplorerContent(
     state: org.krypton.ui.state.EditorStateHolder,
@@ -101,9 +120,6 @@ fun FileExplorerContent(
     var fileTree by remember { mutableStateOf<FileTreeNode?>(null) }
     var treeVersion by remember { mutableStateOf(0) }
 
-    // Get FileSystem from DI
-    val fileSystem = remember { GlobalContext.get().get<FileSystem>() }
-    
     // Helper function to build tree with expanded state preservation
     fun buildTreeWithStatePreservation(dir: String): FileTreeNode? {
         // Collect currently expanded paths
@@ -119,6 +135,7 @@ fun FileExplorerContent(
         }
         
         // Build new tree using FileSystem
+        val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
         val newTree = FileTreeBuilder.buildTree(dir, fileSystem) ?: return null
         newTree.isExpanded = true
         
@@ -317,9 +334,8 @@ fun FileExplorerContent(
                         theme = theme,
                         onClick = {
                             try {
-                                val path = java.nio.file.Paths.get(folderPath)
-                                val file = path.toFile()
-                                if (file.exists() && file.isDirectory) {
+                                val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
+                                if (fileSystem.exists(folderPath) && fileSystem.isDirectory(folderPath)) {
                                     onRecentFolderSelected(folderPath)
                                 }
                             } catch (e: Exception) {
@@ -410,6 +426,7 @@ fun FileExplorerContent(
                                     onFileClick = { pathString ->
                                         // Use FileSystem from state holder's dependency
                                         // For now, assume it's a file if it's not a directory
+                                        val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
                                         if (!fileSystem.isDirectory(pathString)) {
                                             AppLogger.action("FileExplorer", "FileOpened", pathString)
                                             state.openTab(pathString)
@@ -473,12 +490,8 @@ fun FileExplorerContent(
  * Returns unknown_document for files that are not .md or .txt, otherwise returns description.
  */
 private fun getFileIcon(path: String): DrawableResource {
-    val fileName = try {
-        Paths.get(path).fileName.toString()
-    } catch (e: Exception) {
-        path.substringAfterLast('/', path)
-    }
-    val extension = fileName.substringAfterLast('.', "").lowercase()
+    val fileName = PathUtils.getFileName(path)
+    val extension = PathUtils.getExtension(path).lowercase()
     return when (extension) {
         "md", "txt", "markdown" -> Res.drawable.description
         else -> Res.drawable.unknown_document
@@ -507,11 +520,11 @@ fun TreeItem(
     val editingParentPath by state.editingParentPath.collectAsState()
     
     val isRenaming = editingMode == org.krypton.core.domain.editor.FileTreeEditMode.Renaming && 
-        editingItemPath == node.path
+        editingItemPath == node.path.toString()
     
     // Check if we're creating in this parent
     val isCreatingInThisParent = node.isDirectory && 
-        editingParentPath == node.path && 
+        editingParentPath == node.path.toString() && 
         (editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
          editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)
 
@@ -521,19 +534,19 @@ fun TreeItem(
                 listOf(
                     ContextMenuItem("New File") {
                         // Select the node first, then create
-                        state.selectExplorerNode(node.path)
+                        state.selectExplorerNode(node.path.toString())
                         state.startCreatingNewFile()
                     },
                     ContextMenuItem("New Folder") {
                         // Select the node first, then create
-                        state.selectExplorerNode(node.path)
+                        state.selectExplorerNode(node.path.toString())
                         state.startCreatingNewFolder()
                     },
                     ContextMenuItem("Rename") {
-                        state.startRenamingItem(node.path)
+                        state.startRenamingItem(node.path.toString())
                     },
                     ContextMenuItem("Delete") {
-                        state.deleteItem(node.path)
+                        state.deleteItem(node.path.toString())
                     }
                 )
             }
@@ -572,7 +585,7 @@ fun TreeItem(
                     .clickable(enabled = !isRenaming) {
                         if (!isRenaming) {
                             // Update selection when clicking on a node
-                            state.selectExplorerNode(node.path)
+                            state.selectExplorerNode(node.path.toString())
                             if (node.isDirectory) {
                                 onFolderToggle(node)
                             } else {
@@ -595,7 +608,7 @@ fun TreeItem(
                 if (node.isDirectory) {
                     Image(
                         painter = painterResource(
-                            if (node.isExpanded) Res.drawable.keyboardArrowDown else Res.drawable.chevronRight
+                            if (node.isExpanded) Res.drawable.keyboard_arrow_down else Res.drawable.chevron_right
                         ),
                         contentDescription = if (node.isExpanded) "Expanded" else "Collapsed",
                         modifier = Modifier.size(18.dp)
@@ -610,7 +623,7 @@ fun TreeItem(
                 Image(
                     painter = painterResource(
                         if (node.isDirectory) {
-                            if (node.isExpanded) Res.drawable.folderOpen else Res.drawable.folder
+                            if (node.isExpanded) Res.drawable.folder_open else Res.drawable.folder
                         } else {
                             getFileIcon(node.path)
                         }
@@ -627,7 +640,7 @@ fun TreeItem(
                     InlineTreeTextField(
                         initialName = node.name,
                         onConfirm = { newName ->
-                            state.confirmRename(node.path, newName)
+                            state.confirmRename(node.path.toString(), newName)
                             onTreeRefresh()
                         },
                         onCancel = {
@@ -672,9 +685,9 @@ fun TreeItem(
                     theme = theme,
                     onConfirm = { name ->
                         if (isCreatingFile) {
-                            state.confirmCreateFile(name, node.path)
+                            state.confirmCreateFile(name, node.path.toString())
                         } else {
-                            state.confirmCreateFolder(name, node.path)
+                            state.confirmCreateFolder(name, node.path.toString())
                         }
                         onTreeRefresh()
                     },
@@ -712,11 +725,7 @@ private fun RecentFolderButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val folderName = try {
-        Paths.get(path).fileName.toString()
-    } catch (e: Exception) {
-        path
-    }
+    val folderName = PathUtils.getFileName(path)
     
     OutlinedButton(
         onClick = onClick,
@@ -926,11 +935,7 @@ private fun DeleteConfirmationDialog(
 ) {
     val fileSystem = org.koin.core.context.GlobalContext.get().get<org.krypton.data.files.FileSystem>()
     val isDirectory = fileSystem.isDirectory(path)
-    val itemName = try {
-        java.nio.file.Paths.get(path).fileName.toString()
-    } catch (e: Exception) {
-        path.substringAfterLast('/', path)
-    }
+    val itemName = PathUtils.getFileName(path)
     val message = if (isDirectory) {
         "Are you sure you want to delete the folder \"$itemName\" and all its contents?\n\nThis action cannot be undone."
     } else {
