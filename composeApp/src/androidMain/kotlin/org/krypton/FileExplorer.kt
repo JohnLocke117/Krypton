@@ -7,8 +7,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.ContextMenuArea
-import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -45,6 +43,12 @@ import org.jetbrains.compose.resources.painterResource
 import org.krypton.util.AppLogger
 import org.krypton.LocalAppColors
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.description
+import krypton.composeapp.generated.resources.unknown_document
+import krypton.composeapp.generated.resources.keyboard_arrow_down
+import krypton.composeapp.generated.resources.chevron_right
+import krypton.composeapp.generated.resources.folder
+import krypton.composeapp.generated.resources.folder_open
 
 /**
  * File explorer composable wrapper.
@@ -363,23 +367,9 @@ fun FileExplorerContent(
             val isCreatingFolderInRoot = isCreatingInRoot && 
                 editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder
             
-            // Add context menu to empty area for creating files/folders in root
-            // Wrap in Box to ensure the entire area is clickable for context menu
-            Box(modifier = Modifier.fillMaxSize()) {
-                ContextMenuArea(
-                    items = {
-                        listOf(
-                            ContextMenuItem("New File") {
-                                state.startCreatingNewFile()
-                            },
-                            ContextMenuItem("New Folder") {
-                                state.startCreatingNewFolder()
-                            }
-                            // Delete and Rename are disabled when clicking empty area
-                        )
-                    }
-                ) {
-                    Column(modifier = Modifier.fillMaxSize()) {
+            // On Android, context menus are not available, so we just show the content
+            // Users can use the top bar buttons to create files/folders
+            Column(modifier = Modifier.fillMaxSize()) {
                         // Show create row at root level if creating in root
                         if (isCreatingInRoot && editingParentPath != null) {
                             TemporaryCreateRow(
@@ -441,9 +431,7 @@ fun FileExplorerContent(
                             }
                         }
                     }
-                }
-            }
-        } else if (currentDirectory == null) {
+            } else if (currentDirectory == null) {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -459,29 +447,12 @@ fun FileExplorerContent(
                 )
             }
         }
-        }
+    }
     }
     
-    // Wrap in ContextMenuArea when folder is open to enable right-click on empty area
+    // On Android, context menus are not available, so we just show the content
     Box(modifier = modifier.fillMaxSize()) {
-        if (currentDirectory != null && !isEditing) {
-            ContextMenuArea(
-                items = {
-                    listOf(
-                        ContextMenuItem("New File") {
-                            state.startCreatingNewFile()
-                        },
-                        ContextMenuItem("New Folder") {
-                            state.startCreatingNewFolder()
-                        }
-                    )
-                }
-            ) {
-                columnContent()
-            }
-        } else {
-            columnContent()
-        }
+        columnContent()
     }
 }
 
@@ -529,34 +500,14 @@ fun TreeItem(
          editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)
 
     Column(modifier = modifier) {
-        ContextMenuArea(
-            items = {
-                listOf(
-                    ContextMenuItem("New File") {
-                        // Select the node first, then create
-                        state.selectExplorerNode(node.path.toString())
-                        state.startCreatingNewFile()
-                    },
-                    ContextMenuItem("New Folder") {
-                        // Select the node first, then create
-                        state.selectExplorerNode(node.path.toString())
-                        state.startCreatingNewFolder()
-                    },
-                    ContextMenuItem("Rename") {
-                        state.startRenamingItem(node.path.toString())
-                    },
-                    ContextMenuItem("Delete") {
-                        state.deleteItem(node.path.toString())
-                    }
-                )
-            }
-        ) {
-            val appColors = LocalAppColors.current
-            val colorScheme = MaterialTheme.colorScheme
-            val interactionSource = remember { MutableInteractionSource() }
-            val isHovered by interactionSource.collectIsHoveredAsState()
-            
-            Box(
+        // On Android, context menus are not available
+        // Users can use long-press or other UI elements for these actions
+        val appColors = LocalAppColors.current
+        val colorScheme = MaterialTheme.colorScheme
+        val interactionSource = remember { MutableInteractionSource() }
+        val isHovered by interactionSource.collectIsHoveredAsState()
+        
+        Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(theme.SidebarItemHeight)
@@ -669,7 +620,6 @@ fun TreeItem(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
             }
         }
 

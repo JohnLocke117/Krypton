@@ -13,6 +13,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.polyline
 
 @Composable
 fun WelcomeCard(

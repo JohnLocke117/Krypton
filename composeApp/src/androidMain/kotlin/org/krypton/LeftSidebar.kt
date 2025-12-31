@@ -31,6 +31,13 @@ import org.krypton.data.repository.SettingsRepository
 import org.krypton.LocalAppColors
 import org.krypton.CatppuccinMochaColors
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.close
+import krypton.composeapp.generated.resources.description
+import krypton.composeapp.generated.resources.unknown_document
+import krypton.composeapp.generated.resources.file_copy
+import krypton.composeapp.generated.resources.folder_copy
+import krypton.composeapp.generated.resources.refresh
+import krypton.composeapp.generated.resources.collapse_all
 import org.krypton.util.PathUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

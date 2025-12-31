@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
+import krypton.composeapp.generated.resources.close
 import krypton.composeapp.generated.resources.Res
 
 @Composable

@@ -17,48 +17,15 @@ import org.koin.dsl.module
 /**
  * UI layer dependency injection module for Android.
  * 
- * Provides state holders and view models for UI components.
+ * Provides Android-specific UI bindings, extending commonUiModule.
  * 
  * Note: For now, we use a simple PatternMatcher implementation.
  * A full Android implementation might use platform-specific search.
  */
-val uiModule = module {
-    // Domain layer
-    single<EditorDomain> { EditorDomain() }
-    
+val androidUiModule = module {
     // Simple pattern matcher for Android (can be enhanced later)
     single<PatternMatcher> { 
         AndroidPatternMatcher()
-    }
-    
-    single<SearchDomain> { SearchDomain(get()) }
-    
-    // State holders
-    single<EditorStateHolder> {
-        EditorStateHolder(
-            editorDomain = get(),
-            fileSystem = get(),
-            coroutineScope = get(),
-            settingsRepository = get(),
-            flashcardService = try {
-                get<FlashcardService>()
-            } catch (e: Exception) {
-                null
-            }
-        )
-    }
-    
-    single<SearchStateHolder> {
-        SearchStateHolder(
-            searchDomain = get()
-        )
-    }
-    
-    single<ChatStateHolder> {
-        ChatStateHolder(
-            chatService = get(),
-            coroutineScope = get()
-        )
     }
 }
 

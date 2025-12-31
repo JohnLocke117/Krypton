@@ -22,6 +22,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.folder
+import krypton.composeapp.generated.resources.settings
 import org.krypton.util.PathUtils
 import org.krypton.LocalAppColors
 

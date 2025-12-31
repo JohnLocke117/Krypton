@@ -20,6 +20,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.keyboard_arrow_down
+import krypton.composeapp.generated.resources.close
 import org.krypton.ui.state.SearchStateHolder
 import org.krypton.ui.state.EditorStateHolder
 

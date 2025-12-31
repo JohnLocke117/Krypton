@@ -19,6 +19,10 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.left_panel_open
+import krypton.composeapp.generated.resources.left_panel_close
+import krypton.composeapp.generated.resources.folder
+import krypton.composeapp.generated.resources.search
 
 @Composable
 fun LeftRibbon(

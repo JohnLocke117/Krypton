@@ -67,6 +67,8 @@ kotlin {
             implementation("io.ktor:ktor-client-cio:3.2.3")
             implementation("io.ktor:ktor-client-content-negotiation:3.2.3")
             implementation("io.ktor:ktor-serialization-kotlinx-json:3.2.3")
+            // Material Icons Extended for Android
+            implementation("androidx.compose.material:material-icons-extended:1.7.1")
         }
     }
 }

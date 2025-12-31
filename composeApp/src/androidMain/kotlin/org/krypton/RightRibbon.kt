@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.right_panel_open
+import krypton.composeapp.generated.resources.right_panel_close
+import krypton.composeapp.generated.resources.outline
+import krypton.composeapp.generated.resources.chat
+import krypton.composeapp.generated.resources.cards
 
 @Composable
 fun RightRibbon(

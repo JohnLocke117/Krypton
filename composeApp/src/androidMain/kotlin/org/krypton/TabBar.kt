@@ -25,6 +25,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
+import krypton.composeapp.generated.resources.edit_document
+import krypton.composeapp.generated.resources.read_only
+import krypton.composeapp.generated.resources.description
+import krypton.composeapp.generated.resources.close
 import org.krypton.util.PathUtils
 
 /**

@@ -57,7 +57,7 @@
         "telemetryEnabled": false
     },
     "rag": {
-        "vectorBackend": "CHROMA_CLOUD",
+        "vectorBackend": "CHROMADB",
         "llamaBaseUrl": "http://localhost:11434",
         "embeddingBaseUrl": "http://localhost:11434",
         "chromaBaseUrl": "http://localhost:8000",

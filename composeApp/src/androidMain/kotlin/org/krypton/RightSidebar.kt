@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
+import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.Res
 import org.krypton.markdown.BlockNode
 import org.krypton.markdown.InlineNode
