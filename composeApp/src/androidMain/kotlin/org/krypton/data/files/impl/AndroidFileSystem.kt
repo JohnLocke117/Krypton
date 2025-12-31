@@ -146,9 +146,34 @@ class AndroidFileSystem(
             
             if (uri != null && uri.scheme == "content") {
                 // SAF-based access using DocumentFile
-                val fileDocument = DocumentFile.fromSingleUri(context, uri)
-                if (fileDocument != null && fileDocument.isFile && fileDocument.canRead()) {
-                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                // Try as single document URI first
+                var fileDocument = DocumentFile.fromSingleUri(context, uri)
+                var documentUri = uri
+                
+                // If that fails and it's a tree URI with document path, try tree-based access
+                if ((fileDocument == null || !fileDocument.isFile) && filePath.contains("/tree/") && filePath.contains("/document/")) {
+                    // Extract tree URI (everything up to /document/)
+                    val treeUriStr = filePath.substringBefore("/document/")
+                    val documentPath = filePath.substringAfter("/document/")
+                    
+                    val treeUri = try {
+                        Uri.parse(treeUriStr)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    
+                    if (treeUri != null) {
+                        val treeDocument = DocumentFile.fromTreeUri(context, treeUri)
+                        if (treeDocument != null) {
+                            // Find the document within the tree
+                            fileDocument = findDocumentFile(treeDocument, documentPath)
+                            documentUri = fileDocument?.uri
+                        }
+                    }
+                }
+                
+                if (fileDocument != null && fileDocument.isFile && fileDocument.canRead() && documentUri != null) {
+                    context.contentResolver.openInputStream(documentUri)?.use { inputStream ->
                         inputStream.bufferedReader().readText()
                     }
                 } else {
@@ -238,8 +263,50 @@ class AndroidFileSystem(
     
     override fun isFile(path: String): Boolean {
         return try {
-            File(path).isFile
+            // Check if path is a SAF URI
+            val uri = try {
+                Uri.parse(path)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                // Try as single document URI first
+                val fileDocument = DocumentFile.fromSingleUri(context, uri)
+                if (fileDocument != null && fileDocument.isFile) {
+                    return true
+                }
+                
+                // If that fails and it's a tree URI with document path, try tree-based access
+                if (path.contains("/tree/") && path.contains("/document/")) {
+                    // Extract tree URI (everything up to /document/)
+                    val treeUriStr = path.substringBefore("/document/")
+                    val documentPath = path.substringAfter("/document/")
+                    
+                    val treeUri = try {
+                        Uri.parse(treeUriStr)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    
+                    if (treeUri != null) {
+                        val treeDocument = DocumentFile.fromTreeUri(context, treeUri)
+                        if (treeDocument != null) {
+                            // Find the document within the tree
+                            val fileDoc = findDocumentFile(treeDocument, documentPath)
+                            return fileDoc != null && fileDoc.isFile
+                        }
+                    }
+                }
+                
+                false
+            } else {
+                // File path-based access
+                File(path).isFile
+            }
         } catch (e: Exception) {
+            AppLogger.e("AndroidFileSystem", "Failed to check if path is file: $path", e)
             false
         }
     }

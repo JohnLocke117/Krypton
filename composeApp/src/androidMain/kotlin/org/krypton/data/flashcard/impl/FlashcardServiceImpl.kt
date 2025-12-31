@@ -167,8 +167,8 @@ $content"""
      */
     private fun removeTrailingCommas(jsonStr: String): String {
         return jsonStr
-            .replace(Regex(",\\s*}"), "}")
-            .replace(Regex(",\\s*]"), "]")
+            .replace(Regex(",\\s*\\}"), "}")
+            .replace(Regex(",\\s*\\]"), "]")
     }
 }
 
