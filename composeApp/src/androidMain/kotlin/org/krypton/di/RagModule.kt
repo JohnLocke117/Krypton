@@ -8,6 +8,7 @@ import org.krypton.rag.*
 import org.krypton.data.rag.impl.HttpLlamaClient
 import org.krypton.data.rag.impl.GeminiClient
 import org.krypton.data.rag.impl.HttpEmbedder
+import org.krypton.data.rag.impl.GeminiEmbedder
 import org.krypton.data.rag.impl.ChromaDBVectorStore
 import org.krypton.data.rag.impl.ChromaCloudVectorStore
 import org.krypton.data.rag.impl.RagServiceImpl
@@ -38,15 +39,15 @@ val ragModule = module {
         )
     }
     
-    // Embedder for generating embeddings
+    // Embedder for generating embeddings (Android uses Gemini embedding API)
     single<Embedder> {
-        val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
-        val ragSettings = settingsRepository.settingsFlow.value.rag
+        val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
+        if (apiKey.isNullOrBlank()) {
+            throw IllegalStateException("GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini embedding API.")
+        }
         val httpEngine: HttpClientEngine = get()
-        HttpEmbedder(
-            baseUrl = ragSettings.embeddingBaseUrl,
-            model = ragSettings.embeddingModel,
-            apiPath = "/api/embed",
+        GeminiEmbedder(
+            apiKey = apiKey,
             httpClientEngine = httpEngine
         )
     }
@@ -179,22 +180,26 @@ val ragModule = module {
         org.krypton.rag.MarkdownChunkerImpl()
     }
     
-    // Indexer - Android implementation
+    // Indexer - Android is query-only, so indexing is not supported
     single<VaultIndexService> {
-        val chunker: MarkdownChunker = get()
-        val embedder: Embedder = get()
-        val vectorStore: VectorStore = get()
-        
-        // Create NoteFileSystem - Android implementation
-        val noteFileSystem = org.krypton.rag.NoteFileSystem(null)
-        
-        // Android-specific indexer implementation
-        org.krypton.rag.AndroidIndexer(
-            fileSystem = noteFileSystem,
-            chunker = chunker,
-            embedder = embedder,
-            vectorStore = vectorStore
-        )
+        // Return a no-op implementation that throws on indexing calls
+        object : VaultIndexService {
+            override suspend fun indexVault(
+                rootPath: String,
+                existingFileHashes: Map<String, String>?
+            ) {
+                throw UnsupportedOperationException("Indexing not supported on Android. Collections must be indexed on Desktop.")
+            }
+            
+            override suspend fun indexFile(path: String) {
+                throw UnsupportedOperationException("Indexing not supported on Android. Collections must be indexed on Desktop.")
+            }
+            
+            override suspend fun removeFile(path: String) {
+                // No-op: Android doesn't manage collections
+                AppLogger.w("VaultIndexService", "removeFile not supported on Android (query-only mode). Attempted to remove: $path")
+            }
+        }
     }
     
     // RagService
@@ -240,9 +245,10 @@ val ragModule = module {
             // Get notes root from settings (if available)
             val notesRoot = null // TODO: Get from settings or current directory
             
-            // Get VectorStore, LlamaClient and Reranker (may fall back to NoopReranker if initialization fails)
+            // Get VectorStore, LlamaClient, Embedder, and Reranker (may fall back to NoopReranker if initialization fails)
             val vectorStore: VectorStore = get()
             val llamaClient: LlamaClient = get()
+            val embedder: Embedder = get() // Get GeminiEmbedder from DI
             val reranker: Reranker = try {
                 get<Reranker>()
             } catch (e: Exception) {
@@ -256,7 +262,8 @@ val ragModule = module {
                 httpClientEngineFactory = org.krypton.rag.HttpClientEngineFactory(httpEngine),
                 vectorStore = vectorStore,
                 llamaClient = llamaClient,
-                reranker = reranker
+                reranker = reranker,
+                embedder = embedder
             )
         } catch (e: Exception) {
             // If RAG initialization fails, return null

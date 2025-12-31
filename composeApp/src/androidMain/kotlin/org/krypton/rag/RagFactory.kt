@@ -23,7 +23,8 @@ actual fun createRagComponents(
     httpClientEngineFactory: HttpClientEngineFactory,
     vectorStore: VectorStore?,
     llamaClient: LlamaClient?,
-    reranker: Reranker?
+    reranker: Reranker?,
+    embedder: Embedder?
 ): RagComponents {
     val httpClientEngine = httpClientEngineFactory.engine
     
@@ -36,8 +37,9 @@ actual fun createRagComponents(
         database = config.chromaDatabase
     )
     
-    // Create embedder
-    val embedder = HttpEmbedder(
+    // Use provided embedder (from DI) or create one for backward compatibility
+    // On Android, embedder should always be provided from DI (GeminiEmbedder)
+    val embedderToUse = embedder ?: HttpEmbedder(
         baseUrl = config.embeddingBaseUrl,
         model = config.embeddingModel,
         apiPath = "/api/embed",
@@ -62,7 +64,7 @@ actual fun createRagComponents(
     val indexer = AndroidIndexer(
         fileSystem = fileSystem,
         chunker = chunker,
-        embedder = embedder,
+        embedder = embedderToUse,
         vectorStore = vectorStoreToUse
     )
     
@@ -78,7 +80,7 @@ actual fun createRagComponents(
     
     // Create RAG service
     val ragService = RagServiceImpl(
-        embedder = embedder,
+        embedder = embedderToUse,
         vectorStore = vectorStoreToUse,
         llamaClient = llamaClientToUse,
         similarityThreshold = config.similarityThreshold,
@@ -92,7 +94,7 @@ actual fun createRagComponents(
     
     return RagComponents(
         vectorStore = vectorStoreToUse,
-        embedder = embedder,
+        embedder = embedderToUse,
         llamaClient = llamaClientToUse,
         indexer = indexer,
         ragService = ragService

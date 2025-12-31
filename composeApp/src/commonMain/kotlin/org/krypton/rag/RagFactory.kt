@@ -62,6 +62,7 @@ expect fun createRagComponents(
     httpClientEngineFactory: HttpClientEngineFactory,
     vectorStore: VectorStore? = null,
     llamaClient: LlamaClient? = null,
-    reranker: Reranker? = null
+    reranker: Reranker? = null,
+    embedder: Embedder? = null
 ): RagComponents
 

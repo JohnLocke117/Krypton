@@ -17,8 +17,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,7 +28,6 @@ import org.krypton.LlmProvider
 import org.krypton.ui.state.UiStatus
 import org.krypton.rag.RagComponents
 import org.krypton.rag.SyncStatus
-import org.krypton.chat.IngestionPromptDialog
 import org.krypton.ui.state.EditorStateHolder
 import org.koin.core.context.GlobalContext
 import org.krypton.util.AppLogger
@@ -64,8 +61,6 @@ actual fun ChatPanel(
     
     var inputText by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
-    // Separate scope for long-running operations (not tied to Compose lifecycle)
-    val ingestionScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     
     // Optimistic user message (shown immediately when sent)
     var optimisticUserMessage by remember { mutableStateOf<ChatMessage?>(null) }
@@ -182,18 +177,8 @@ actual fun ChatPanel(
     // RAG is available if we have RAG components
     val ragAvailable = ragComponents != null
     
-    // Re-index prompt dialog state
-    var showReindexPrompt by remember { mutableStateOf(false) }
-    
-    // Sync status state
+    // Sync status state (Android is query-only, so sync status is always null or SYNCED)
     var syncStatus by remember { mutableStateOf<SyncStatus?>(null) }
-    
-    // Track when ingestion last completed to prevent immediate re-check
-    var lastIngestionCompleteTime by remember { mutableStateOf<Long?>(null) }
-    
-    // Ingestion prompt dialog state
-    var showIngestionPrompt by remember { mutableStateOf(false) }
-    var isIngesting by remember { mutableStateOf(false) }
     
     // Get current vault path
     val currentVaultPath = editorStateHolder?.currentDirectory?.value?.toString()
@@ -381,36 +366,12 @@ actual fun ChatPanel(
                                     multiQueryEnabled = false
                                     AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
                                 } else {
-                                    // Simplified RAG activation for Android
-                                    coroutineScope.launch {
-                                        if (ragComponents != null && currentVaultPath != null) {
-                                            // Check if vector store has vault data
-                                            val vectorStore = ragComponents.vectorStore
-                                            val hasVaultData = if (vectorStore is org.krypton.data.rag.impl.ChromaCloudVectorStore) {
-                                                try {
-                                                    vectorStore.hasVaultData(currentVaultPath)
-                                                } catch (e: Exception) {
-                                                    false
-                                                }
-                                            } else {
-                                                false
-                                            }
-                                            
-                                            if (!hasVaultData) {
-                                                showIngestionPrompt = true
-                                            } else {
-                                                // Assume synced if data exists
-                                                syncStatus = SyncStatus.SYNCED
-                                                ragEnabled = true
-                                                rerankingEnabled = false
-                                                multiQueryEnabled = false
-                                            }
-                                        } else {
-                                            ragEnabled = true
-                                            rerankingEnabled = false
-                                            multiQueryEnabled = false
-                                        }
-                                    }
+                                    // Simply enable RAG - no collection checks or ingestion prompts on Android
+                                    ragEnabled = true
+                                    rerankingEnabled = false
+                                    multiQueryEnabled = false
+                                    syncStatus = SyncStatus.SYNCED // Assume synced for query-only mode
+                                    AppLogger.d("ChatPanel", "RAG enabled (query-only mode)")
                                 }
                             },
                             theme = theme
@@ -528,50 +489,7 @@ actual fun ChatPanel(
                             )
                             Divider()
                         }
-                        DropdownMenuItem(
-                            text = { Text("Rebuild Vector DB") },
-                            onClick = {
-                                if (currentVaultPath != null && ragComponents != null) {
-                                    ingestionScope.launch {
-                                        try {
-                                            withContext(Dispatchers.Main) {
-                                                rebuildStatus = UiStatus.Loading
-                                                isIngesting = true
-                                            }
-                                            
-                                            // Simplified rebuild for Android - use indexer directly
-                                            val indexer = ragComponents.indexer
-                                            if (indexer is org.krypton.rag.VaultIndexService) {
-                                                indexer.indexVault(
-                                                    rootPath = currentVaultPath,
-                                                    existingFileHashes = emptyMap()
-                                                )
-                                            }
-                                            
-                                            withContext(Dispatchers.Main) {
-                                                syncStatus = SyncStatus.SYNCED
-                                                rebuildStatus = UiStatus.Success
-                                                isIngesting = false
-                                            }
-                                        } catch (e: Exception) {
-                                            withContext(Dispatchers.Main) {
-                                                rebuildStatus = UiStatus.Error(
-                                                    e.message ?: "Failed to rebuild vector database",
-                                                    recoverable = true
-                                                )
-                                                isIngesting = false
-                                            }
-                                        }
-                                    }
-                                }
-                                showAdvancedMenu = false
-                            },
-                            enabled = currentVaultPath != null && 
-                                     ragComponents != null &&
-                                     syncStatus != SyncStatus.UNAVAILABLE &&
-                                     rebuildStatus !is UiStatus.Loading &&
-                                     !isIngesting
-                        )
+                        // "Rebuild Vector DB" removed - Android is query-only, indexing must be done on Desktop
                     }
                 }
                 
@@ -720,165 +638,4 @@ actual fun ChatPanel(
     }
 }
 
-    // Ingestion prompt dialog state
-    var userWantsToIngest by remember { mutableStateOf(false) }
-    var ingestionError by remember { mutableStateOf<String?>(null) }
-    var ingestionSuccess by remember { mutableStateOf(false) }
-    
-    // Re-index prompt dialog state
-    var userWantsToReindex by remember { mutableStateOf(false) }
-    var reindexError by remember { mutableStateOf<String?>(null) }
-    var reindexSuccess by remember { mutableStateOf(false) }
-    
-    // Show dialog if prompt is requested OR if ingestion is in progress/complete
-    val showDialog = showIngestionPrompt || isIngesting || ingestionSuccess || ingestionError != null
-    
-    // Show re-index dialog if prompt is requested OR if re-indexing is in progress/complete
-    val showReindexDialog = showReindexPrompt || isIngesting || reindexSuccess || reindexError != null
-    
-    if (showDialog) {
-        IngestionPromptDialog(
-            onContinue = {
-                if (!isIngesting && !ingestionSuccess && ingestionError == null) {
-                    userWantsToIngest = true
-                    showIngestionPrompt = false
-                    ingestionError = null
-                    ingestionSuccess = false
-                }
-            },
-            onCancel = {
-                if (!isIngesting) {
-                    userWantsToIngest = false
-                    showIngestionPrompt = false
-                    isIngesting = false
-                    ingestionError = null
-                    ingestionSuccess = false
-                }
-            },
-            isIngesting = isIngesting,
-            errorMessage = ingestionError,
-            success = ingestionSuccess,
-            theme = theme
-        )
-    }
-    
-    // Handle ingestion after user confirms (simplified for Android)
-    LaunchedEffect(userWantsToIngest) {
-        if (userWantsToIngest && ragComponents != null && currentVaultPath != null) {
-            userWantsToIngest = false
-            isIngesting = true
-            ingestionError = null
-            ingestionSuccess = false
-            
-            ingestionScope.launch {
-                try {
-                    // Simplified ingestion for Android - use indexer directly
-                    val indexer = ragComponents.indexer
-                    if (indexer is org.krypton.rag.VaultIndexService) {
-                        indexer.indexVault(
-                            rootPath = currentVaultPath,
-                            existingFileHashes = emptyMap()
-                        )
-                    }
-                    
-                    withContext(Dispatchers.Main) {
-                        isIngesting = false
-                        ragEnabled = true
-                        rerankingEnabled = false
-                        multiQueryEnabled = false
-                        ingestionSuccess = true
-                        syncStatus = SyncStatus.SYNCED
-                        lastIngestionCompleteTime = System.currentTimeMillis()
-                        kotlinx.coroutines.delay(2000)
-                        showIngestionPrompt = false
-                        ingestionSuccess = false
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        isIngesting = false
-                        val errorMsg = e.message ?: "Unknown error occurred"
-                        ingestionError = "Ingestion Pipeline Failed: $errorMsg"
-                        AppLogger.e("ChatPanel", "Ingestion Pipeline Failed: $errorMsg", e)
-                    }
-                }
-            }
-        }
-    }
-    
-    // Re-index prompt dialog
-    if (showReindexDialog) {
-        IngestionPromptDialog(
-            onContinue = {
-                if (!isIngesting && !reindexSuccess && reindexError == null) {
-                    userWantsToReindex = true
-                    showReindexPrompt = false
-                    reindexError = null
-                    reindexSuccess = false
-                }
-            },
-            onCancel = {
-                if (!isIngesting) {
-                    userWantsToReindex = false
-                    showReindexPrompt = false
-                    isIngesting = false
-                    reindexError = null
-                    reindexSuccess = false
-                }
-            },
-            isIngesting = isIngesting,
-            errorMessage = reindexError,
-            success = reindexSuccess,
-            title = "Re-index Vault",
-            message = when {
-                reindexSuccess -> "Vault re-indexed successfully! All files are now up to date."
-                reindexError != null -> reindexError
-                isIngesting -> "Re-indexing vault... This may take a few minutes."
-                else -> "Some files in this vault have changed. Re-indexing will update embeddings for changed files only."
-            },
-            theme = theme
-        )
-    }
-    
-    // Handle re-indexing after user confirms (simplified for Android)
-    LaunchedEffect(userWantsToReindex) {
-        if (userWantsToReindex && ragComponents != null && currentVaultPath != null) {
-            userWantsToReindex = false
-            isIngesting = true
-            reindexError = null
-            reindexSuccess = false
-            
-            ingestionScope.launch {
-                try {
-                    // Simplified re-indexing for Android - use indexer directly
-                    val indexer = ragComponents.indexer
-                    if (indexer is org.krypton.rag.VaultIndexService) {
-                        indexer.indexVault(
-                            rootPath = currentVaultPath,
-                            existingFileHashes = emptyMap()
-                        )
-                    }
-                    
-                    withContext(Dispatchers.Main) {
-                        isIngesting = false
-                        ragEnabled = true
-                        rerankingEnabled = false
-                        multiQueryEnabled = false
-                        reindexSuccess = true
-                        syncStatus = SyncStatus.SYNCED
-                        lastIngestionCompleteTime = System.currentTimeMillis()
-                        kotlinx.coroutines.delay(2000)
-                        showReindexPrompt = false
-                        reindexSuccess = false
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        isIngesting = false
-                        val errorMsg = e.message ?: "Unknown error occurred"
-                        reindexError = "Ingestion Pipeline Failed: $errorMsg"
-                        AppLogger.e("ChatPanel", "Ingestion Pipeline Failed: $errorMsg", e)
-                    }
-                }
-            }
-        }
-    }
 }

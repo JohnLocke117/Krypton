@@ -92,35 +92,30 @@ class ChromaCloudVectorStore(
     }
     
     /**
-     * Ensures the collection exists, creating it if necessary, and caches the collection ID.
-     * Always attempts to fetch collection ID by name first to handle persistence across restarts.
+     * Ensures the collection exists (query-only mode on Android).
+     * Only checks if collection exists, does not create it.
+     * Collections must be created on Desktop first.
      */
     private suspend fun ensureCollection() = withContext(Dispatchers.IO) {
         try {
-            // Always try to get the collection ID from name first (handles persistence after restart)
-            val id = getCollectionIdFromName(collectionName)
-            if (id != null) {
-                collectionId = id
-                AppLogger.d("ChromaCloudVectorStore", "Found existing collection '$collectionName' with ID: $id")
-                return@withContext
+            // Only check if collection exists, don't create
+            if (collectionId == null) {
+                val id = getCollectionIdFromName(collectionName)
+                if (id != null) {
+                    collectionId = id
+                    AppLogger.d("ChromaCloudVectorStore", "Found existing collection '$collectionName' with ID: $id")
+                } else {
+                    // Collection doesn't exist - Android cannot create it
+                    throw ChromaDBException("Collection '$collectionName' does not exist. Please create it on Desktop first.")
+                }
             }
-            
-            // Collection doesn't exist, create it
-            AppLogger.d("ChromaCloudVectorStore", "Collection '$collectionName' not found, creating new collection")
-            createCollection()
+        } catch (e: ChromaDBException) {
+            // Re-throw ChromaDBException as-is
+            throw e
         } catch (e: Exception) {
-            // Collection lookup failed, clear cache and try to create
-            AppLogger.w("ChromaCloudVectorStore", "Failed to lookup collection '$collectionName': ${e.message}. Clearing cache and attempting to create.")
-            if (collectionId != null) {
-                AppLogger.d("ChromaCloudVectorStore", "Clearing collection ID cache due to lookup failure")
-            }
-            collectionId = null // Clear cache on lookup failure
-            try {
-                createCollection()
-            } catch (createException: Exception) {
-                AppLogger.e("ChromaCloudVectorStore", "Failed to ensure collection exists: ${createException.message}", createException)
-                throw ChromaDBException("Failed to connect to ChromaDB Cloud at $baseUrl: ${createException.message}", createException)
-            }
+            // Collection lookup failed
+            AppLogger.e("ChromaCloudVectorStore", "Failed to lookup collection '$collectionName': ${e.message}", e)
+            throw ChromaDBException("Failed to connect to ChromaDB Cloud at $baseUrl: ${e.message}. Collection '$collectionName' may not exist.", e)
         }
     }
     
@@ -163,65 +158,9 @@ class ChromaCloudVectorStore(
     }
     
     override suspend fun upsert(chunks: List<RagChunk>) = withContext(Dispatchers.IO) {
-        if (chunks.isEmpty()) return@withContext
-        
-        try {
-            // Ensure collection exists
-            ensureCollection()
-            
-            // Prepare data for ChromaDB
-            val ids = chunks.map { it.id }
-            val embeddings = chunks.mapNotNull { chunk ->
-                chunk.embedding // RagChunk.embedding is already List<Float>?
-            }
-            val documents = chunks.map { it.text }
-            val metadatas = chunks.map { chunk ->
-                buildJsonObject {
-                    // Copy all metadata from RagChunk
-                    chunk.metadata.forEach { (key, value) ->
-                        put(key, JsonPrimitive(value))
-                    }
-                }
-            }
-            
-            // Validate that all chunks have embeddings
-            if (embeddings.size != chunks.size) {
-                throw ChromaDBException("Cannot upsert chunks without embeddings")
-            }
-            
-            // Ensure we have collection ID
-            if (collectionId == null) {
-                ensureCollection()
-            }
-            
-            val collectionIdToUse = collectionId
-                ?: throw ChromaDBException("Collection ID not available for upsert")
-            
-            val request = AddRequest(
-                ids = ids,
-                embeddings = embeddings,
-                documents = documents,
-                metadatas = metadatas,
-                uris = null
-            )
-            
-            val response = client.post("$collectionsBasePath/$collectionIdToUse/add") {
-                contentType(ContentType.Application.Json)
-                addAuthHeader()
-                setBody(request)
-            }
-            
-            // ChromaDB v2 API returns 201 Created for successful add operations
-            if (response.status != HttpStatusCode.OK && response.status != HttpStatusCode.Created) {
-                val errorBody = response.body<String>()
-                throw ChromaDBException("Failed to upsert chunks: ${response.status} - $errorBody")
-            }
-            
-            AppLogger.d("ChromaCloudVectorStore", "Upserted ${chunks.size} chunks into collection '$collectionName'")
-        } catch (e: Exception) {
-            AppLogger.e("ChromaCloudVectorStore", "Failed to upsert ${chunks.size} chunks", e)
-            throw ChromaDBException("Failed to upsert chunks: ${e.message}", e)
-        }
+        // Android is query-only - indexing must be done on Desktop
+        AppLogger.w("ChromaCloudVectorStore", "Upsert not supported on Android (query-only mode). Collection must be indexed on Desktop. Attempted to upsert ${chunks.size} chunks.")
+        // No-op: Android doesn't index
     }
     
     override suspend fun search(
@@ -270,7 +209,15 @@ class ChromaCloudVectorStore(
             
             if (response.status != HttpStatusCode.OK) {
                 val errorBody = response.body<String>()
-                throw ChromaDBException("Failed to search: ${response.status} - $errorBody")
+                val errorMsg = "Failed to search: ${response.status} - $errorBody"
+                
+                // Check for dimension mismatch error and provide helpful message
+                if (errorBody.contains("dimension") && errorBody.contains("expecting")) {
+                    AppLogger.e("ChromaCloudVectorStore", "Dimension mismatch detected. Collection expects a different embedding dimension than what Gemini returned.", null)
+                    AppLogger.e("ChromaCloudVectorStore", "Solution: Recreate the collection on Desktop using Gemini embeddings (3072 dimensions) or use a different embedding model that matches the collection dimension.", null)
+                }
+                
+                throw ChromaDBException(errorMsg)
             }
             
             val queryResponse: QueryResponse = response.body()
@@ -327,39 +274,9 @@ class ChromaCloudVectorStore(
     }
     
     override suspend fun clear() = withContext(Dispatchers.IO) {
-        try {
-            ensureCollection()
-            
-            val collectionIdToUse = collectionId
-                ?: throw ChromaDBException("Collection ID not available for clear")
-            
-            // Delete collection with body containing new collection info
-            val deleteRequest = DeleteCollectionRequest(
-                new_name = collectionName,
-                new_metadata = null,
-                new_configuration = null
-            )
-            
-            val deleteResponse = client.delete("$collectionsBasePath/$collectionIdToUse") {
-                contentType(ContentType.Application.Json)
-                addAuthHeader()
-                setBody(deleteRequest)
-            }
-            
-            if (deleteResponse.status == HttpStatusCode.OK || deleteResponse.status == HttpStatusCode.NoContent) {
-                // Clear cached ID and embedding dimension, then recreate the collection
-                AppLogger.d("ChromaCloudVectorStore", "Clearing collection ID and embedding dimension cache before recreating collection")
-                collectionId = null
-                embeddingDimension = null
-                createCollection()
-                AppLogger.d("ChromaCloudVectorStore", "Cleared collection '$collectionName'")
-            } else {
-                throw ChromaDBException("Failed to clear collection: ${deleteResponse.status}")
-            }
-        } catch (e: Exception) {
-            AppLogger.e("ChromaCloudVectorStore", "Failed to clear vector store", e)
-            throw ChromaDBException("Failed to clear collection: ${e.message}", e)
-        }
+        // Android is query-only - collection management must be done on Desktop
+        AppLogger.w("ChromaCloudVectorStore", "Clear not supported on Android (query-only mode). Collection management must be done on Desktop.")
+        // No-op: Android doesn't manage collections
     }
     
     /**
@@ -414,63 +331,9 @@ class ChromaCloudVectorStore(
     }
     
     override suspend fun deleteByFilePath(filePath: String) = withContext(Dispatchers.IO) {
-        try {
-            ensureCollection()
-            
-            // ChromaDB v2 requires collection ID (UUID) for delete endpoint
-            // If we don't have the ID yet, try to get it
-            var idToUse = collectionId
-            if (idToUse == null) {
-                try {
-                    val getResponse = client.get("$collectionsBasePath/$collectionName") {
-                        addAuthHeader()
-                    }
-                    if (getResponse.status == HttpStatusCode.OK) {
-                        val collectionResponse: CollectionResponse = getResponse.body()
-                        idToUse = collectionResponse.id
-                        collectionId = idToUse
-                    }
-                } catch (e: Exception) {
-                    AppLogger.w("ChromaCloudVectorStore", "Could not get collection ID for delete: ${e.message}")
-                }
-            }
-            
-            // If we still don't have an ID, skip deletion (best effort)
-            if (idToUse == null) {
-                AppLogger.w("ChromaCloudVectorStore", "Skipping delete for $filePath - collection ID not available")
-                return@withContext
-            }
-            
-            // Create JsonObject for where clause
-            val whereJson = buildJsonObject {
-                put("filePath", JsonPrimitive(filePath))
-            }
-            
-            val request = DeleteRequest(
-                ids = null,
-                where = whereJson,
-                where_document = null
-            )
-            
-            val response = client.post("$collectionsBasePath/$idToUse/delete") {
-                contentType(ContentType.Application.Json)
-                addAuthHeader()
-                setBody(request)
-            }
-            
-            if (response.status != HttpStatusCode.OK) {
-                val errorBody = response.body<String>()
-                // Log warning but don't throw - deletion is best effort for cleanup
-                AppLogger.w("ChromaCloudVectorStore", "Failed to delete chunks for file $filePath: ${response.status} - $errorBody")
-                return@withContext
-            }
-            
-            AppLogger.d("ChromaCloudVectorStore", "Deleted chunks for file: $filePath")
-        } catch (e: Exception) {
-            // Log warning but don't throw - deletion is best effort for cleanup
-            AppLogger.w("ChromaCloudVectorStore", "Failed to delete chunks for file: $filePath - ${e.message}")
-            // Don't throw exception - this is just cleanup before re-indexing
-        }
+        // Android is query-only - collection management must be done on Desktop
+        AppLogger.w("ChromaCloudVectorStore", "DeleteByFilePath not supported on Android (query-only mode). Collection management must be done on Desktop. Attempted to delete: $filePath")
+        // No-op: Android doesn't manage collections
     }
     
     /**

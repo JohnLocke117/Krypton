@@ -435,10 +435,9 @@ private fun SettingsContent(
                 )
             }
             SettingsCategory.RAG -> {
-                RagSettings(
+                AndroidRagSettings(
                     settings = settings,
                     onSettingsChange = onSettingsChange,
-                    onReindex = { onReindex?.invoke() },
                     theme = theme
                 )
             }
@@ -1153,7 +1152,8 @@ private fun InlineTextField(
     value: String,
     onValueChange: (String) -> Unit,
     description: String? = null,
-    theme: ObsidianThemeValues
+    theme: ObsidianThemeValues,
+    enabled: Boolean = true
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -1179,11 +1179,14 @@ private fun InlineTextField(
             onValueChange = onValueChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            enabled = enabled,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = theme.TextPrimary,
                 unfocusedTextColor = theme.TextPrimary,
                 focusedBorderColor = theme.Accent,
-                unfocusedBorderColor = theme.Border
+                unfocusedBorderColor = theme.Border,
+                disabledTextColor = theme.TextTertiary,
+                disabledBorderColor = theme.Border.copy(alpha = 0.5f)
             )
         )
     }
@@ -1323,3 +1326,257 @@ private fun ColorField(
     }
 }
 
+
+/**
+ * Android-specific RAG settings composable.
+ * Hides indexing-related settings (embedding model/URL, reindex button) since Android is query-only.
+ */
+@Composable
+private fun AndroidRagSettings(
+    settings: Settings,
+    onSettingsChange: (Settings) -> Unit,
+    theme: ObsidianThemeValues
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "LLM Provider Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        // LLM Provider is read-only on Android (always GEMINI)
+        InlineTextField(
+            label = "LLM Provider",
+            value = "GEMINI",
+            onValueChange = { /* Read-only on Android */ },
+            description = "Android only supports GEMINI",
+            theme = theme,
+            enabled = false
+        )
+        
+        InlineTextField(
+            label = "Gemini Model",
+            value = settings.llm.geminiModel,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        llm = settings.llm.copy(geminiModel = newValue)
+                    )
+                )
+            },
+            description = "Gemini model name (e.g., gemini-2.5-flash)",
+            theme = theme
+        )
+        
+        Divider(color = theme.Border)
+        
+        Text(
+            text = "Vector Backend Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        // Vector Backend is read-only on Android (always CHROMA_CLOUD)
+        InlineTextField(
+            label = "Vector Backend",
+            value = "CHROMA_CLOUD",
+            onValueChange = { /* Read-only on Android */ },
+            description = "Android only supports CHROMA_CLOUD",
+            theme = theme,
+            enabled = false
+        )
+        
+        // Embedding Model and Base URL are hidden - Android uses Gemini embedding API
+        
+        Divider(color = theme.Border)
+        
+        Text(
+            text = "ChromaDB Cloud Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        InlineTextField(
+            label = "ChromaDB Collection Name",
+            value = settings.rag.chromaCollectionName,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaCollectionName = newValue)
+                    )
+                )
+            },
+            description = "Name of the ChromaDB Cloud collection (must be created on Desktop)",
+            theme = theme
+        )
+        
+        InlineTextField(
+            label = "ChromaDB Tenant",
+            value = settings.rag.chromaTenant,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaTenant = newValue)
+                    )
+                )
+            },
+            theme = theme
+        )
+        
+        InlineTextField(
+            label = "ChromaDB Database",
+            value = settings.rag.chromaDatabase,
+            onValueChange = { newValue ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(chromaDatabase = newValue)
+                    )
+                )
+            },
+            theme = theme
+        )
+        
+        Divider(color = theme.Border)
+        
+        Text(
+            text = "Query Settings",
+            style = MaterialTheme.typography.titleMedium,
+            color = theme.TextPrimary
+        )
+        
+        InlineTextField(
+            label = "Top-K",
+            value = settings.rag.topK.toString(),
+            onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 20) {
+                        onSettingsChange(
+                            settings.copy(
+                                rag = settings.rag.copy(topK = intValue)
+                            )
+                        )
+                    }
+                }
+            },
+            description = "Number of chunks to retrieve (1-20)",
+            theme = theme
+        )
+        
+        InlineFloatField(
+            label = "Similarity Threshold",
+            value = settings.rag.similarityThreshold,
+            onValueChange = { newValue ->
+                if (newValue >= 0f && newValue <= 1f) {
+                    onSettingsChange(
+                        settings.copy(
+                            rag = settings.rag.copy(similarityThreshold = newValue)
+                        )
+                    )
+                }
+            },
+            description = "Minimum similarity score (0.0-1.0)",
+            theme = theme
+        )
+        
+        InlineTextField(
+            label = "Max-K",
+            value = settings.rag.maxK.toString(),
+            onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 50) {
+                        onSettingsChange(
+                            settings.copy(
+                                rag = settings.rag.copy(maxK = intValue)
+                            )
+                        )
+                    }
+                }
+            },
+            description = "Maximum chunks to retrieve (1-50)",
+            theme = theme
+        )
+        
+        InlineTextField(
+            label = "Display-K",
+            value = settings.rag.displayK.toString(),
+            onValueChange = { newValue ->
+                newValue.toIntOrNull()?.let { intValue ->
+                    if (intValue >= 1 && intValue <= 20) {
+                        onSettingsChange(
+                            settings.copy(
+                                rag = settings.rag.copy(displayK = intValue)
+                            )
+                        )
+                    }
+                }
+            },
+            description = "Number of chunks to display (1-20)",
+            theme = theme
+        )
+        
+        InlineBooleanField(
+            label = "Query Rewriting",
+            value = settings.rag.queryRewritingEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(queryRewritingEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable query rewriting for better retrieval",
+            theme = theme
+        )
+        
+        InlineBooleanField(
+            label = "Multi-Query",
+            value = settings.rag.multiQueryEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(multiQueryEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable multi-query generation",
+            theme = theme
+        )
+        
+        InlineBooleanField(
+            label = "Reranking",
+            value = settings.rag.rerankingEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(rerankingEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable reranking of retrieved chunks",
+            theme = theme
+        )
+        
+        InlineBooleanField(
+            label = "RAG Enabled",
+            value = settings.rag.ragEnabled,
+            onValueChange = { enabled ->
+                onSettingsChange(
+                    settings.copy(
+                        rag = settings.rag.copy(ragEnabled = enabled)
+                    )
+                )
+            },
+            description = "Enable RAG for chat responses (query-only mode)",
+            theme = theme
+        )
+        
+        // Reindex button removed - Android is query-only, indexing must be done on Desktop
+        Text(
+            text = "Note: Collections must be indexed on Desktop. Android only performs queries.",
+            style = MaterialTheme.typography.bodySmall,
+            color = theme.TextSecondary
+        )
+    }
+}

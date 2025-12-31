@@ -47,6 +47,7 @@ import org.krypton.LeftSidebar
 import org.krypton.RightSidebar
 import org.krypton.LocalAppColors
 import org.krypton.ObsidianThemeValues
+import org.krypton.FlashcardsScreen
 import org.krypton.platform.VaultPicker
 import org.krypton.platform.VaultDirectory
 import org.krypton.platform.NoteEntry
@@ -309,13 +310,14 @@ actual fun AppDialogs(
     
     // Flashcards dialog
     val flashcardsUiState by editorStateHolder.flashcardsUiState.collectAsState()
-    if (flashcardsUiState.isVisible) {
-        AndroidFlashcardsDialog(
-            flashcardsUiState = flashcardsUiState,
-            editorStateHolder = editorStateHolder,
-            theme = theme
-        )
-    }
+    FlashcardsScreen(
+        state = flashcardsUiState,
+        onNext = { editorStateHolder.nextCard() },
+        onPrev = { editorStateHolder.prevCard() },
+        onToggleAnswer = { editorStateHolder.toggleAnswer() },
+        onClose = { editorStateHolder.closeFlashcards() },
+        theme = theme
+    )
 }
 
 /**
@@ -919,6 +921,22 @@ private fun AndroidEditorScreen(
                     color = theme.TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
+                // Flashcard button
+                IconButton(
+                    onClick = {
+                        if (doc.path != null) {
+                            editorStateHolder.generateFlashcardsForCurrentNote()
+                            editorStateHolder.showFlashcards()
+                        }
+                    },
+                    enabled = doc.path != null
+                ) {
+                    Icon(
+                        Icons.Default.Style,
+                        contentDescription = "Generate Flashcards",
+                        tint = if (doc.path != null) theme.TextPrimary else theme.TextTertiary
+                    )
+                }
                 IconButton(onClick = onBack) {
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                 }
@@ -1119,57 +1137,6 @@ private fun AndroidRecentFoldersDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Cancel", color = theme.Accent)
-            }
-        },
-        containerColor = theme.BackgroundElevated
-    )
-}
-
-/**
- * Android flashcards dialog
- */
-@Composable
-private fun AndroidFlashcardsDialog(
-    flashcardsUiState: EditorStateHolder.FlashcardsUiState,
-    editorStateHolder: EditorStateHolder,
-    theme: ObsidianThemeValues
-) {
-    val currentCard = flashcardsUiState.cards.getOrNull(flashcardsUiState.currentIndex)
-    
-    AlertDialog(
-        onDismissRequest = { editorStateHolder.closeFlashcards() },
-        title = { Text("Flashcards", color = theme.TextPrimary) },
-        text = {
-            Column {
-                Text(
-                    text = currentCard?.question ?: "No card",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = theme.TextPrimary
-                )
-                if (flashcardsUiState.isAnswerVisible) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = currentCard?.answer ?: "",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = theme.TextSecondary
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Row {
-                TextButton(onClick = { editorStateHolder.prevCard() }) {
-                    Text("Prev", color = theme.Accent)
-                }
-                TextButton(onClick = { editorStateHolder.toggleAnswer() }) {
-                    Text("Show Answer", color = theme.Accent)
-                }
-                TextButton(onClick = { editorStateHolder.nextCard() }) {
-                    Text("Next", color = theme.Accent)
-                }
-                TextButton(onClick = { editorStateHolder.closeFlashcards() }) {
-                    Text("Close", color = theme.Accent)
-                }
             }
         },
         containerColor = theme.BackgroundElevated
