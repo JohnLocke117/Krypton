@@ -71,11 +71,15 @@ composeApp/src/
 │   │   ├── markdown/       # Markdown parsing
 │   │   ├── rag/            # RAG components
 │   │   ├── retrieval/      # Retrieval services
-│   │   └── web/            # Web search
+│   │   ├── web/            # Web search
+│   │   └── ui/             # Shared UI components
 │   └── sqldelight/         # Database schemas
-└── jvmMain/                # JVM-specific code
-    ├── kotlin/             # UI, DI, platform code
-    └── composeResources/   # Resources
+├── jvmMain/                # JVM/Desktop-specific code
+│   ├── kotlin/             # UI, DI, platform code, MCP server
+│   └── composeResources/   # Resources (fonts, icons)
+└── androidMain/            # Android-specific code
+    ├── kotlin/             # Android UI, platform implementations
+    └── AndroidManifest.xml # Android manifest
 ```
 
 ### Module Organization
@@ -83,12 +87,16 @@ composeApp/src/
 - **chat/**: Chat service interfaces and models
   - **chat/agent/**: Agent system for intent-based actions
 - **core/domain/**: Business logic and domain models
+  - **core/domain/flashcard/**: Flashcard generation service
 - **data/**: Data access layer (repositories, file system)
+  - **data/flashcard/**: Flashcard service implementations
 - **markdown/**: Markdown parsing and rendering
 - **rag/**: RAG pipeline components (embedding, indexing, retrieval)
 - **retrieval/**: High-level retrieval orchestration
 - **web/**: Web search integration
 - **ui/**: UI utilities and state management
+- **platform/**: Platform abstraction interfaces (VaultPicker, SettingsConfigProvider)
+- **mcp/**: MCP server implementation (JVM only)
 - **util/**: Utility functions (logging, ID generation, time)
 
 ## Key Design Choices
@@ -461,13 +469,64 @@ data class Settings(
 - Large files chunked to avoid memory issues
 - Coroutines properly scoped and cancelled
 
+## Additional Features
+
+### MCP (Model Context Protocol) Server
+
+Krypton includes an MCP server that exposes agents as standardized tools, enabling integration with external clients like Claude Desktop, MCP Inspector, and custom applications.
+
+**Architecture:**
+- HTTP server using Ktor with SSE support
+- MCP SDK for protocol handling
+- Exposes three tools: `create_note`, `search_notes`, `summarize_notes`
+- Runs as standalone server or embedded in application
+
+**Location:** `composeApp/src/jvmMain/kotlin/org/krypton/mcp/KryptonMcpServer.kt`
+
+See **[Agents & Agentic Architecture](./agents.md)** for detailed MCP server documentation.
+
+### Flashcard Generation
+
+Krypton can generate flashcards from markdown notes using LLM:
+
+**Features:**
+- AI-powered flashcard generation from note content
+- Question-answer pairs extracted from notes
+- Configurable maximum number of cards
+- Source file tracking
+
+**Implementation:**
+- `FlashcardService` interface in domain layer
+- Platform-specific implementations in `jvmMain` and `androidMain`
+- Uses LLM with structured JSON output
+- Integrated into editor UI
+
+### Android Support
+
+Krypton now includes full Android support with mobile-optimized UI and platform-specific implementations.
+
+**Key Components:**
+- Mobile navigation (Notes List, Editor, Chat, Settings)
+- Android-specific file system using Storage Access Framework (SAF)
+- Android settings persistence using SharedPreferences
+- Platform-specific vault picker
+- Mobile-optimized UI components
+
+**Architecture:**
+- Platform abstractions in `commonMain` (interfaces)
+- Android implementations in `androidMain`
+- Dependency injection via `androidPlatformModule`
+- Shared business logic across platforms
+
+See **[Android Support](./android.md)** for comprehensive Android documentation.
+
 ## Future Architecture Considerations
 
 ### Planned Improvements
 
-1. **Android Support**: Extend to Android platform
+1. **iOS Support**: Extend to iOS platform
 2. **Plugin System**: Allow custom extensions
-3. **MCP Server**: Convert agents to MCP server
+3. **Enhanced Mobile Features**: Improved mobile UI/UX
 4. **Loose Coupling**: Further decouple components
 5. **Configuration**: Move more configs to settings
 
@@ -477,6 +536,7 @@ data class Settings(
 - Vector store can be externalized
 - LLM can be remote service
 - Stateless components where possible
+- Multi-platform support via Kotlin Multiplatform
 
 ## Conclusion
 

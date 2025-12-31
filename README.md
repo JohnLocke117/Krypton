@@ -11,7 +11,9 @@ Krypton is designed to be your intelligent knowledge companion. It provides:
 - **Intelligent Agents**: Specialized agents for note creation, search, and summarization that understand natural language intents
 - **Vector Search**: Automatic indexing of your markdown notes for semantic search
 - **File Management**: Full file and folder CRUD operations with a clean, intuitive interface
-- **Cross-Platform**: Built with Kotlin Multiplatform, targeting Desktop (JVM) with future Android support
+- **Flashcard Generation**: AI-powered flashcard generation from your notes
+- **MCP Server**: Expose agents as tools via Model Context Protocol for integration with external clients
+- **Cross-Platform**: Built with Kotlin Multiplatform, supporting Desktop (JVM) and Android
 
 ## High-Level Architecture
 
@@ -27,24 +29,28 @@ Krypton follows a clean, modular architecture:
 - **Embeddings**: HTTP-based embedding service (Ollama-compatible)
 - **Web Search**: Tavily API integration
 - **Markdown Parsing**: JetBrains Markdown library
+- **MCP Protocol**: Model Context Protocol SDK for agent exposure
 - **Logging**: Kermit
 
 ### Architecture Layers
 
-1. **UI Layer** (`ui/`, `jvmMain/kotlin/org/krypton/krypton/`)
-   - Compose UI components
+1. **UI Layer** (`ui/`, `jvmMain/`, `androidMain/`)
+   - Compose UI components (shared and platform-specific)
    - State management via state holders
    - Theme and styling
+   - Mobile-optimized navigation (Android)
 
 2. **Domain Layer** (`core/domain/`)
    - Editor domain logic (autosave, undo/redo)
    - Search domain logic
+   - Flashcard generation service
    - Business rules and state management
 
 3. **Data Layer** (`data/`)
-   - File system operations
-   - Settings persistence
+   - File system operations (platform-abstracted)
+   - Settings persistence (platform-specific)
    - Repository pattern implementations
+   - Flashcard service implementations
 
 4. **RAG Layer** (`rag/`, `retrieval/`)
    - Vector store integration (ChromaDB)
@@ -63,6 +69,16 @@ Krypton follows a clean, modular architecture:
    - HTML rendering
    - Block and inline node structures
 
+7. **Platform Layer** (`platform/`)
+   - Platform abstraction interfaces
+   - Vault picker implementations
+   - Settings configuration providers
+
+8. **MCP Layer** (`mcp/`) - JVM only
+   - MCP server implementation
+   - Agent tool exposure
+   - HTTP/SSE transport
+
 ### Key Design Choices
 
 - **Dependency Injection**: Uses Koin for loose coupling and testability
@@ -75,10 +91,18 @@ Krypton follows a clean, modular architecture:
 
 ### Prerequisites
 
-1. **Java Development Kit (JDK)**: JDK 11 or higher
+**For Desktop (JVM):**
+1. **Java Development Kit (JDK)**: JDK 17 or higher
 2. **Gradle**: Included via Gradle Wrapper (`./gradlew`)
 3. **Docker**: For running ChromaDB (required for RAG features)
 4. **Ollama**: For local LLM support (optional but recommended)
+
+**For Android:**
+1. **Android Studio**: Hedgehog (2023.1.1) or later
+2. **Android SDK**: API 24 (minimum) / API 35 (target)
+3. **JDK**: JDK 17 or higher
+4. **Docker**: For running ChromaDB (required for RAG features)
+5. **Ollama**: For local LLM support (optional but recommended)
 
 ### Setup Steps
 
@@ -133,17 +157,43 @@ TAVILLY_API_KEY=your_tavily_api_key_here
 
 #### 4. Build and Run
 
-**On macOS/Linux:**
+**Desktop (JVM):**
+
+On macOS/Linux:
 ```bash
 ./gradlew :composeApp:run
 ```
 
-**On Windows:**
+On Windows:
 ```bash
 .\gradlew.bat :composeApp:run
 ```
 
 The application will start with a default window size of 1400x900 pixels.
+
+**Android:**
+
+1. Open the project in Android Studio
+2. Select the `android` run configuration
+3. Choose a device or emulator
+4. Click Run
+
+Or via command line:
+```bash
+./gradlew :composeApp:installDebug
+```
+
+**MCP Server (Desktop only):**
+
+Run the MCP server to expose agents as tools:
+```bash
+./gradlew :composeApp:runMcpServer
+```
+
+Or with custom port:
+```bash
+MCP_PORT=9000 ./gradlew :composeApp:runMcpServer
+```
 
 ### First Run
 
@@ -168,16 +218,21 @@ Krypton/
 │   │   ├── commonMain/          # Shared code across platforms
 │   │   │   ├── kotlin/org/krypton/krypton/
 │   │   │   │   ├── chat/        # Chat service interfaces
-│   │   │   │   ├── core/        # Domain logic
-│   │   │   │   ├── data/        # Data layer
+│   │   │   │   ├── core/        # Domain logic (editor, search, flashcard)
+│   │   │   │   ├── data/        # Data layer interfaces
 │   │   │   │   ├── markdown/    # Markdown parsing
 │   │   │   │   ├── rag/         # RAG components
 │   │   │   │   ├── retrieval/   # Retrieval services
-│   │   │   │   └── web/         # Web search
+│   │   │   │   ├── web/         # Web search
+│   │   │   │   ├── platform/   # Platform abstractions
+│   │   │   │   └── ui/          # Shared UI components
 │   │   │   └── sqldelight/      # Database schemas
-│   │   └── jvmMain/             # JVM-specific code
-│   │       ├── kotlin/          # UI components, DI setup
-│   │       └── composeResources/ # Resources (fonts, icons)
+│   │   ├── jvmMain/             # JVM/Desktop-specific code
+│   │   │   ├── kotlin/          # UI components, DI setup, MCP server
+│   │   │   └── composeResources/ # Resources (fonts, icons)
+│   │   └── androidMain/         # Android-specific code
+│   │       ├── kotlin/          # Android UI, platform implementations
+│   │       └── AndroidManifest.xml
 │   └── build.gradle.kts
 ├── gradle/
 │   └── libs.versions.toml       # Dependency versions
@@ -190,8 +245,10 @@ Krypton/
 For more detailed information, see:
 
 - **[AI Chat Features](./readme/ai-chat.md)**: Detailed documentation on RAG pipeline, chat modes, and web search
-- **[Architecture Guide](./readme/architecture.md)**: Deep dive into architecture, design choices, and markdown parsing
-- **[Agents & Agentic Architecture](./readme/agents.md)**: Comprehensive guide to the agent system, including all available agents and how they work
+- **[Architecture Guide](./readme/architecture.md)**: Deep dive into architecture, design choices, markdown parsing, and platform support
+- **[Agents & Agentic Architecture](./readme/agents.md)**: Comprehensive guide to the agent system, including all available agents, MCP server, and how they work
+- **[Android Support](./readme/android.md)**: Complete guide to Android support, including setup, features, and platform-specific implementations
+- **[Coding Guidelines](./readme/coding-guidelines.md)**: Development guidelines and best practices
 
 ## Development
 
@@ -210,6 +267,19 @@ For more detailed information, see:
 ### Hot Reload
 
 The project uses Compose Hot Reload for faster development iteration. Changes to Compose UI code will hot-reload automatically.
+
+### Platform-Specific Development
+
+**Desktop Development:**
+- Use `jvmMain` source set for desktop-specific code
+- MCP server is JVM-only
+- File system uses standard Java File API
+
+**Android Development:**
+- Use `androidMain` source set for Android-specific code
+- Follow platform abstraction patterns
+- Use Storage Access Framework (SAF) for file access
+- See [Android Support](./readme/android.md) for detailed guidelines
 
 ## License
 
