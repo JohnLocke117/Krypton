@@ -52,6 +52,7 @@ actual fun ChatPanel(
     modifier: Modifier
 ) {
     val messages by chatStateHolder.messages.collectAsState()
+    val messageMetadata by chatStateHolder.messageMetadata.collectAsState()
     val isLoading by chatStateHolder.isLoading.collectAsState()
     val chatStatus by chatStateHolder.status.collectAsState()
     val agentMessage by chatStateHolder.agentMessage.collectAsState()
@@ -546,6 +547,7 @@ actual fun ChatPanel(
             isLoading = isLoading,
             theme = theme,
             settings = settings,
+            messageMetadata = messageMetadata,
             modifier = Modifier.weight(1f)
         )
 

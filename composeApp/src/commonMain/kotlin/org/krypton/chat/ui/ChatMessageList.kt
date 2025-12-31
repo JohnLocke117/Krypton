@@ -27,7 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.krypton.ObsidianThemeValues
 import org.krypton.chat.ChatMessage
+import org.krypton.chat.ChatResponseMetadata
 import org.krypton.chat.ChatRole
+import org.krypton.chat.ChatSource
+import org.krypton.chat.SourceType
 import org.krypton.markdown.*
 import org.krypton.util.copyToClipboard
 
@@ -40,6 +43,7 @@ fun ChatMessageList(
     isLoading: Boolean,
     theme: ObsidianThemeValues,
     settings: org.krypton.Settings,
+    messageMetadata: Map<String, ChatResponseMetadata> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -57,8 +61,10 @@ fun ChatMessageList(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         messages.forEachIndexed { index, message ->
+            val metadata = messageMetadata[message.id]
             ChatMessageItem(
                 message = message,
+                metadata = metadata,
                 theme = theme,
                 settings = settings,
                 modifier = Modifier.fillMaxWidth()
@@ -100,6 +106,7 @@ fun ChatMessageList(
 @Composable
 private fun ChatMessageItem(
     message: ChatMessage,
+    metadata: ChatResponseMetadata?,
     theme: ObsidianThemeValues,
     settings: org.krypton.Settings,
     modifier: Modifier = Modifier
@@ -124,7 +131,7 @@ private fun ChatMessageItem(
             )
         }
     } else {
-        // Assistant message: render markdown with copy button
+        // Assistant message: render markdown with copy button and sources
         Column(
             modifier = modifier.fillMaxWidth()
         ) {
@@ -135,6 +142,15 @@ private fun ChatMessageItem(
                     settings = settings,
                     theme = theme,
                     modifier = Modifier.fillMaxWidth()
+                )
+            }
+            
+            // Display sources if available
+            metadata?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
+                Spacer(modifier = Modifier.height(12.dp))
+                SourcesSection(
+                    sources = sources,
+                    theme = theme
                 )
             }
             
@@ -444,6 +460,65 @@ private fun CopyAllButton(
             modifier = Modifier.size(16.dp),
             tint = colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
+    }
+}
+
+/**
+ * Displays sources section for a chat message.
+ */
+@Composable
+private fun SourcesSection(
+    sources: List<ChatSource>,
+    theme: ObsidianThemeValues,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = theme.CodeBlockBackground.copy(alpha = 0.5f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Sources",
+                style = MaterialTheme.typography.titleSmall,
+                color = theme.TextPrimary,
+                fontWeight = FontWeight.Bold
+            )
+            
+            sources.forEach { source ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "• ",
+                        color = theme.TextSecondary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = source.identifier,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = theme.TextPrimary
+                        )
+                        if (!source.location.isNullOrEmpty()) {
+                            Text(
+                                text = source.location!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = theme.TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

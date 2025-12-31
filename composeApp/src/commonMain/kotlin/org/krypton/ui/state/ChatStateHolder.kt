@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import org.krypton.chat.ChatMessage
+import org.krypton.chat.ChatResponseMetadata
 import org.krypton.chat.ChatService
 import org.krypton.chat.RetrievalMode
 import org.krypton.util.AppLogger
@@ -28,6 +29,10 @@ class ChatStateHolder(
 ) {
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
+    
+    // Store metadata (sources) for each message by message ID
+    private val _messageMetadata = MutableStateFlow<Map<String, ChatResponseMetadata>>(emptyMap())
+    val messageMetadata: StateFlow<Map<String, ChatResponseMetadata>> = _messageMetadata.asStateFlow()
     
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -116,6 +121,11 @@ class ChatStateHolder(
                 val updatedMessages = updatedMessagesWithUser + response.message
                 _messages.value = updatedMessages
                 
+                // Store metadata (sources) for this message
+                val updatedMetadata = _messageMetadata.value.toMutableMap()
+                updatedMetadata[response.message.id] = response.metadata
+                _messageMetadata.value = updatedMetadata
+                
                 _status.value = UiStatus.Success
                 
                 AppLogger.i("ChatStateHolder", "Message sent successfully with mode: $retrievalMode, sources: ${response.metadata.sources.size}")
@@ -136,6 +146,7 @@ class ChatStateHolder(
      */
     fun clearHistory() {
         _messages.value = emptyList()
+        _messageMetadata.value = emptyMap()
         _status.value = UiStatus.Idle
     }
     

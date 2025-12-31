@@ -222,6 +222,17 @@ class ChromaCloudVectorStore(
             
             val queryResponse: QueryResponse = response.body()
             
+            // Debug: Log what we received from ChromaDB
+            AppLogger.d("ChromaCloudVectorStore", "Query response received:")
+            AppLogger.d("ChromaCloudVectorStore", "  - Has distances: ${queryResponse.distances != null}")
+            AppLogger.d("ChromaCloudVectorStore", "  - Distances size: ${queryResponse.distances?.size ?: 0}")
+            if (queryResponse.distances != null && queryResponse.distances.isNotEmpty()) {
+                AppLogger.d("ChromaCloudVectorStore", "  - First distances list size: ${queryResponse.distances[0].size}")
+                if (queryResponse.distances[0].isNotEmpty()) {
+                    AppLogger.d("ChromaCloudVectorStore", "  - First 5 distances: ${queryResponse.distances[0].take(5).joinToString(", ")}")
+                }
+            }
+            
             // Convert ChromaDB response to SearchResult list with similarity scores
             val results = mutableListOf<SearchResult>()
             
@@ -229,18 +240,45 @@ class ChromaCloudVectorStore(
                 val ids = queryResponse.ids[0] // First query embedding results
                 val documents = queryResponse.documents?.get(0) ?: emptyList()
                 val metadatas = queryResponse.metadatas?.get(0) ?: emptyList()
-                val distances = queryResponse.distances?.get(0) ?: emptyList()
+                val distances = queryResponse.distances?.get(0)
+                
+                AppLogger.d("ChromaCloudVectorStore", "Processing ${ids.size} results")
+                if (distances == null || distances.isEmpty()) {
+                    AppLogger.w("ChromaCloudVectorStore", "WARNING: No distances in ChromaDB response. This will cause all similarities to be 0.0")
+                } else {
+                    AppLogger.d("ChromaCloudVectorStore", "Distances available: ${distances.size} values")
+                }
+                
+                // Normalize distances to similarity scores (handles both cosine and L2 distances)
+                val similarities = if (distances != null && distances.isNotEmpty()) {
+                    val minDist = distances.minOrNull() ?: 0f
+                    val maxDist = distances.maxOrNull() ?: 0f
+                    val range = maxDist - minDist
+                    
+                    distances.map { distance ->
+                        if (range > 0.001f) {
+                            // Normalize to 0-1, then invert (smaller distance = higher similarity)
+                            val normalized = (distance - minDist) / range
+                            1.0 - normalized
+                        } else {
+                            0.5 // All distances are the same
+                        }
+                    }
+                } else {
+                    List(ids.size) { 0.5 }
+                }
                 
                 for (i in ids.indices) {
                     val id = ids[i]
                     val document = documents.getOrNull(i) ?: ""
                     val metadataJson = metadatas.getOrNull(i) ?: buildJsonObject { }
-                    val distance = distances.getOrNull(i) ?: 1.0f
+                    val distance = distances?.getOrNull(i)
+                    val similarity = similarities[i]
                     
-                    // Convert ChromaDB cosine distance to similarity (1.0 - distance)
-                    // ChromaDB returns cosine distance (0 = identical, 2 = opposite)
-                    // For cosine similarity: similarity = 1.0 - distance
-                    val similarity = (1.0 - distance.toDouble()).coerceIn(0.0, 1.0)
+                    // Log first few results for debugging
+                    if (i < 5) {
+                        AppLogger.d("ChromaCloudVectorStore", "Result $i: id=$id, distance=$distance, similarity=$similarity, doc_preview=${document.take(50)}...")
+                    }
                     
                     // Convert metadata JsonObject to Map<String, String>
                     val metadata = buildMap<String, String> {

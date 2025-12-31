@@ -30,6 +30,7 @@ import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.copy
 import org.krypton.ObsidianThemeValues
 import org.krypton.chat.ChatMessage
+import org.krypton.chat.ChatResponseMetadata
 import org.krypton.chat.ChatRole
 import org.krypton.markdown.*
 import java.awt.Toolkit
@@ -44,6 +45,7 @@ fun ChatMessageList(
     isLoading: Boolean,
     theme: ObsidianThemeValues,
     settings: org.krypton.Settings,
+    messageMetadata: Map<String, ChatResponseMetadata> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
