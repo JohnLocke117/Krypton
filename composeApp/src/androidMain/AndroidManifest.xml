@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.krypton.krypton">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:label="Krypton">
         <activity

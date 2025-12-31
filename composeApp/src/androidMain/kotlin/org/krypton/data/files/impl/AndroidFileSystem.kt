@@ -137,11 +137,31 @@ class AndroidFileSystem(
     
     override fun readFile(filePath: String): String? {
         return try {
-            val file = File(filePath)
-            if (file.exists() && file.isFile) {
-                file.readText()
-            } else {
+            // Check if path is a SAF URI
+            val uri = try {
+                Uri.parse(filePath)
+            } catch (e: Exception) {
                 null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val fileDocument = DocumentFile.fromSingleUri(context, uri)
+                if (fileDocument != null && fileDocument.isFile && fileDocument.canRead()) {
+                    context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader().readText()
+                    }
+                } else {
+                    null
+                }
+            } else {
+                // File path-based access
+                val file = File(filePath)
+                if (file.exists() && file.isFile) {
+                    file.readText()
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             AppLogger.e("AndroidFileSystem", "Failed to read file: $filePath", e)
@@ -151,11 +171,40 @@ class AndroidFileSystem(
     
     override fun writeFile(filePath: String, content: String): Boolean {
         return try {
-            val file = File(filePath)
-            // Ensure parent directory exists
-            file.parentFile?.mkdirs()
-            file.writeText(content)
-            true
+            // Check if path is a SAF URI
+            val uri = try {
+                Uri.parse(filePath)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val fileDocument = DocumentFile.fromSingleUri(context, uri)
+                if (fileDocument != null && fileDocument.canWrite()) {
+                    // Use "wt" mode to truncate existing content
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { outputStream ->
+                        outputStream.bufferedWriter().use { writer ->
+                            writer.write(content)
+                            writer.flush() // Ensure content is flushed
+                        }
+                    } ?: run {
+                        AppLogger.w("AndroidFileSystem", "Failed to open output stream for: $filePath")
+                        return false
+                    }
+                    true
+                } else {
+                    AppLogger.w("AndroidFileSystem", "Cannot write to file: $filePath (no write permission or file doesn't exist)")
+                    false
+                }
+            } else {
+                // File path-based access
+                val file = File(filePath)
+                // Ensure parent directory exists
+                file.parentFile?.mkdirs()
+                file.writeText(content)
+                true
+            }
         } catch (e: Exception) {
             AppLogger.e("AndroidFileSystem", "Failed to write file: $filePath", e)
             false

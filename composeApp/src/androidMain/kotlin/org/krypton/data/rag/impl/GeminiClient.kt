@@ -86,11 +86,22 @@ class GeminiClient(
      * Builds the API URL, replacing model name if different from base URL.
      */
     private fun buildUrl(): String {
-        // If baseUrl already contains the model, replace it with the selected model
-        // Otherwise, construct from base URL pattern
-        return if (baseUrl.contains("/models/")) {
-            // Extract base path and replace model name
-            val basePath = baseUrl.substringBeforeLast("/")
+        // If baseUrl already contains the full URL with :generateContent, use it as-is
+        // or replace the model if it's different
+        return if (baseUrl.contains(":generateContent")) {
+            // Full URL already provided, check if we need to replace the model
+            if (baseUrl.contains("/models/$model:")) {
+                // Model matches, use as-is
+                baseUrl
+            } else {
+                // Replace model in the URL
+                val basePath = baseUrl.substringBeforeLast("/")
+                val pathBeforeModel = basePath.substringBeforeLast("/")
+                "$pathBeforeModel/$model:generateContent"
+            }
+        } else if (baseUrl.contains("/models/")) {
+            // Base URL with models path but no :generateContent
+            val basePath = baseUrl.trimEnd('/')
             "$basePath/$model:generateContent"
         } else {
             // Fallback: construct from base URL

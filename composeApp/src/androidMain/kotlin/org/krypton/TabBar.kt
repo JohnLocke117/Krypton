@@ -5,9 +5,7 @@ import org.krypton.core.domain.editor.MarkdownDocument
 import org.krypton.core.domain.editor.ViewMode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
+// Hover interactions removed for Android compatibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -155,14 +153,9 @@ fun TabItem(
     val fileName = doc.path?.let { PathUtils.getFileName(it) } ?: "Untitled"
     val isModified = doc.isDirty
     
-    // Hover state for inactive tabs
-    val interactionSource = remember { MutableInteractionSource() }
-    val isHovered by interactionSource.collectIsHoveredAsState()
-
+    // Note: Hover states removed for Android compatibility - touch interactions work without hover
     val backgroundColor = if (isActive) {
         appColors.editorBackground // Mantle for active tab (matches editor)
-    } else if (isHovered) {
-        CatppuccinMochaColors.Mantle // Mantle for hovered inactive tabs (lighter than Crust)
     } else {
         CatppuccinMochaColors.Crust // Crust for inactive tabs
     }
@@ -177,7 +170,6 @@ fun TabItem(
         modifier = modifier
             .widthIn(min = 120.dp, max = 240.dp)
             .height(theme.TabHeight)
-            .hoverable(interactionSource = interactionSource)
             .background(backgroundColor)
             .clickable(onClick = onClick)
             .padding(horizontal = theme.TabPadding, vertical = 8.dp)

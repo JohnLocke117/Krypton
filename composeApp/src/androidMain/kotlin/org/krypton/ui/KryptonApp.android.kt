@@ -54,6 +54,9 @@ import org.krypton.ui.state.AndroidNotesStateHolder
 import org.koin.core.context.GlobalContext
 import org.krypton.ui.MainScaffold
 import org.krypton.ui.LocalDrawerState
+import org.krypton.TabBar
+import org.krypton.MarkdownCompiledView
+import org.krypton.chat.ChatPanel
 
 /**
  * Mobile navigation screens
@@ -225,11 +228,12 @@ actual fun AppContent(
                         )
                     }
                     MobileScreen.Chat -> {
-                        AndroidChatScreen(
+                        ChatPanel(
                             chatStateHolder = chatStateHolder,
                             editorStateHolder = editorStateHolder,
+                            theme = theme,
                             settings = settings,
-                            theme = theme
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                     MobileScreen.Settings -> {
@@ -846,9 +850,26 @@ private fun AndroidEditorScreen(
     theme: ObsidianThemeValues,
     onBack: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
     val activeDocument by editorStateHolder.activeDocument.collectAsState()
+    val activeTabIndex by editorStateHolder.activeTabIndex.collectAsState()
     val settings by settingsRepository.settingsFlow.collectAsState()
     val appColors = LocalAppColors.current
+    
+    // Auto-save with debouncing - use settings interval
+    LaunchedEffect(activeDocument?.text, activeTabIndex, settings.app.autosaveIntervalSeconds) {
+        activeDocument?.let { doc ->
+            if (doc.isDirty && doc.path != null) {
+                val delayMs = settings.app.autosaveIntervalSeconds * 1000L
+                kotlinx.coroutines.delay(delayMs.coerceAtLeast(1000)) // Minimum 1 second
+                
+                // Save the file
+                coroutineScope.launch {
+                    editorStateHolder.saveActiveTab()
+                }
+            }
+        }
+    }
     
     if (activeDocument == null) {
         Box(
@@ -906,6 +927,14 @@ private fun AndroidEditorScreen(
         
         Divider(color = theme.Border)
         
+        // Tab bar
+        TabBar(
+            state = editorStateHolder,
+            settings = settings,
+            theme = theme,
+            modifier = Modifier.fillMaxWidth()
+        )
+        
         // Editor content
         when (doc.viewMode) {
             ViewMode.LivePreview -> {
@@ -921,18 +950,12 @@ private fun AndroidEditorScreen(
             }
             ViewMode.Compiled -> {
                 // For compiled view, show read-only rendered markdown
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Compiled view not yet implemented for Android",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = theme.TextSecondary
-                    )
-                }
+                MarkdownCompiledView(
+                    markdown = doc.text,
+                    settings = settings,
+                    theme = theme,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -985,111 +1008,6 @@ private fun AndroidMarkdownEditor(
             lineHeight = (settings.editor.fontSize.sp * settings.editor.lineHeight)
         )
     )
-}
-
-/**
- * Mobile chat screen
- */
-@Composable
-private fun AndroidChatScreen(
-    chatStateHolder: ChatStateHolder,
-    editorStateHolder: EditorStateHolder?,
-    settings: Settings,
-    theme: ObsidianThemeValues
-) {
-    val messages by chatStateHolder.messages.collectAsState()
-    val isLoading by chatStateHolder.isLoading.collectAsState()
-    var inputText by remember { mutableStateOf("") }
-    val coroutineScope = rememberCoroutineScope()
-    
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(CatppuccinMochaColors.Base)
-    ) {
-        // Messages list
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(messages.size) { index ->
-                val message = messages[index]
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (message.role == ChatRole.USER) {
-                            theme.Accent.copy(alpha = 0.2f)
-                        } else {
-                            theme.Surface
-                        }
-                    )
-                ) {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = theme.TextPrimary,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
-            
-            if (isLoading) {
-                item {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        color = theme.Accent
-                    )
-                }
-            }
-        }
-        
-        Divider(color = theme.Border)
-        
-        // Input area
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = theme.BackgroundElevated
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                OutlinedTextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Type a message...", color = theme.TextSecondary) },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = theme.TextPrimary,
-                        unfocusedTextColor = theme.TextPrimary,
-                        focusedBorderColor = theme.Accent,
-                        unfocusedBorderColor = theme.Border
-                    ),
-                    singleLine = false,
-                    maxLines = 4
-                )
-                IconButton(
-                    onClick = {
-                        if (inputText.isNotBlank()) {
-                            coroutineScope.launch {
-                                chatStateHolder.sendMessage(inputText)
-                                inputText = ""
-                            }
-                        }
-                    },
-                    enabled = inputText.isNotBlank() && !isLoading
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = "Send")
-                }
-            }
-        }
-    }
 }
 
 /**

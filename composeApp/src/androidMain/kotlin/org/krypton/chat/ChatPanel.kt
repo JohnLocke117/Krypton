@@ -1,6 +1,7 @@
 package org.krypton.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -349,59 +351,123 @@ actual fun ChatPanel(
                     modifier = Modifier.size(32.dp)
                 )
                 
-                // RAG controls (if available) - compact display in toolbar
-                if (ragAvailable) {
-                    RagToggleButton(
-                        ragEnabled = ragEnabled,
-                        syncStatus = syncStatus,
-                        onToggle = {
-                            if (ragEnabled) {
-                                ragEnabled = false
-                                rerankingEnabled = false
-                                multiQueryEnabled = false
-                                AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
-                            } else {
-                                // Simplified RAG activation for Android
-                                coroutineScope.launch {
-                                    if (ragComponents != null && currentVaultPath != null) {
-                                        // Check if vector store has vault data
-                                        val vectorStore = ragComponents.vectorStore
-                                        val hasVaultData = if (vectorStore is org.krypton.data.rag.impl.ChromaCloudVectorStore) {
-                                            try {
-                                                vectorStore.hasVaultData(currentVaultPath)
-                                            } catch (e: Exception) {
+                // RAG controls wrapped in bordered box (always visible)
+                Surface(
+                    modifier = Modifier
+                        .border(
+                            width = 1.dp,
+                            color = theme.Border,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.Transparent
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // RAG toggle icon (always visible, disabled if RAG not available)
+                        RagToggleButton(
+                            ragEnabled = ragEnabled && ragAvailable,
+                            syncStatus = if (ragAvailable) syncStatus else SyncStatus.UNAVAILABLE,
+                            onToggle = {
+                                if (!ragAvailable) {
+                                    return@RagToggleButton
+                                }
+                                if (ragEnabled) {
+                                    ragEnabled = false
+                                    rerankingEnabled = false
+                                    multiQueryEnabled = false
+                                    AppLogger.d("ChatPanel", "Multi-Query disabled (RAG disabled)")
+                                } else {
+                                    // Simplified RAG activation for Android
+                                    coroutineScope.launch {
+                                        if (ragComponents != null && currentVaultPath != null) {
+                                            // Check if vector store has vault data
+                                            val vectorStore = ragComponents.vectorStore
+                                            val hasVaultData = if (vectorStore is org.krypton.data.rag.impl.ChromaCloudVectorStore) {
+                                                try {
+                                                    vectorStore.hasVaultData(currentVaultPath)
+                                                } catch (e: Exception) {
+                                                    false
+                                                }
+                                            } else {
                                                 false
                                             }
+                                            
+                                            if (!hasVaultData) {
+                                                showIngestionPrompt = true
+                                            } else {
+                                                // Assume synced if data exists
+                                                syncStatus = SyncStatus.SYNCED
+                                                ragEnabled = true
+                                                rerankingEnabled = false
+                                                multiQueryEnabled = false
+                                            }
                                         } else {
-                                            false
-                                        }
-                                        
-                                        if (!hasVaultData) {
-                                            showIngestionPrompt = true
-                                        } else {
-                                            // Assume synced if data exists
-                                            syncStatus = SyncStatus.SYNCED
                                             ragEnabled = true
                                             rerankingEnabled = false
                                             multiQueryEnabled = false
                                         }
-                                    } else {
-                                        ragEnabled = true
-                                        rerankingEnabled = false
-                                        multiQueryEnabled = false
                                     }
                                 }
-                            }
-                        },
-                        theme = theme,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    
-                    SyncStatusIndicator(
-                        syncStatus = syncStatus,
-                        ragEnabled = ragEnabled,
-                        modifier = Modifier.size(8.dp)
-                    )
+                            },
+                            theme = theme
+                        )
+                        
+                        // Sync status indicator
+                        SyncStatusIndicator(
+                            syncStatus = if (ragAvailable) syncStatus else SyncStatus.UNAVAILABLE,
+                            ragEnabled = ragEnabled && ragAvailable
+                        )
+                        
+                        // Multi-query toggle
+                        MultiQueryToggle(
+                            enabled = multiQueryEnabled,
+                            ragEnabled = ragEnabled && ragAvailable,
+                            onToggle = {
+                                if (ragEnabled && ragAvailable) {
+                                    val newValue = !multiQueryEnabled
+                                    multiQueryEnabled = newValue
+                                    AppLogger.d("ChatPanel", "Multi-Query ${if (newValue) "enabled" else "disabled"}")
+                                    coroutineScope.launch {
+                                        settingsRepository.update { currentSettings ->
+                                            currentSettings.copy(
+                                                rag = currentSettings.rag.copy(
+                                                    multiQueryEnabled = newValue
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            theme = theme
+                        )
+                        
+                        // Reranking toggle
+                        RerankingToggle(
+                            enabled = rerankingEnabled,
+                            ragEnabled = ragEnabled && ragAvailable,
+                            onToggle = {
+                                if (ragEnabled && ragAvailable) {
+                                    val newValue = !rerankingEnabled
+                                    rerankingEnabled = newValue
+                                    AppLogger.d("ChatPanel", "Reranking ${if (newValue) "enabled" else "disabled"}")
+                                    coroutineScope.launch {
+                                        settingsRepository.update { currentSettings ->
+                                            currentSettings.copy(
+                                                rag = currentSettings.rag.copy(
+                                                    rerankingEnabled = newValue
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            theme = theme
+                        )
+                    }
                 }
                 
                 Spacer(modifier = Modifier.weight(1f))
