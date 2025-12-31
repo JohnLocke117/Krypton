@@ -9,15 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -485,6 +477,7 @@ private fun AndroidNotesListScreen(
         VaultTopBar(
             canNavigateUp = canNavigateUp,
             currentPath = currentDir?.displayPath ?: "No vault selected",
+            vaultOpened = currentDir != null,
             onNavigateUp = { notesStateHolder.navigateUp() },
             onOpenFolderPicker = {
                 val currentVaultUri = try {
@@ -494,6 +487,33 @@ private fun AndroidNotesListScreen(
                     null
                 }
                 folderPickerLauncher.launch(currentVaultUri)
+            },
+            onCreateFile = { fileName ->
+                currentDir?.let { dir ->
+                    coroutineScope.launch {
+                        val androidFileSystem = fileSystem as? org.krypton.data.files.impl.AndroidFileSystem
+                        val fileNameWithExt = if (!fileName.endsWith(".md", ignoreCase = true)) {
+                            "$fileName.md"
+                        } else {
+                            fileName
+                        }
+                        val success = androidFileSystem?.createFileInDirectory(dir, fileNameWithExt) ?: false
+                        if (success) {
+                            notesStateHolder.refresh()
+                        }
+                    }
+                }
+            },
+            onCreateFolder = { folderName ->
+                currentDir?.let { dir ->
+                    coroutineScope.launch {
+                        val androidFileSystem = fileSystem as? org.krypton.data.files.impl.AndroidFileSystem
+                        val success = androidFileSystem?.createFolderInDirectory(dir, folderName) ?: false
+                        if (success) {
+                            notesStateHolder.refresh()
+                        }
+                    }
+                }
             },
             theme = theme
         )
@@ -561,10 +581,16 @@ private fun AndroidNotesListScreen(
 private fun VaultTopBar(
     canNavigateUp: Boolean,
     currentPath: String,
+    vaultOpened: Boolean,
     onNavigateUp: () -> Unit,
     onOpenFolderPicker: () -> Unit,
+    onCreateFile: (String) -> Unit,
+    onCreateFolder: (String) -> Unit,
     theme: ObsidianThemeValues
 ) {
+    var showNewFileDialog by remember { mutableStateOf(false) }
+    var showNewFolderDialog by remember { mutableStateOf(false) }
+    
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = theme.BackgroundElevated
@@ -600,12 +626,152 @@ private fun VaultTopBar(
                 overflow = TextOverflow.Ellipsis
             )
             
+            // New File and New Folder buttons (only visible when vault is opened)
+            if (vaultOpened) {
+                IconButton(onClick = { showNewFileDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "New file", tint = theme.TextPrimary)
+                }
+                IconButton(onClick = { showNewFolderDialog = true }) {
+                    Icon(Icons.Default.CreateNewFolder, contentDescription = "New folder", tint = theme.TextPrimary)
+                }
+            }
+            
             // Folder picker button
             IconButton(onClick = onOpenFolderPicker) {
                 Icon(Icons.Default.FolderOpen, contentDescription = "Open folder")
             }
         }
     }
+    
+    // New File Dialog
+    if (showNewFileDialog) {
+        NewFileDialog(
+            onDismiss = { showNewFileDialog = false },
+            onConfirm = { fileName ->
+                if (fileName.isNotBlank()) {
+                    onCreateFile(fileName)
+                    showNewFileDialog = false
+                }
+            },
+            theme = theme
+        )
+    }
+    
+    // New Folder Dialog
+    if (showNewFolderDialog) {
+        NewFolderDialog(
+            onDismiss = { showNewFolderDialog = false },
+            onConfirm = { folderName ->
+                if (folderName.isNotBlank()) {
+                    onCreateFolder(folderName)
+                    showNewFolderDialog = false
+                }
+            },
+            theme = theme
+        )
+    }
+}
+
+@Composable
+private fun NewFileDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    theme: ObsidianThemeValues
+) {
+    var fileName by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "New File",
+                color = theme.TextPrimary
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = fileName,
+                onValueChange = { fileName = it },
+                label = { Text("File name", color = theme.TextSecondary) },
+                placeholder = { Text("Enter file name (e.g., MyNote.md)", color = theme.TextTertiary) },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = theme.TextPrimary,
+                    unfocusedTextColor = theme.TextPrimary,
+                    focusedBorderColor = theme.Accent,
+                    unfocusedBorderColor = theme.Border,
+                    focusedLabelColor = theme.TextSecondary,
+                    unfocusedLabelColor = theme.TextSecondary
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(fileName) },
+                enabled = fileName.isNotBlank()
+            ) {
+                Text("Create", color = theme.Accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = theme.TextSecondary)
+            }
+        },
+        containerColor = theme.BackgroundElevated
+    )
+}
+
+@Composable
+private fun NewFolderDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    theme: ObsidianThemeValues
+) {
+    var folderName by remember { mutableStateOf("") }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "New Folder",
+                color = theme.TextPrimary
+            )
+        },
+        text = {
+            OutlinedTextField(
+                value = folderName,
+                onValueChange = { folderName = it },
+                label = { Text("Folder name", color = theme.TextSecondary) },
+                placeholder = { Text("Enter folder name", color = theme.TextTertiary) },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = theme.TextPrimary,
+                    unfocusedTextColor = theme.TextPrimary,
+                    focusedBorderColor = theme.Accent,
+                    unfocusedBorderColor = theme.Border,
+                    focusedLabelColor = theme.TextSecondary,
+                    unfocusedLabelColor = theme.TextSecondary
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(folderName) },
+                enabled = folderName.isNotBlank()
+            ) {
+                Text("Create", color = theme.Accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = theme.TextSecondary)
+            }
+        },
+        containerColor = theme.BackgroundElevated
+    )
 }
 
 @Composable

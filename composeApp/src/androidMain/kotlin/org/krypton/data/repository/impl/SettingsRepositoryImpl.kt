@@ -30,16 +30,36 @@ class SettingsRepositoryImpl(
         val loaded = persistence.loadSettingsFromFile(settingsPath)
         return if (loaded != null) {
             val migrated = migrateSettings(loaded)
-            val validated = validateSettings(migrated)
-            if (validated.isValid) {
-                migrated
+            
+            // Android-specific validation: Only GEMINI and CHROMA_CLOUD are supported
+            // If loaded settings have unsupported values, override them with Android defaults
+            val androidCompliantSettings = if (migrated.llm.provider != org.krypton.LlmProvider.GEMINI ||
+                migrated.rag.vectorBackend != org.krypton.VectorBackend.CHROMA_CLOUD) {
+                migrated.copy(
+                    llm = migrated.llm.copy(provider = org.krypton.LlmProvider.GEMINI),
+                    rag = migrated.rag.copy(vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD)
+                )
             } else {
-                // If validation fails on load, use defaults
-                Settings()
+                migrated
+            }
+            
+            val validated = validateSettings(androidCompliantSettings)
+            if (validated.isValid) {
+                androidCompliantSettings
+            } else {
+                // If validation fails on load, use Android defaults
+                Settings(
+                    rag = Settings().rag.copy(
+                        vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
+                    ),
+                    llm = Settings().llm.copy(
+                        provider = org.krypton.LlmProvider.GEMINI
+                    )
+                )
             }
         } else {
             // File doesn't exist, create default settings with Android preferences
-            // Android: Prefer ChromaCloud and Gemini
+            // Android: MUST use ChromaCloud and Gemini ONLY (OLLAMA and local ChromaDB not supported)
             val defaultSettings = Settings(
                 rag = Settings().rag.copy(
                     vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
@@ -58,6 +78,20 @@ class SettingsRepositoryImpl(
             val current = _settingsFlow.value
             val updated = transform(current)
             val migrated = migrateSettings(updated)
+            
+            // Android-specific validation: Only GEMINI and CHROMA_CLOUD are supported
+            val androidErrors = mutableListOf<String>()
+            if (migrated.llm.provider != org.krypton.LlmProvider.GEMINI) {
+                androidErrors.add("Android only supports GEMINI provider. OLLAMA is not supported on Android.")
+            }
+            if (migrated.rag.vectorBackend != org.krypton.VectorBackend.CHROMA_CLOUD) {
+                androidErrors.add("Android only supports CHROMA_CLOUD vector backend. Local ChromaDB is not supported on Android.")
+            }
+            
+            if (androidErrors.isNotEmpty()) {
+                throw IllegalArgumentException("Android platform restrictions: ${androidErrors.joinToString()}")
+            }
+            
             val validation = validateSettings(migrated)
             
             if (validation.isValid) {

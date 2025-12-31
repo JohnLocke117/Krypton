@@ -53,19 +53,17 @@ val ragModule = module {
     
     // VectorStore for storing and searching embeddings
     // Using factory instead of single to allow recreation when settings change
+    // Android only supports CHROMA_CLOUD - local CHROMADB is not supported on Android
     factory<VectorStore> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
         val ragSettings = settingsRepository.settingsFlow.value.rag
         val httpEngine: HttpClientEngine = get()
         
         when (ragSettings.vectorBackend) {
-            VectorBackend.CHROMADB -> ChromaDBVectorStore(
-                baseUrl = ragSettings.chromaBaseUrl,
-                collectionName = ragSettings.chromaCollectionName,
-                httpClientEngine = httpEngine,
-                tenant = ragSettings.chromaTenant,
-                database = ragSettings.chromaDatabase
-            )
+            VectorBackend.CHROMADB -> {
+                // Local ChromaDB is not supported on Android
+                throw IllegalStateException("Local ChromaDB (CHROMADB) is not supported on Android. Please use CHROMA_CLOUD.")
+            }
             VectorBackend.CHROMA_CLOUD -> {
                 val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
                 val host = SecretsLoader.loadSecret("CHROMA_HOST") ?: "api.trychroma.com"
@@ -96,6 +94,7 @@ val ragModule = module {
     }
     
     // LlamaClient for LLM operations (used by both RAG service and reranker)
+    // Android only supports GEMINI - OLLAMA is not supported on Android
     // Using factory instead of single to allow recreation when provider changes
     factory<LlamaClient> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
@@ -105,12 +104,8 @@ val ragModule = module {
         
         when (llmSettings.provider) {
             LlmProvider.OLLAMA -> {
-                HttpLlamaClient(
-                    baseUrl = llmSettings.ollamaBaseUrl,
-                    model = llmSettings.ollamaModel,
-                    apiPath = "/api/generate",
-                    httpClientEngine = httpEngine
-                )
+                // OLLAMA is not supported on Android
+                throw IllegalStateException("OLLAMA is not supported on Android. Please use GEMINI provider.")
             }
             LlmProvider.GEMINI -> {
                 val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")

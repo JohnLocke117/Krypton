@@ -612,5 +612,106 @@ class AndroidFileSystem(
         
         return current
     }
+    
+    /**
+     * Creates a new file in the given vault directory.
+     * 
+     * @param directory The vault directory to create the file in
+     * @param fileName Name of the file to create (should include .md extension for markdown files)
+     * @return true if successful, false otherwise
+     */
+    suspend fun createFileInDirectory(directory: VaultDirectory, fileName: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val uri = try {
+                Uri.parse(directory.uri)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val docDir = DocumentFile.fromTreeUri(context, uri) ?: return@withContext false
+                
+                // Check if file already exists
+                val existingFile = docDir.findFile(fileName)
+                if (existingFile != null) {
+                    return@withContext false
+                }
+                
+                // Create the file
+                val newFile = if (fileName.endsWith(".md", ignoreCase = true)) {
+                    docDir.createFile("text/markdown", fileName)
+                } else {
+                    docDir.createFile("*/*", fileName)
+                }
+                
+                newFile != null
+            } else {
+                // File path-based access
+                val dir = File(directory.uri)
+                if (!dir.exists() || !dir.isDirectory) {
+                    return@withContext false
+                }
+                
+                val file = File(dir, fileName)
+                if (file.exists()) {
+                    return@withContext false
+                }
+                
+                file.createNewFile()
+            }
+        } catch (e: Exception) {
+            AppLogger.e("AndroidFileSystem", "Failed to create file in directory: $fileName", e)
+            false
+        }
+    }
+    
+    /**
+     * Creates a new folder in the given vault directory.
+     * 
+     * @param directory The vault directory to create the folder in
+     * @param folderName Name of the folder to create
+     * @return true if successful, false otherwise
+     */
+    suspend fun createFolderInDirectory(directory: VaultDirectory, folderName: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val uri = try {
+                Uri.parse(directory.uri)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val docDir = DocumentFile.fromTreeUri(context, uri) ?: return@withContext false
+                
+                // Check if folder already exists
+                val existingFolder = docDir.findFile(folderName)
+                if (existingFolder != null && existingFolder.isDirectory) {
+                    return@withContext false
+                }
+                
+                // Create the folder
+                val newFolder = docDir.createDirectory(folderName)
+                newFolder != null
+            } else {
+                // File path-based access
+                val dir = File(directory.uri)
+                if (!dir.exists() || !dir.isDirectory) {
+                    return@withContext false
+                }
+                
+                val folder = File(dir, folderName)
+                if (folder.exists()) {
+                    return@withContext false
+                }
+                
+                folder.mkdirs()
+            }
+        } catch (e: Exception) {
+            AppLogger.e("AndroidFileSystem", "Failed to create folder in directory: $folderName", e)
+            false
+        }
+    }
 }
 
