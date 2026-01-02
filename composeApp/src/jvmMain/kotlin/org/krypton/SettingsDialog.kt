@@ -22,6 +22,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -526,19 +527,18 @@ private fun GeneralSettings(
         Spacer(modifier = Modifier.height(8.dp))
         
         // Autosave interval
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Autosave Interval (seconds)",
-            value = settings.app.autosaveIntervalSeconds.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 0 && intValue <= 3600) {
+            value = settings.app.autosaveIntervalSeconds,
+            onValueChange = { intValue ->
                 onSettingsChange(
                     settings.copy(
-                                app = settings.app.copy(autosaveIntervalSeconds = intValue)
+                        app = settings.app.copy(autosaveIntervalSeconds = intValue)
                     )
                 )
-                    }
-                }
+            },
+            validator = { intValue ->
+                intValue >= 0 && intValue <= 3600
             },
             description = "Save changes automatically every N seconds (0-3600)",
             theme = theme
@@ -606,37 +606,35 @@ private fun EditorSettingsContent(
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Font Size",
-            value = settings.editor.fontSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 8 && intValue <= 72) {
-                        onSettingsChange(
-                            settings.copy(
-                                editor = settings.editor.copy(fontSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.editor.fontSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        editor = settings.editor.copy(fontSize = intValue)
+                    )
+                )
+            },
+            validator = { intValue ->
+                intValue >= 8 && intValue <= 72
             },
             description = "Font size in pixels (8-72)",
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Tab Size",
-            value = settings.editor.tabSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 1 && intValue <= 8) {
-                        onSettingsChange(
-                            settings.copy(
-                                editor = settings.editor.copy(tabSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.editor.tabSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        editor = settings.editor.copy(tabSize = intValue)
+                    )
+                )
+            },
+            validator = { intValue ->
+                intValue >= 1 && intValue <= 8
             },
             description = "Number of spaces per tab (1-8)",
             theme = theme
@@ -686,55 +684,52 @@ private fun EditorSettingsContent(
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Editor Padding",
-            value = settings.editor.editorPadding.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 0 && intValue <= 48) {
-                        onSettingsChange(
-                            settings.copy(
-                                editor = settings.editor.copy(editorPadding = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.editor.editorPadding,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        editor = settings.editor.copy(editorPadding = intValue)
+                    )
+                )
+            },
+            validator = { intValue ->
+                intValue >= 0 && intValue <= 48
             },
             description = "Editor padding in pixels (0-48)",
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Code Block Font Size",
-            value = settings.editor.codeBlockFontSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 8 && intValue <= 24) {
-                        onSettingsChange(
-                            settings.copy(
-                                editor = settings.editor.copy(codeBlockFontSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.editor.codeBlockFontSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        editor = settings.editor.copy(codeBlockFontSize = intValue)
+                    )
+                )
+            },
+            validator = { intValue ->
+                intValue >= 8 && intValue <= 24
             },
             description = "Code block font size in pixels (8-24)",
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Code Span Font Size",
-            value = settings.editor.codeSpanFontSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 8 && intValue <= 24) {
-                        onSettingsChange(
-                            settings.copy(
-                                editor = settings.editor.copy(codeSpanFontSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.editor.codeSpanFontSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        editor = settings.editor.copy(codeSpanFontSize = intValue)
+                    )
+                )
+            },
+            validator = { intValue ->
+                intValue >= 8 && intValue <= 24
             },
             description = "Code span font size in pixels (8-24)",
             theme = theme
@@ -778,219 +773,207 @@ private fun UISettings(
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Sidebar Default Width",
-            value = settings.ui.sidebarDefaultWidth.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= settings.ui.sidebarMinWidth && intValue <= settings.ui.sidebarMaxWidth) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(sidebarDefaultWidth = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.sidebarDefaultWidth,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(sidebarDefaultWidth = intValue)
+                    )
+                )
             },
             description = "Default sidebar width in pixels",
+            validator = { intValue ->
+                intValue >= settings.ui.sidebarMinWidth && intValue <= settings.ui.sidebarMaxWidth
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Sidebar Min Width",
-            value = settings.ui.sidebarMinWidth.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 100 && intValue <= 500) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(sidebarMinWidth = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.sidebarMinWidth,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(sidebarMinWidth = intValue)
+                    )
+                )
             },
             description = "Minimum sidebar width in pixels (100-500)",
+            validator = { intValue ->
+                intValue >= 100 && intValue <= 500
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Sidebar Max Width",
-            value = settings.ui.sidebarMaxWidth.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 200 && intValue <= 800) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(sidebarMaxWidth = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.sidebarMaxWidth,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(sidebarMaxWidth = intValue)
+                    )
+                )
             },
             description = "Maximum sidebar width in pixels (200-800)",
+            validator = { intValue ->
+                intValue >= 200 && intValue <= 800
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Ribbon Width",
-            value = settings.ui.ribbonWidth.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 32 && intValue <= 80) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(ribbonWidth = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.ribbonWidth,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(ribbonWidth = intValue)
+                    )
+                )
             },
             description = "Ribbon width in pixels (32-80)",
+            validator = { intValue ->
+                intValue >= 32 && intValue <= 80
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Tab Height",
-            value = settings.ui.tabHeight.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 24 && intValue <= 60) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(tabHeight = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.tabHeight,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabHeight = intValue)
+                    )
+                )
             },
             description = "Tab height in pixels (24-60)",
+            validator = { intValue ->
+                intValue >= 24 && intValue <= 60
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Tab Font Size",
-            value = settings.ui.tabFontSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 8 && intValue <= 20) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(tabFontSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.tabFontSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabFontSize = intValue)
+                    )
+                )
             },
             description = "Tab font size in pixels (8-20)",
+            validator = { intValue ->
+                intValue >= 8 && intValue <= 20
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Tab Padding",
-            value = settings.ui.tabPadding.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 4 && intValue <= 24) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(tabPadding = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.tabPadding,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabPadding = intValue)
+                    )
+                )
             },
             description = "Tab padding in pixels (4-24)",
+            validator = { intValue ->
+                intValue >= 4 && intValue <= 24
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Tab Corner Radius",
-            value = settings.ui.tabCornerRadius.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 0 && intValue <= 16) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(tabCornerRadius = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.tabCornerRadius,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabCornerRadius = intValue)
+                    )
+                )
             },
             description = "Tab corner radius in pixels (0-16)",
+            validator = { intValue ->
+                intValue >= 0 && intValue <= 16
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Tab Label Font Size",
-            value = settings.ui.tabLabelFontSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 8 && intValue <= 16) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(tabLabelFontSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.tabLabelFontSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(tabLabelFontSize = intValue)
+                    )
+                )
             },
             description = "Tab label font size in pixels (8-16)",
+            validator = { intValue ->
+                intValue >= 8 && intValue <= 16
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Panel Border Width",
-            value = settings.ui.panelBorderWidth.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 0 && intValue <= 4) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(panelBorderWidth = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.panelBorderWidth,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(panelBorderWidth = intValue)
+                    )
+                )
             },
             description = "Panel border width in pixels (0-4)",
+            validator = { intValue ->
+                intValue >= 0 && intValue <= 4
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "Panel Padding",
-            value = settings.ui.panelPadding.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 0 && intValue <= 24) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(panelPadding = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.panelPadding,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(panelPadding = intValue)
+                    )
+                )
             },
             description = "Panel padding in pixels (0-24)",
+            validator = { intValue ->
+                intValue >= 0 && intValue <= 24
+            },
             theme = theme
         )
 
-        InlineTextField(
+        InlineTextFieldWithValidation(
             label = "File Explorer Font Size",
-            value = settings.ui.fileExplorerFontSize.toString(),
-            onValueChange = { newValue ->
-                newValue.toIntOrNull()?.let { intValue ->
-                    if (intValue >= 8 && intValue <= 20) {
-                        onSettingsChange(
-                            settings.copy(
-                                ui = settings.ui.copy(fileExplorerFontSize = intValue)
-                            )
-                        )
-                    }
-                }
+            value = settings.ui.fileExplorerFontSize,
+            onValueChange = { intValue ->
+                onSettingsChange(
+                    settings.copy(
+                        ui = settings.ui.copy(fileExplorerFontSize = intValue)
+                    )
+                )
             },
             description = "File explorer font size in pixels (8-20)",
+            validator = { intValue ->
+                intValue >= 8 && intValue <= 20
+            },
             theme = theme
         )
     }
@@ -1145,6 +1128,88 @@ private fun ColorSettings(
         ColorField("Blockquote Background", settings.colors.blockquoteBackground, { newValue ->
             onSettingsChange(settings.copy(colors = settings.colors.copy(blockquoteBackground = newValue)))
         }, theme)
+    }
+}
+
+@Composable
+private fun InlineTextFieldWithValidation(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    description: String? = null,
+    validator: (Int) -> Boolean,
+    theme: ObsidianThemeValues
+) {
+    var textValue by remember(value) { mutableStateOf(value.toString()) }
+    var isValid by remember { mutableStateOf(true) }
+    val errorColor = CatppuccinMochaColors.Red
+    var isFocused by remember { mutableStateOf(false) }
+    
+    // Sync textValue when value prop changes (but not while focused)
+    LaunchedEffect(value) {
+        if (!isFocused) {
+            textValue = value.toString()
+            isValid = true
+        }
+    }
+    
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                color = theme.TextPrimary
+            )
+            if (description != null) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = theme.TextSecondary
+                )
+            }
+        }
+        OutlinedTextField(
+            value = textValue,
+            onValueChange = { newText ->
+                // Allow any text input while typing
+                textValue = newText
+                // Validate and update if valid
+                newText.toIntOrNull()?.let { intValue ->
+                    isValid = validator(intValue)
+                    if (isValid) {
+                        onValueChange(intValue)
+                    }
+                } ?: run {
+                    // Allow empty or partial input while typing (e.g., "2", "-", "28", etc.)
+                    // Consider it valid if it's empty, just a minus sign, or all digits (partial number)
+                    isValid = newText.isEmpty() || newText == "-" || newText.all { it.isDigit() || it == '-' }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focusState ->
+                    isFocused = focusState.isFocused
+                    if (!focusState.isFocused) {
+                        // On blur, validate and reset to last valid value if invalid
+                        val intValue = textValue.toIntOrNull()
+                        if (intValue == null || !validator(intValue)) {
+                            textValue = value.toString()
+                            isValid = true
+                        }
+                    }
+                },
+            singleLine = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = theme.TextPrimary,
+                unfocusedTextColor = theme.TextPrimary,
+                focusedBorderColor = if (isValid) theme.Accent else errorColor,
+                unfocusedBorderColor = if (isValid) theme.Border else errorColor
+            )
+        )
     }
 }
 

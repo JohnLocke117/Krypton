@@ -8,9 +8,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.*
+import org.krypton.ui.AppIcon
+import org.krypton.ui.AppIconType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -454,8 +454,8 @@ private fun CopyAllButton(
             }
             .padding(4.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.ContentCopy,
+        AppIcon(
+            type = AppIconType.ContentCopy,
             contentDescription = "Copy All",
             modifier = Modifier.size(16.dp),
             tint = colorScheme.onSurfaceVariant.copy(alpha = 0.7f)

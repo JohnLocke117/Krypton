@@ -47,8 +47,8 @@ class EditorStateHolder(
     // Initialize sidebar widths from Settings, with fallback to defaults
     private val initialLeftWidth = settingsRepository?.settingsFlow?.value?.ui?.sidebarDefaultWidth?.toDouble() 
         ?: UiDefaults.DEFAULT_SIDEBAR_DEFAULT_WIDTH.toDouble()
-    private val initialRightWidth = settingsRepository?.settingsFlow?.value?.ui?.sidebarMaxWidth?.toDouble()
-        ?: UiDefaults.DEFAULT_SIDEBAR_MAX_WIDTH.toDouble()
+    private val initialRightWidth = settingsRepository?.settingsFlow?.value?.ui?.sidebarDefaultWidth?.toDouble()
+        ?: UiDefaults.DEFAULT_SIDEBAR_DEFAULT_WIDTH.toDouble()
     
     private val _leftSidebarWidth = MutableStateFlow(initialLeftWidth)
     val leftSidebarWidth: StateFlow<Double> = _leftSidebarWidth.asStateFlow()
@@ -70,10 +70,13 @@ class EditorStateHolder(
                         _leftSidebarWidth.value = newLeftWidth.coerceIn(minWidth, maxWidth)
                     }
                     
-                    // Update right sidebar width if max width changed and current width exceeds new max
-                    val newMaxWidth = settings.ui.sidebarMaxWidth.toDouble()
-                    if (_rightSidebarWidth.value > newMaxWidth) {
-                        _rightSidebarWidth.value = newMaxWidth
+                    // Update right sidebar width if default width changed (same as left sidebar)
+                    val newRightWidth = settings.ui.sidebarDefaultWidth.toDouble()
+                    if (_rightSidebarWidth.value != newRightWidth) {
+                        // Coerce to valid range
+                        val minWidth = settings.ui.sidebarMinWidth.toDouble()
+                        val maxWidth = settings.ui.sidebarMaxWidth.toDouble()
+                        _rightSidebarWidth.value = newRightWidth.coerceIn(minWidth, maxWidth)
                     }
                 }
             }
@@ -988,7 +991,7 @@ class EditorStateHolder(
 
 // Legacy enums and types (for compatibility)
 enum class RibbonButton {
-    Files, Search, Settings
+    Files, Search, Settings, Study
 }
 
 enum class RightPanelType {

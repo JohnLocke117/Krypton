@@ -33,7 +33,8 @@ kotlin {
             implementation(libs.kotlinx.serializationJson)
             implementation(libs.kermit)
             implementation("org.jetbrains:markdown:0.5.2")
-            // Material Icons are included in Compose Multiplatform, no need for separate dependency
+            // Material Icons are not available in commonMain for Compose Multiplatform
+            // Use expect/actual pattern with AppIcons instead
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

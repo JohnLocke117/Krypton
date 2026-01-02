@@ -66,6 +66,7 @@ enum class MobileScreen {
     NotesList,
     Editor,
     Chat,
+    Study,
     Settings
 }
 
@@ -175,6 +176,12 @@ actual fun AppContent(
                     selected = currentScreen == MobileScreen.Chat,
                     onClick = { currentScreen = MobileScreen.Chat }
                 )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.School, contentDescription = "Study") },
+                    label = { Text("Study") },
+                    selected = currentScreen == MobileScreen.Study,
+                    onClick = { currentScreen = MobileScreen.Study }
+                )
             }
         },
         leftOverlay = {
@@ -234,6 +241,13 @@ actual fun AppContent(
                             editorStateHolder = editorStateHolder,
                             theme = theme,
                             settings = settings,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    MobileScreen.Study -> {
+                        StudyTab(
+                            settingsRepository = settingsRepository,
+                            theme = theme,
                             modifier = Modifier.fillMaxSize()
                         )
                     }

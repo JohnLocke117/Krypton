@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
-import krypton.composeapp.generated.resources.polyline
+import krypton.composeapp.generated.resources.polymer
 import kotlinx.coroutines.launch
 
 @Composable
@@ -127,7 +127,7 @@ fun TextEditor(
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(Res.drawable.polyline),
+                    painter = painterResource(Res.drawable.polymer),
                     contentDescription = "Krypton",
                     modifier = Modifier.size(128.dp),
                     alpha = 0.5f

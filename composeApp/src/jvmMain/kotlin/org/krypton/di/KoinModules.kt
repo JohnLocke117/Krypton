@@ -12,11 +12,12 @@ val commonModules: List<Module> = listOf(
     ragModule,
     webModule,
     chatModule,
-    commonUiModule
+    commonUiModule,
+    studyModule
 )
 
 /**
  * All modules for JVM/Desktop platform.
  */
-val allModules: List<Module> = commonModules + jvmPlatformModule
+val allModules: List<Module> = commonModules + jvmPlatformModule + jvmStudyModule
 

@@ -21,6 +21,7 @@ import krypton.composeapp.generated.resources.folder
 import krypton.composeapp.generated.resources.left_panel_close
 import krypton.composeapp.generated.resources.left_panel_open
 import krypton.composeapp.generated.resources.search
+import krypton.composeapp.generated.resources.tactic
 
 @Composable
 fun LeftRibbon(
@@ -60,6 +61,16 @@ fun LeftRibbon(
                     contentDescription = "Search",
                     isActive = activeRibbonButton == RibbonButton.Search,
                     onClick = { state.updateActiveRibbonButton(RibbonButton.Search) },
+                    cardFacingEdge = CardFacingEdge.End
+                )
+            },
+            // Slot 3: Study icon
+            {
+                RibbonIconButton(
+                    icon = Res.drawable.tactic,
+                    contentDescription = "Study",
+                    isActive = activeRibbonButton == RibbonButton.Study,
+                    onClick = { state.updateActiveRibbonButton(RibbonButton.Study) },
                     cardFacingEdge = CardFacingEdge.End
                 )
             }

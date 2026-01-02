@@ -15,7 +15,7 @@
     "ui": {
         "ribbonWidth": 48,
         "sidebarMinWidth": 200,
-        "sidebarDefaultWidth": 280,
+        "sidebarDefaultWidth": 325,
         "sidebarMaxWidth": 400,
         "tabHeight": 36,
         "tabPadding": 12,
@@ -54,7 +54,8 @@
             "/Users/vararya/Varun/Test"
         ],
         "autosaveIntervalSeconds": 60,
-        "telemetryEnabled": false
+        "telemetryEnabled": false,
+        "vaultRootUri": null
     },
     "rag": {
         "vectorBackend": "CHROMADB",

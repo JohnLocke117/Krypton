@@ -12,11 +12,12 @@ val commonModules: List<Module> = listOf(
     ragModule,
     webModule,
     chatModule,
-    commonUiModule
+    commonUiModule,
+    studyModule
 )
 
 /**
  * All modules for Android platform.
  */
-val allModules: List<Module> = commonModules + androidPlatformModule + androidUiModule
+val allModules: List<Module> = commonModules + androidPlatformModule + androidUiModule + androidStudyModule
 

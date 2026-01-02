@@ -5,9 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import org.krypton.ui.AppIcon
+import org.krypton.ui.AppIconType
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,8 +64,8 @@ fun RetrievalModeSelector(
                 }
             }
         ) {
-            Icon(
-                imageVector = Icons.Default.Language,
+            AppIcon(
+                type = AppIconType.Language,
                 contentDescription = "Web Search (Tavily)",
                 modifier = Modifier.size(20.dp),
                 tint = when {
@@ -102,8 +102,8 @@ fun RagToggleButton(
         position = TooltipPosition.ABOVE,
         onClick = onToggle
     ) {
-        Icon(
-            imageVector = Icons.Default.Search,
+        AppIcon(
+            type = AppIconType.Rag,
             contentDescription = "RAG",
             modifier = Modifier.size(20.dp),
             tint = when {
@@ -192,8 +192,8 @@ fun LlmProviderSelector(
             position = TooltipPosition.ABOVE,
             onClick = { onExpandedChange(!expanded) }
         ) {
-            Icon(
-                imageVector = Icons.Default.Cloud,
+            AppIcon(
+                type = AppIconType.Cloud,
                 contentDescription = "LLM Provider",
                 modifier = Modifier.size(20.dp),
                 tint = theme.TextPrimary
@@ -275,8 +275,8 @@ fun VectorStoreSelector(
                 }
             }
         ) {
-            Icon(
-                imageVector = Icons.Default.Storage,
+            AppIcon(
+                type = AppIconType.DatabaseUpload,
                 contentDescription = "Vector DB",
                 modifier = Modifier.size(20.dp),
                 tint = if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f)
@@ -339,8 +339,8 @@ fun MultiQueryToggle(
             }
         }
     ) {
-        Icon(
-            imageVector = Icons.Default.CallSplit,
+        AppIcon(
+            type = AppIconType.CallSplit,
             contentDescription = "Multi-Query",
             modifier = Modifier.size(20.dp),
             tint = if (ragEnabled && enabled) {
@@ -380,8 +380,8 @@ fun RerankingToggle(
             }
         }
     ) {
-        Icon(
-            imageVector = Icons.Default.Star,
+        AppIcon(
+            type = AppIconType.Leaderboard,
             contentDescription = "Reranking",
             modifier = Modifier.size(20.dp),
             tint = if (ragEnabled && enabled) {
@@ -423,8 +423,8 @@ fun ReindexControls(
             }
         }
     ) {
-        Icon(
-            imageVector = Icons.Default.Refresh,
+        AppIcon(
+            type = AppIconType.DatabaseSearch,
             contentDescription = "Rebuild Vector Database",
             modifier = Modifier.size(20.dp),
             tint = when {
@@ -447,9 +447,9 @@ fun ReindexControls(
 @Composable
 fun RagControlsContainer(
     ragAvailable: Boolean,
-    content: @Composable () -> Unit,
     theme: ObsidianThemeValues,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
 ) {
     if (ragAvailable) {
         Surface(
