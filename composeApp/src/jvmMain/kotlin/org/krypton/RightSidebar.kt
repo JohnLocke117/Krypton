@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,13 +32,19 @@ import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.add
 import krypton.composeapp.generated.resources.close
+import krypton.composeapp.generated.resources.history
 import org.krypton.markdown.BlockNode
 import org.krypton.markdown.InlineNode
 import org.krypton.markdown.JetBrainsMarkdownEngine
 import org.krypton.chat.ChatPanel
+import org.krypton.chat.ui.ChatHistoryState
+import org.krypton.chat.ui.ChatHistoryStateImpl
+import org.krypton.chat.ui.ConversationList
+import org.krypton.chat.conversation.ConversationRepository
 import org.krypton.ui.state.ChatStateHolder
 import org.krypton.ui.AppIconWithTooltip
 import org.krypton.ui.TooltipPosition
+import org.koin.core.context.GlobalContext
 
 /**
  * Recursively extract plain text from inline nodes.
@@ -139,6 +148,38 @@ private fun RightSidebarTopBar(
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
     val activeRightPanel by state.activeRightPanel.collectAsState()
+    val currentDirectory by state.currentDirectory.collectAsState()
+    val vaultPath = currentDirectory?.toString()
+    
+    var showHistoryDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Get ChatHistoryState from DI
+    val historyState = remember {
+        try {
+            val koin = GlobalContext.get()
+            val conversationRepository: ConversationRepository? = koin.getOrNull<ConversationRepository>()
+            
+            if (conversationRepository != null) {
+                ChatHistoryStateImpl(
+                    conversationRepository = conversationRepository,
+                    chatStateHolder = chatStateHolder,
+                    coroutineScope = coroutineScope
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    // Load conversations when dialog opens
+    LaunchedEffect(showHistoryDialog, vaultPath) {
+        if (showHistoryDialog && vaultPath != null && historyState != null) {
+            historyState.loadConversations(vaultPath)
+        }
+    }
     
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -165,25 +206,86 @@ private fun RightSidebarTopBar(
                         color = colorScheme.onSurface
                     )
                     
-                    // New chat icon
-                    AppIconWithTooltip(
-                        tooltip = "New Chat",
-                        modifier = Modifier.size(24.dp),
-                        position = TooltipPosition.BELOW,
-                        onClick = {
-                            chatStateHolder.clearHistory()
-                        }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource(Res.drawable.add),
-                            contentDescription = "New Chat",
-                            modifier = Modifier.size(20.dp),
-                            colorFilter = ColorFilter.tint(colorScheme.onSurface)
-                        )
+                        // History icon
+                        if (historyState != null && vaultPath != null) {
+                            AppIconWithTooltip(
+                                tooltip = "Chat History",
+                                modifier = Modifier.size(24.dp),
+                                position = TooltipPosition.BELOW,
+                                onClick = {
+                                    showHistoryDialog = true
+                                }
+                            ) {
+                                Image(
+                                    painter = painterResource(Res.drawable.history),
+                                    contentDescription = "Chat History",
+                                    modifier = Modifier.size(20.dp),
+                                    colorFilter = ColorFilter.tint(colorScheme.onSurface)
+                                )
+                            }
+                        }
+                        
+                        // New chat icon
+                        AppIconWithTooltip(
+                            tooltip = "New Chat",
+                            modifier = Modifier.size(24.dp),
+                            position = TooltipPosition.BELOW,
+                            onClick = {
+                                chatStateHolder.clearHistory()
+                            }
+                        ) {
+                            Image(
+                                painter = painterResource(Res.drawable.add),
+                                contentDescription = "New Chat",
+                                modifier = Modifier.size(20.dp),
+                                colorFilter = ColorFilter.tint(colorScheme.onSurface)
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+    
+    // History dialog
+    if (showHistoryDialog && historyState != null) {
+        val historyUiState by historyState.state.collectAsState()
+        
+        AlertDialog(
+            onDismissRequest = { showHistoryDialog = false },
+            title = {
+                Text(
+                    text = "Chat History",
+                    style = MaterialTheme.typography.titleLarge
+                )
+            },
+            text = {
+                ConversationList(
+                    conversations = historyUiState.conversations,
+                    selectedId = historyUiState.selectedConversationId,
+                    onSelect = { conversationId ->
+                        historyState.selectConversation(conversationId)
+                        showHistoryDialog = false
+                    },
+                    onDelete = { conversationId ->
+                        historyState.deleteConversation(conversationId)
+                    },
+                    theme = theme,
+                    modifier = Modifier
+                        .width(400.dp)
+                        .height(500.dp)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showHistoryDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
 

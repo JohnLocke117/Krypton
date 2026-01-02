@@ -4,7 +4,12 @@ import org.krypton.chat.ChatService
 import org.krypton.chat.agent.CreateNoteAgent
 import org.krypton.chat.agent.SearchNoteAgent
 import org.krypton.chat.agent.SummarizeNoteAgent
+import org.krypton.chat.conversation.ConversationMemoryPolicy
+import org.krypton.chat.conversation.ConversationMemoryProvider
+import org.krypton.chat.conversation.ConversationRepository
 import org.krypton.core.domain.flashcard.FlashcardService
+import org.krypton.data.chat.ConversationMemoryProviderImpl
+import org.krypton.data.chat.impl.JvmConversationPersistence
 import org.krypton.data.chat.impl.OllamaChatService
 import org.krypton.data.flashcard.impl.FlashcardServiceImpl
 import org.krypton.data.files.FileSystem
@@ -24,6 +29,27 @@ import org.koin.dsl.module
  * Provides chat service with optional RAG and web search support.
  */
 val chatModule = module {
+    // ConversationRepository (JVM implementation)
+    single<ConversationRepository> {
+        JvmConversationPersistence()
+    }
+    
+    // ConversationMemoryPolicy (Desktop: generous limits for Llama 128k)
+    single<ConversationMemoryPolicy> {
+        ConversationMemoryPolicy(
+            maxMessages = 50,
+            maxChars = 16_000,
+        )
+    }
+    
+    // ConversationMemoryProvider
+    single<ConversationMemoryProvider> {
+        ConversationMemoryProviderImpl(
+            repository = get(),
+            policy = get()
+        )
+    }
+    
     // PromptBuilder (always available)
     single<PromptBuilder> {
         DefaultPromptBuilder()
@@ -177,12 +203,14 @@ val chatModule = module {
             }
         }
         
-        // OllamaChatService now handles retrieval internally
+        // OllamaChatService now handles retrieval internally and conversation management
         OllamaChatService(
             llamaClient = llamaClient,
             promptBuilder = promptBuilder,
             retrievalService = retrievalService,
             settingsRepository = settingsRepository,
+            conversationRepository = get(),
+            memoryProvider = get(),
             agents = if (agents.isNotEmpty()) agents else null
         )
     }

@@ -26,16 +26,14 @@ import org.krypton.chat.agent.AgentResult
 import java.io.IOException
 
 /**
- * Chat service implementation using Ollama LLM with optional RAG support.
- * 
- * NOTE: This is a legacy implementation. Android uses GeminiChatService instead.
- * This class is kept for compatibility but should not be used.
+ * Chat service implementation using Gemini LLM (via GeminiClient) with optional RAG support.
  * 
  * Handles message sending, retrieval (if enabled), and LLM generation.
  * Manages conversation persistence and bounded memory.
+ * Uses conservative memory limits for Gemini 2.5 Flash.
  */
-class OllamaChatService(
-    private val llamaClient: LlamaClient,
+class GeminiChatService(
+    private val llamaClient: LlamaClient, // Actually GeminiClient, but implements LlamaClient interface
     private val promptBuilder: PromptBuilder,
     private val retrievalService: RetrievalService?,
     private val settingsRepository: SettingsRepository,
@@ -64,11 +62,16 @@ class OllamaChatService(
             )
             
             // Load bounded conversation history
-            val conversationHistory = memoryProvider.buildContextMessages(convId)
+            val conversationHistory = try {
+                memoryProvider.buildContextMessages(convId)
+            } catch (e: Exception) {
+                AppLogger.e("GeminiChatService", "Failed to load conversation history", e)
+                emptyList()
+            }
             
             // Convert to old ChatMessage format for agents and prompt builder
-            val oldFormatHistory: List<org.krypton.chat.ChatMessage> = conversationHistory.map { msg ->
-                org.krypton.chat.ChatMessage(
+            val oldFormatHistory = conversationHistory.map { msg ->
+                OldChatMessage(
                     id = msg.id.value,
                     role = when (msg.author) {
                         MessageAuthor.USER -> ChatRole.USER
@@ -168,16 +171,16 @@ class OllamaChatService(
                 conversationRepository.appendMessage(assistantMsg)
                 
                 // Update conversation summary
-                conversationRepository.updateConversationSummary(
-                    conversationId = convId,
-                    lastMessagePreview = responseText.take(100),
-                    updatedAt = now
-                )
-                
-                return@withContext ChatResult(
-                    conversationId = convId,
-                    assistantMessage = assistantMsg
-                )
+            conversationRepository.updateConversationSummary(
+                conversationId = convId,
+                lastMessagePreview = responseText.take(100),
+                updatedAt = now
+            )
+            
+            return@withContext ChatResult(
+                conversationId = convId,
+                assistantMessage = assistantMsg
+            )
             }
             
             // Retrieve context if mode requires it
@@ -196,8 +199,13 @@ class OllamaChatService(
                 userMessage = userMessage
             )
             
-            // Generate response using LlamaClient
-            val responseText = llamaClient.complete(prompt).trim()
+            // Generate response using LlamaClient (actually GeminiClient)
+            val responseText = try {
+                llamaClient.complete(prompt).trim()
+            } catch (e: Exception) {
+                AppLogger.e("GeminiChatService", "LLM call failed: ${e.message}", e)
+                throw e
+            }
             
             if (responseText.isEmpty()) {
                 throw ChatException("LLM returned an empty response")
@@ -232,22 +240,62 @@ class OllamaChatService(
                 updatedAt = now
             )
             
+            AppLogger.i("Chat", "ResponseReceived: length=${responseText.length}, mode=$retrievalMode")
+            
             ChatResult(
                 conversationId = convId,
                 assistantMessage = assistantMsg
             )
         } catch (e: ChatException) {
             AppLogger.e("Chat", "ChatError: ${e.message}", e)
+            // Check if error is related to model name
+            val errorMessage = e.message?.lowercase() ?: ""
+            if (errorMessage.contains("model") || errorMessage.contains("not found") || 
+                errorMessage.contains("invalid") || errorMessage.contains("404")) {
+                val settings = settingsRepository.settingsFlow.value
+                val llmSettings = settings.llm
+                val ragSettings = settings.rag
+                val modelName = when (llmSettings.provider) {
+                    org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
+                    org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
+                }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
+            }
             throw e
         } catch (e: RagException) {
             AppLogger.e("Chat", "RAG error during chat: ${e.message}", e)
+            val errorMessage = e.message?.lowercase() ?: ""
+            if (errorMessage.contains("model") || errorMessage.contains("not found") || 
+                errorMessage.contains("invalid") || errorMessage.contains("404")) {
+                val settings = settingsRepository.settingsFlow.value
+                val llmSettings = settings.llm
+                val ragSettings = settings.rag
+                val modelName = when (llmSettings.provider) {
+                    org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
+                    org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
+                }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
+            }
             throw ChatException("RAG failed: ${e.message}", e)
         } catch (e: IOException) {
             AppLogger.e("Chat", "Network error during chat: ${e.message}", e)
             throw ChatException("Network error during chat", e)
         } catch (e: Exception) {
             AppLogger.e("Chat", "Unexpected chat error: ${e.message}", e)
+            val errorMessage = e.message?.lowercase() ?: ""
+            if (errorMessage.contains("model") || errorMessage.contains("not found") || 
+                errorMessage.contains("invalid") || errorMessage.contains("404")) {
+                val settings = settingsRepository.settingsFlow.value
+                val llmSettings = settings.llm
+                val ragSettings = settings.rag
+                val modelName = when (llmSettings.provider) {
+                    org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
+                    org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
+                }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
+            }
             throw ChatException("Unexpected chat error: ${e.message}", e)
         }
     }
 }
+

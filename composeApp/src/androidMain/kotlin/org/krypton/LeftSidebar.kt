@@ -141,6 +141,10 @@ fun LeftSidebar(
                     RibbonButton.Settings -> {
                         SettingsPanel(modifier = Modifier.fillMaxSize())
                     }
+                    RibbonButton.Study -> {
+                        // Study panel placeholder
+                        Box(modifier = Modifier.fillMaxSize())
+                    }
                 }
             }
             

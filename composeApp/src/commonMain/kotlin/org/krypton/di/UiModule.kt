@@ -2,6 +2,7 @@ package org.krypton.di
 
 import kotlinx.coroutines.CoroutineScope
 import org.krypton.chat.ChatService
+import org.krypton.chat.conversation.ConversationRepository
 import org.krypton.core.domain.editor.EditorDomain
 import org.krypton.core.domain.flashcard.FlashcardService
 import org.krypton.core.domain.search.SearchDomain
@@ -52,8 +53,23 @@ val commonUiModule = module {
     }
     
     single<ChatStateHolder> {
+        // Try to get ConversationRepository, but make it optional
+        // It may not be available in all contexts or may fail to initialize
+        val conversationRepository: ConversationRepository? = try {
+            get<ConversationRepository>()
+        } catch (e: org.koin.core.error.NoBeanDefFoundException) {
+            null // Optional - may not be available in all contexts
+        } catch (e: org.koin.core.error.InstanceCreationException) {
+            // Failed to create instance - this can happen if AndroidConversationPersistence
+            // fails to initialize (e.g., context issues). Make it optional.
+            null
+        } catch (e: Exception) {
+            null // Optional - may not be available in all contexts
+        }
+        
         ChatStateHolder(
             chatService = get(),
+            conversationRepository = conversationRepository,
             coroutineScope = get()
         )
     }

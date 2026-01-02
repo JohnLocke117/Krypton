@@ -7,16 +7,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,6 +40,10 @@ import org.krypton.util.AppLogger
 import org.krypton.util.SecretsLoader
 import org.krypton.chat.ui.ChatMessageList
 import org.krypton.chat.ui.ChatStatusBar
+import org.krypton.chat.ui.ChatHistoryState
+import org.krypton.chat.ui.ChatHistoryStateImpl
+import org.krypton.chat.ui.ConversationList
+import org.krypton.chat.conversation.ConversationRepository
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.chat.*
 
@@ -132,6 +142,39 @@ actual fun ChatPanel(
     // Reranking toggle state - initialized from settings
     var rerankingEnabled by remember { mutableStateOf(currentSettings.rag.rerankingEnabled) }
     
+    // History and New Chat state
+    val currentVaultPath = editorStateHolder?.currentDirectory?.value?.toString()
+    var showHistorySheet by remember { mutableStateOf(false) }
+    val historyCoroutineScope = rememberCoroutineScope()
+    
+    // Get ChatHistoryState from DI - always available (works with default vault too)
+    val historyState = remember {
+        try {
+            val koin = GlobalContext.get()
+            val conversationRepository: ConversationRepository? = koin.getOrNull<ConversationRepository>()
+            
+            if (conversationRepository != null) {
+                ChatHistoryStateImpl(
+                    conversationRepository = conversationRepository,
+                    chatStateHolder = chatStateHolder,
+                    coroutineScope = historyCoroutineScope
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    // Load conversations when sheet opens - use current vault or default
+    LaunchedEffect(showHistorySheet, currentVaultPath) {
+        if (showHistorySheet && historyState != null) {
+            val vaultId = currentVaultPath ?: "default"
+            historyState.loadConversations(vaultId)
+        }
+    }
+    
     // Sync toggles with settings changes
     LaunchedEffect(currentSettings.rag.multiQueryEnabled) {
         multiQueryEnabled = currentSettings.rag.multiQueryEnabled
@@ -180,9 +223,6 @@ actual fun ChatPanel(
     
     // Sync status state (Android is query-only, so sync status is always null or SYNCED)
     var syncStatus by remember { mutableStateOf<SyncStatus?>(null) }
-    
-    // Get current vault path
-    val currentVaultPath = editorStateHolder?.currentDirectory?.value?.toString()
     
     // Get current note path
     val currentNotePath = editorStateHolder?.activeDocument?.value?.path
@@ -432,6 +472,27 @@ actual fun ChatPanel(
                     }
                 }
                 
+                // History and New Chat buttons
+                // History button - always visible when historyState is available (works with default vault)
+                if (historyState != null) {
+                    IconButton(onClick = { showHistorySheet = true }) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = "Chat History",
+                            tint = theme.TextPrimary
+                        )
+                    }
+                }
+                
+                // New chat button
+                IconButton(onClick = { chatStateHolder.clearHistory() }) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "New Chat",
+                        tint = theme.TextPrimary
+                    )
+                }
+                
                 Spacer(modifier = Modifier.weight(1f))
                 
                 // Advanced options menu
@@ -604,7 +665,28 @@ actual fun ChatPanel(
                                 )
                                 optimisticUserMessage = optimisticMessage
                                 
-                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
+                                // Check if RAG mode requires a vault
+                                val requiresVault = retrievalMode == RetrievalMode.RAG || retrievalMode == RetrievalMode.HYBRID
+                                
+                                if (requiresVault && currentVaultPath == null) {
+                                    // Show error - sendMessage will handle displaying the error via status
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = "",
+                                        currentNotePath = currentNotePath
+                                    )
+                                } else {
+                                    // Use default vault ID for non-RAG modes when no vault is open
+                                    val effectiveVaultId = currentVaultPath ?: "default"
+                                    
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = effectiveVaultId,
+                                        currentNotePath = currentNotePath
+                                    )
+                                }
                             }
                         }
                     )
@@ -614,9 +696,9 @@ actual fun ChatPanel(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                IconButton(
-                    onClick = {
-                        if (inputText.isNotBlank() && !isLoading) {
+                    IconButton(
+                        onClick = {
+                            if (inputText.isNotBlank() && !isLoading) {
                                 val messageText = inputText.trim()
                                 inputText = ""
                                 
@@ -628,16 +710,73 @@ actual fun ChatPanel(
                                 )
                                 optimisticUserMessage = optimisticMessage
                                 
-                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
-                        }
-                    },
-                    enabled = inputText.isNotBlank() && !isLoading
-                ) {
-                    Icon(Icons.Default.Send, contentDescription = "Send")
+                                // Check if RAG mode requires a vault
+                                val requiresVault = retrievalMode == RetrievalMode.RAG || retrievalMode == RetrievalMode.HYBRID
+                                
+                                if (requiresVault && currentVaultPath == null) {
+                                    // Show error - sendMessage will handle displaying the error via status
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = "",
+                                        currentNotePath = currentNotePath
+                                    )
+                                } else {
+                                    // Use default vault ID for non-RAG modes when no vault is open
+                                    val effectiveVaultId = currentVaultPath ?: "default"
+                                    
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = effectiveVaultId,
+                                        currentNotePath = currentNotePath
+                                    )
+                                }
+                            }
+                        },
+                        enabled = inputText.isNotBlank() && !isLoading
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = "Send")
+                    }
                 }
             }
         }
     }
-}
-
+    
+    // History bottom sheet
+    if (showHistorySheet && historyState != null) {
+        val historyUiState by historyState.state.collectAsState()
+        
+        ModalBottomSheet(
+            onDismissRequest = { showHistorySheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(500.dp)
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Chat History",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
+                ConversationList(
+                    conversations = historyUiState.conversations,
+                    selectedId = historyUiState.selectedConversationId,
+                    onSelect = { conversationId ->
+                        historyState.selectConversation(conversationId)
+                        showHistorySheet = false
+                    },
+                    onDelete = { conversationId ->
+                        historyState.deleteConversation(conversationId)
+                    },
+                    theme = theme,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
 }

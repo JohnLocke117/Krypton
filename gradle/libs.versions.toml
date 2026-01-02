@@ -1,5 +1,5 @@
 [versions]
-android-gradle-plugin = "8.7.3"
+android-gradle-plugin = "8.12.0"
 androidx-lifecycle = "2.9.6"
 composeHotReload = "1.0.0"
 composeMultiplatform = "1.9.3"

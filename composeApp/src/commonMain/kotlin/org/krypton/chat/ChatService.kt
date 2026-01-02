@@ -1,5 +1,7 @@
 package org.krypton.chat
 
+import org.krypton.chat.conversation.ConversationId
+
 /**
  * Interface for chat services that generate responses to user messages.
  * 
@@ -13,20 +15,31 @@ interface ChatService {
     /**
      * Sends a user message and generates an assistant response.
      * 
-     * @param message The user's message
-     * @param mode The retrieval mode to use (NONE, RAG, WEB, or HYBRID)
-     * @param threadId Optional thread/conversation ID for multi-threaded conversations
-     * @param vaultPath Optional path to the currently opened vault/folder for agent context
+     * @param vaultId The vault this conversation belongs to (required for conversation persistence)
+     * @param conversationId Optional conversation ID. If null, a new conversation is created.
+     * @param userMessage The user's message
+     * @param retrievalMode The retrieval mode to use (NONE, RAG, WEB, or HYBRID)
      * @param currentNotePath Optional path to the currently active/open note file for agent context
-     * @return ChatResponse containing the assistant's message and metadata
+     * @return ChatResult containing the conversation ID and assistant's message
      * @throws ChatException if the chat operation fails (e.g., LLM error, retrieval failure, network error)
      */
     suspend fun sendMessage(
-        message: String,
-        mode: RetrievalMode,
-        threadId: String? = null,
-        vaultPath: String? = null,
+        vaultId: String,
+        conversationId: ConversationId?,
+        userMessage: String,
+        retrievalMode: RetrievalMode,
         currentNotePath: String? = null
-    ): ChatResponse
+    ): ChatResult
 }
+
+/**
+ * Result of a chat operation containing the conversation and assistant response.
+ * 
+ * @param conversationId The conversation ID (newly created or existing)
+ * @param assistantMessage The assistant's response message (in new conversation ChatMessage format)
+ */
+data class ChatResult(
+    val conversationId: ConversationId,
+    val assistantMessage: org.krypton.chat.conversation.ChatMessage,
+)
 

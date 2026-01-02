@@ -3,16 +3,14 @@ package org.krypton.data.chat.impl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.krypton.chat.ChatService
-import org.krypton.chat.ChatMessage
-import org.krypton.chat.ChatResponse
-import org.krypton.chat.ChatResponseMetadata
+import org.krypton.chat.ChatMessage as OldChatMessage
+import org.krypton.chat.ChatResult
 import org.krypton.chat.ChatRole
-import org.krypton.chat.ChatSource
 import org.krypton.chat.ChatException
 import org.krypton.chat.RetrievalMode
-import org.krypton.chat.SourceType
+import org.krypton.chat.conversation.*
+import org.krypton.chat.conversation.ChatMessage as ConversationChatMessage
 import org.krypton.prompt.PromptBuilder
-import org.krypton.prompt.PromptContext
 import org.krypton.rag.LlamaClient
 import org.krypton.retrieval.RetrievalService
 import org.krypton.data.repository.SettingsRepository
@@ -31,45 +29,71 @@ import java.io.IOException
  * Chat service implementation using Ollama LLM with optional RAG support.
  * 
  * Handles message sending, retrieval (if enabled), and LLM generation.
- * History management is handled by the caller (ChatStateHolder).
+ * Manages conversation persistence and bounded memory.
  */
 class OllamaChatService(
     private val llamaClient: LlamaClient,
     private val promptBuilder: PromptBuilder,
     private val retrievalService: RetrievalService?,
     private val settingsRepository: SettingsRepository,
+    private val conversationRepository: ConversationRepository,
+    private val memoryProvider: ConversationMemoryProvider,
     private val agents: List<ChatAgent>? = null,
     private val idGenerator: IdGenerator = createIdGenerator(),
     private val timeProvider: TimeProvider = createTimeProvider()
 ) : ChatService {
 
     override suspend fun sendMessage(
-        message: String,
-        mode: RetrievalMode,
-        threadId: String?,
-        vaultPath: String?,
+        vaultId: String,
+        conversationId: ConversationId?,
+        userMessage: String,
+        retrievalMode: RetrievalMode,
         currentNotePath: String?
-    ): ChatResponse = withContext(Dispatchers.IO) {
-        AppLogger.action("Chat", "MessageSent", "mode=$mode, length=${message.length}")
+    ): ChatResult = withContext(Dispatchers.IO) {
+        AppLogger.action("Chat", "MessageSent", "mode=$retrievalMode, length=${userMessage.length}")
         
         try {
+            // Create or get conversation
+            val convId = conversationId ?: conversationRepository.createConversation(
+                vaultId = vaultId,
+                initialUserMessage = userMessage,
+                retrievalMode = retrievalMode.name
+            )
+            
+            // Load bounded conversation history
+            val conversationHistory = memoryProvider.buildContextMessages(convId)
+            
+            // Convert to old ChatMessage format for agents and prompt builder
+            val oldFormatHistory = conversationHistory.map { msg ->
+                OldChatMessage(
+                    id = msg.id.value,
+                    role = when (msg.author) {
+                        MessageAuthor.USER -> ChatRole.USER
+                        MessageAuthor.ASSISTANT -> ChatRole.ASSISTANT
+                        MessageAuthor.SYSTEM -> ChatRole.SYSTEM
+                    },
+                    content = msg.text,
+                    timestamp = msg.createdAt
+                )
+            }
+            
             // Check agents before normal flow
             val agentResult = agents?.firstNotNullOfOrNull { agent ->
                 try {
                     AppLogger.i("Chat", "═══════════════════════════════════════════════════════════")
                     AppLogger.i("Chat", "Agent called: ${agent::class.simpleName}")
-                    AppLogger.i("Chat", "  Message: $message")
-                    AppLogger.i("Chat", "  Vault: ${vaultPath ?: "none"}")
+                    AppLogger.i("Chat", "  Message: $userMessage")
+                    AppLogger.i("Chat", "  Vault: $vaultId")
                     AppLogger.i("Chat", "  Note: ${currentNotePath ?: "none"}")
                     AppLogger.i("Chat", "═══════════════════════════════════════════════════════════")
                     
                     val context = AgentContext(
-                        currentVaultPath = vaultPath,
+                        currentVaultPath = vaultId,
                         settings = settingsRepository.settingsFlow.value,
                         currentNotePath = currentNotePath
                     )
-                    // For MVP, pass empty history (can enhance later)
-                    val result = agent.tryHandle(message, emptyList(), context)
+                    // Pass conversation history to agents
+                    val result = agent.tryHandle(userMessage, oldFormatHistory, context)
                     if (result != null) {
                         AppLogger.i("Chat", "Agent ${agent::class.simpleName} handled the message successfully")
                     }
@@ -80,11 +104,12 @@ class OllamaChatService(
                 }
             }
             
-            // If agent handled the message, convert result to ChatResponse
+            // If agent handled the message, convert result to ChatResult
             if (agentResult != null) {
-                return@withContext when (agentResult) {
+                val now = System.currentTimeMillis()
+                val responseText = when (agentResult) {
                     is AgentResult.NoteCreated -> {
-                        val responseText = buildString {
+                        buildString {
                             appendLine("Created a new note:")
                             appendLine()
                             appendLine("- **Title:** ${agentResult.title}")
@@ -95,59 +120,16 @@ class OllamaChatService(
                             appendLine(agentResult.preview)
                             appendLine("```")
                         }
-                        
-                        val assistantMessage = ChatMessage(
-                            id = idGenerator.generateId(),
-                            role = ChatRole.ASSISTANT,
-                            content = responseText,
-                            timestamp = timeProvider.currentTimeMillis()
-                        )
-                        
-                        ChatResponse(
-                            message = assistantMessage,
-                            retrievalMode = mode,
-                            metadata = ChatResponseMetadata(
-                                sources = emptyList(),
-                                additionalInfo = mapOf("agent" to "CreateNoteAgent", "action" to "note_created")
-                            )
-                        )
                     }
-                    
                     is AgentResult.NotesFound -> {
-                        val responseText = buildString {
+                        buildString {
                             agentResult.results.forEach { match ->
                                 appendLine("- [${match.title}](${match.filePath})")
                             }
                         }
-                        
-                        // Build sources from results
-                        val sources = agentResult.results.map { match ->
-                            ChatSource(
-                                type = SourceType.RAG,
-                                identifier = match.title,
-                                location = match.filePath
-                            )
-                        }
-                        
-                        val assistantMessage = ChatMessage(
-                            id = idGenerator.generateId(),
-                            role = ChatRole.ASSISTANT,
-                            content = responseText,
-                            timestamp = timeProvider.currentTimeMillis()
-                        )
-                        
-                        ChatResponse(
-                            message = assistantMessage,
-                            retrievalMode = mode,
-                            metadata = ChatResponseMetadata(
-                                sources = sources,
-                                additionalInfo = mapOf("agent" to "SearchNoteAgent", "action" to "notes_found", "count" to agentResult.results.size.toString())
-                            )
-                        )
                     }
-                    
                     is AgentResult.NoteSummarized -> {
-                        val responseText = buildString {
+                        buildString {
                             appendLine("**Summary: ${agentResult.title}**")
                             appendLine()
                             appendLine(agentResult.summary)
@@ -159,53 +141,57 @@ class OllamaChatService(
                                 }
                             }
                         }
-                        
-                        // Build sources from source files
-                        val sources = agentResult.sourceFiles.map { filePath ->
-                            val fileName = filePath.substringAfterLast('/').substringBeforeLast('.')
-                            ChatSource(
-                                type = SourceType.RAG,
-                                identifier = fileName,
-                                location = filePath
-                            )
-                        }
-                        
-                        val assistantMessage = ChatMessage(
-                            id = idGenerator.generateId(),
-                            role = ChatRole.ASSISTANT,
-                            content = responseText,
-                            timestamp = timeProvider.currentTimeMillis()
-                        )
-                        
-                        ChatResponse(
-                            message = assistantMessage,
-                            retrievalMode = mode,
-                            metadata = ChatResponseMetadata(
-                                sources = sources,
-                                additionalInfo = mapOf("agent" to "SummarizeNoteAgent", "action" to "note_summarized", "sources" to agentResult.sourceFiles.size.toString())
-                            )
-                        )
                     }
                 }
+                
+                // Save user message
+                val userMsg = ConversationChatMessage(
+                    id = MessageId(idGenerator.generateId()),
+                    conversationId = convId,
+                    author = MessageAuthor.USER,
+                    text = userMessage,
+                    createdAt = now
+                )
+                conversationRepository.appendMessage(userMsg)
+                
+                // Save assistant message
+                val assistantMsg = ConversationChatMessage(
+                    id = MessageId(idGenerator.generateId()),
+                    conversationId = convId,
+                    author = MessageAuthor.ASSISTANT,
+                    text = responseText,
+                    createdAt = now
+                )
+                conversationRepository.appendMessage(assistantMsg)
+                
+                // Update conversation summary
+                conversationRepository.updateConversationSummary(
+                    conversationId = convId,
+                    lastMessagePreview = responseText.take(100),
+                    updatedAt = now
+                )
+                
+                return@withContext ChatResult(
+                    conversationId = convId,
+                    assistantMessage = assistantMsg
+                )
             }
             
             // Retrieve context if mode requires it
-            val retrievalCtx = if (mode != RetrievalMode.NONE && retrievalService != null) {
-                retrievalService.retrieve(message, mode)
+            val retrievalCtx = if (retrievalMode != RetrievalMode.NONE && retrievalService != null) {
+                retrievalService.retrieve(userMessage, retrievalMode)
             } else {
                 null
             }
             
-            // Build prompt context
-            val promptCtx = PromptContext(
-                query = message,
-                retrievalMode = mode,
+            // Build prompt with conversation history
+            val prompt = promptBuilder.buildPrompt(
+                systemInstructions = "",
+                conversationHistory = oldFormatHistory,
                 localChunks = retrievalCtx?.localChunks ?: emptyList(),
-                webSnippets = retrievalCtx?.webSnippets ?: emptyList()
+                webSnippets = retrievalCtx?.webSnippets ?: emptyList(),
+                userMessage = userMessage
             )
-            
-            // Build prompt using PromptBuilder
-            val prompt = promptBuilder.buildPrompt(promptCtx)
             
             // Generate response using LlamaClient
             val responseText = llamaClient.complete(prompt).trim()
@@ -214,46 +200,40 @@ class OllamaChatService(
                 throw ChatException("LLM returned an empty response")
             }
             
-            // Create assistant message
-            val assistantMessage = ChatMessage(
-                id = idGenerator.generateId(),
-                role = ChatRole.ASSISTANT,
-                content = responseText,
-                timestamp = timeProvider.currentTimeMillis()
+            val now = System.currentTimeMillis()
+            
+            // Save user message
+            val userMsg = ConversationChatMessage(
+                id = MessageId(idGenerator.generateId()),
+                conversationId = convId,
+                author = MessageAuthor.USER,
+                text = userMessage,
+                createdAt = now
+            )
+            conversationRepository.appendMessage(userMsg)
+            
+            // Save assistant message
+            val assistantMsg = ConversationChatMessage(
+                id = MessageId(idGenerator.generateId()),
+                conversationId = convId,
+                author = MessageAuthor.ASSISTANT,
+                text = responseText,
+                createdAt = now
+            )
+            conversationRepository.appendMessage(assistantMsg)
+            
+            // Update conversation summary
+            conversationRepository.updateConversationSummary(
+                conversationId = convId,
+                lastMessagePreview = responseText.take(100),
+                updatedAt = now
             )
             
-            // Build metadata with sources
-            val sources = buildList {
-                retrievalCtx?.localChunks?.forEach { chunk ->
-                    val filePath = chunk.metadata["filePath"] ?: "unknown"
-                    val sectionTitle = chunk.metadata["sectionTitle"]
-                    val identifier = sectionTitle ?: filePath.substringAfterLast('/').substringBeforeLast('.')
-                    add(ChatSource(
-                        type = SourceType.RAG,
-                        identifier = identifier,
-                        location = filePath
-                    ))
-                }
-                retrievalCtx?.webSnippets?.forEach { snippet ->
-                    add(ChatSource(
-                        type = SourceType.WEB,
-                        identifier = snippet.title,
-                        location = snippet.url
-                    ))
-                }
-            }
+            AppLogger.i("Chat", "ResponseReceived: length=${responseText.length}, mode=$retrievalMode")
             
-            val metadata = ChatResponseMetadata(
-                sources = sources,
-                additionalInfo = emptyMap()
-            )
-            
-            AppLogger.i("Chat", "ResponseReceived: length=${responseText.length}, mode=$mode, sources=${sources.size}")
-            
-            ChatResponse(
-                message = assistantMessage,
-                retrievalMode = mode,
-                metadata = metadata
+            ChatResult(
+                conversationId = convId,
+                assistantMessage = assistantMsg
             )
         } catch (e: ChatException) {
             AppLogger.e("Chat", "ChatError: ${e.message}", e)

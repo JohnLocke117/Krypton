@@ -1,8 +1,9 @@
 package org.krypton.chat.impl
 
 import org.krypton.chat.ChatService
-import org.krypton.chat.ChatResponse
+import org.krypton.chat.ChatResult
 import org.krypton.chat.RetrievalMode
+import org.krypton.chat.conversation.ConversationId
 
 /**
  * Chat service wrapper that delegates to a base ChatService.
@@ -16,13 +17,13 @@ class RagChatService(
 ) : ChatService {
     
     override suspend fun sendMessage(
-        message: String,
-        mode: RetrievalMode,
-        threadId: String?,
-        vaultPath: String?,
+        vaultId: String,
+        conversationId: ConversationId?,
+        userMessage: String,
+        retrievalMode: RetrievalMode,
         currentNotePath: String?
-    ): ChatResponse {
-        return delegate.sendMessage(message, mode, threadId, vaultPath, currentNotePath)
+    ): ChatResult {
+        return delegate.sendMessage(vaultId, conversationId, userMessage, retrievalMode, currentNotePath)
     }
 }
 

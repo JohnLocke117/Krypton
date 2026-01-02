@@ -1,5 +1,7 @@
 package org.krypton.prompt.impl
 
+import org.krypton.chat.ChatMessage
+import org.krypton.chat.ChatRole
 import org.krypton.chat.RetrievalMode
 import org.krypton.prompt.PromptBuilder
 import org.krypton.prompt.PromptContext
@@ -12,20 +14,72 @@ import org.krypton.prompt.PromptContext
  */
 class DefaultPromptBuilder : PromptBuilder {
     
+    override fun buildPrompt(
+        systemInstructions: String,
+        conversationHistory: List<ChatMessage>,
+        localChunks: List<org.krypton.rag.RagChunk>,
+        webSnippets: List<org.krypton.web.WebSnippet>,
+        userMessage: String,
+    ): String {
+        // Determine retrieval mode from provided chunks/snippets
+        val retrievalMode = when {
+            localChunks.isNotEmpty() && webSnippets.isNotEmpty() -> RetrievalMode.HYBRID
+            localChunks.isNotEmpty() -> RetrievalMode.RAG
+            webSnippets.isNotEmpty() -> RetrievalMode.WEB
+            else -> RetrievalMode.NONE
+        }
+        
+        // Format conversation history as chat transcript
+        val historyTranscript = formatConversationHistory(conversationHistory)
+        
+        // Build base prompt based on retrieval mode
+        val basePrompt = when (retrievalMode) {
+            RetrievalMode.NONE -> buildNonePrompt(userMessage, historyTranscript, systemInstructions)
+            RetrievalMode.RAG -> buildRagPrompt(userMessage, localChunks, historyTranscript, systemInstructions)
+            RetrievalMode.WEB -> buildWebPrompt(userMessage, webSnippets, historyTranscript, systemInstructions)
+            RetrievalMode.HYBRID -> buildHybridPrompt(userMessage, localChunks, webSnippets, historyTranscript, systemInstructions)
+        }
+        
+        return basePrompt
+    }
+    
     override fun buildPrompt(ctx: PromptContext): String {
-        return when (ctx.retrievalMode) {
-            RetrievalMode.NONE -> buildNonePrompt(ctx.query)
-            RetrievalMode.RAG -> buildRagPrompt(ctx.query, ctx.localChunks)
-            RetrievalMode.WEB -> buildWebPrompt(ctx.query, ctx.webSnippets)
-            RetrievalMode.HYBRID -> buildHybridPrompt(ctx.query, ctx.localChunks, ctx.webSnippets)
+        return buildPrompt(
+            systemInstructions = "",
+            conversationHistory = emptyList(),
+            localChunks = ctx.localChunks,
+            webSnippets = ctx.webSnippets,
+            userMessage = ctx.query
+        )
+    }
+    
+    /**
+     * Formats conversation history as a chat transcript.
+     */
+    private fun formatConversationHistory(history: List<ChatMessage>): String {
+        if (history.isEmpty()) return ""
+        
+        return buildString {
+            history.forEach { msg ->
+                when (msg.role) {
+                    ChatRole.USER -> append("User: ${msg.content}\n")
+                    ChatRole.ASSISTANT -> append("Assistant: ${msg.content}\n")
+                    ChatRole.SYSTEM -> append("System: ${msg.content}\n")
+                }
+            }
         }
     }
     
     /**
      * Builds a prompt for NONE mode (plain chat).
      */
-    private fun buildNonePrompt(query: String): String {
-        return """You are a helpful assistant. Answer the user's question.
+    private fun buildNonePrompt(
+        query: String,
+        historyTranscript: String,
+        systemInstructions: String
+    ): String {
+        val systemPrompt = systemInstructions.ifBlank {
+            """You are a helpful assistant. Answer the user's question.
 
 RESPONSE FORMAT (STRICT):
 1. First, provide a clear, well-structured answer in Markdown. Use headings, bullet points, and code blocks when helpful.
@@ -37,22 +91,33 @@ RESPONSE FORMAT (STRICT):
 4. Under "## Sources", since no context was provided, write:
 
 ## Sources
-- None (no relevant context provided)
+- None. No relevant context provided.
 
 IMPORTANT:
 - The Sources section must appear ONLY ONCE, at the very end of your response
 - It must come after ALL content and after the divider line
 - Do not include sources anywhere else in your response
-- Do not output JSON
-
-Question: $query"""
+- Do not output JSON"""
+        }
+        
+        return if (historyTranscript.isBlank()) {
+            "$systemPrompt\n\nQuestion: $query"
+        } else {
+            "$systemPrompt\n\nConversation History:\n$historyTranscript\n\nQuestion: $query"
+        }
     }
     
     /**
      * Builds a prompt for RAG mode (local notes only).
      */
-    private fun buildRagPrompt(query: String, chunks: List<org.krypton.rag.RagChunk>): String {
-        val systemPrompt = """You are a helpful assistant for question answering.
+    private fun buildRagPrompt(
+        query: String,
+        chunks: List<org.krypton.rag.RagChunk>,
+        historyTranscript: String,
+        systemInstructions: String
+    ): String {
+        val systemPrompt = systemInstructions.ifBlank {
+            """You are a helpful assistant for question answering.
 Answer the question using your knowledge and the information in the NOTES.
 The NOTES are supplementary context to enhance your answer, not a restriction.
 
@@ -76,7 +141,7 @@ RESPONSE FORMAT (MANDATORY - YOU MUST FOLLOW THIS):
      `- Note: "[short label]" — ID: <source_id>`
      Include the file path when available. Only list sources that actually influenced the answer.
    - If you did NOT use any notes: Write exactly:
-     `- None (no relevant context provided)`
+     `- None. No relevant context provided.`
 
 CRITICAL REQUIREMENTS:
 - The Sources section is MANDATORY and MUST appear at the very end of your response
@@ -85,6 +150,7 @@ CRITICAL REQUIREMENTS:
 - Do NOT invent IDs or paths
 - Do not include sources anywhere else in your response
 - Do not output JSON"""
+        }
         
         val contextSection = if (chunks.isEmpty()) {
             "NOTES:\nNo relevant notes found.\n\n"
@@ -108,14 +174,26 @@ CRITICAL REQUIREMENTS:
             }
         }
         
-        return "$systemPrompt\n\nQUESTION:\n$query\n\n$contextSection"
+        val historySection = if (historyTranscript.isBlank()) {
+            ""
+        } else {
+            "\n\nConversation History:\n$historyTranscript"
+        }
+        
+        return "$systemPrompt$historySection\n\nQUESTION:\n$query\n\n$contextSection"
     }
     
     /**
      * Builds a prompt for WEB mode (Tavily search only).
      */
-    private fun buildWebPrompt(query: String, snippets: List<org.krypton.web.WebSnippet>): String {
-        val systemPrompt = """You are a helpful assistant. Use ONLY the following web search results (Tavily) to answer. Cite URLs when relevant.
+    private fun buildWebPrompt(
+        query: String,
+        snippets: List<org.krypton.web.WebSnippet>,
+        historyTranscript: String,
+        systemInstructions: String
+    ): String {
+        val systemPrompt = systemInstructions.ifBlank {
+            """You are a helpful assistant. Use ONLY the following web search results (Tavily) to answer. Cite URLs when relevant.
 
 Rules:
 - Only use information from the provided web search results
@@ -144,13 +222,14 @@ Examples of source lines:
 If NO useful context is available, write:
 
 ## Sources
-- None (no relevant context provided)
+- None. No relevant context provided.
 
 IMPORTANT:
 - The Sources section must appear ONLY ONCE, at the very end of your response
 - It must come after ALL content and after the divider line
 - Do not include sources anywhere else in your response
 - Do not output JSON"""
+        }
         
         val contextSection = if (snippets.isEmpty()) {
             "Web results (Tavily): No results found.\n\n"
@@ -166,7 +245,13 @@ IMPORTANT:
             }
         }
         
-        return "$systemPrompt\n\n$contextSection\nQuestion: $query"
+        val historySection = if (historyTranscript.isBlank()) {
+            ""
+        } else {
+            "\n\nConversation History:\n$historyTranscript"
+        }
+        
+        return "$systemPrompt$historySection\n\n$contextSection\nQuestion: $query"
     }
     
     /**
@@ -175,9 +260,12 @@ IMPORTANT:
     private fun buildHybridPrompt(
         query: String,
         chunks: List<org.krypton.rag.RagChunk>,
-        snippets: List<org.krypton.web.WebSnippet>
+        snippets: List<org.krypton.web.WebSnippet>,
+        historyTranscript: String,
+        systemInstructions: String
     ): String {
-        val systemPrompt = """You are a helpful assistant. Prefer the user's notes when they conflict with the web. Use both the note excerpts and web search results.
+        val systemPrompt = systemInstructions.ifBlank {
+            """You are a helpful assistant. Prefer the user's notes when they conflict with the web. Use both the note excerpts and web search results.
 
 Rules:
 - Prefer information from notes when there's a conflict with web results
@@ -212,13 +300,14 @@ Examples of source lines:
 If NO useful context is available, write:
 
 ## Sources
-- None (no relevant context provided)
+- None. No relevant context provided.
 
 IMPORTANT:
 - The Sources section must appear ONLY ONCE, at the very end of your response
 - It must come after ALL content and after the divider line
 - Do not include sources anywhere else in your response
 - Do not output JSON"""
+        }
         
         val notesSection = if (chunks.isEmpty()) {
             "Notes: No relevant notes found.\n\n"
@@ -255,7 +344,12 @@ IMPORTANT:
             }
         }
         
-        return "$systemPrompt\n\n$notesSection\n$webSection\nQuestion: $query"
+        val historySection = if (historyTranscript.isBlank()) {
+            ""
+        } else {
+            "\n\nConversation History:\n$historyTranscript"
+        }
+        
+        return "$systemPrompt$historySection\n\n$notesSection\n$webSection\nQuestion: $query"
     }
 }
-

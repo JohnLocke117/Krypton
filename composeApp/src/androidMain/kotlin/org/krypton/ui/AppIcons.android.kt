@@ -24,7 +24,7 @@ actual fun AppIcon(
         AppIconType.Star -> Icons.Filled.Star
         AppIconType.Refresh -> Icons.Filled.Refresh
         AppIconType.ContentCopy -> Icons.Filled.ContentCopy
-        AppIconType.Rag -> Icons.Filled.Search // RAG uses search icon
+        AppIconType.Rag -> Icons.Filled.AlternateEmail // RAG uses alternate email icon
         AppIconType.Leaderboard -> Icons.Filled.BarChart // Leaderboard icon (bar chart is closest to leaderboard)
         AppIconType.DatabaseSearch -> Icons.Filled.Storage // Database search uses storage icon
         AppIconType.DatabaseUpload -> Icons.Filled.Upload // Database upload uses upload icon

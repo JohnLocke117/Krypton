@@ -413,7 +413,14 @@ actual fun ChatPanel(
                                 optimisticUserMessage = optimisticMessage
                                 
                                 // Send message with current retrieval mode, vault path, and current note path
-                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
+                                if (currentVaultPath != null) {
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = currentVaultPath,
+                                        currentNotePath = currentNotePath
+                                    )
+                                }
                             } else {
                                 // Can't send, revert to previous text (without the newline)
                                 inputText = previousText
@@ -476,7 +483,14 @@ actual fun ChatPanel(
                                 optimisticUserMessage = optimisticMessage
                                 
                                 // Send message with current retrieval mode, vault path, and current note path
-                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
+                                if (currentVaultPath != null) {
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = currentVaultPath,
+                                        currentNotePath = currentNotePath
+                                    )
+                                }
                             }
                         }
                     )
@@ -804,7 +818,14 @@ actual fun ChatPanel(
                                 optimisticUserMessage = optimisticMessage
                                 
                                 // Send message with current retrieval mode, vault path, and current note path
-                                chatStateHolder.sendMessage(messageText, retrievalMode, currentVaultPath, currentNotePath)
+                                if (currentVaultPath != null) {
+                                    chatStateHolder.sendMessage(
+                                        message = messageText,
+                                        retrievalMode = retrievalMode,
+                                        vaultId = currentVaultPath,
+                                        currentNotePath = currentNotePath
+                                    )
+                                }
                             }
                         }
                     ) {
