@@ -6,6 +6,11 @@ import org.krypton.config.models.LlmModelConfig
 import org.krypton.config.models.RetrievalConfig
 
 /**
+ * Platform-specific implementation to load OLLAMA embedding model from secrets.
+ */
+internal expect fun loadOllamaEmbeddingModel(): String
+
+/**
  * Default configuration values for RAG (Retrieval-Augmented Generation) system.
  * 
  * These defaults are used when user settings are missing or invalid.
@@ -19,7 +24,7 @@ object RagDefaults {
      */
     val DEFAULT_LLM = LlmModelConfig(
         baseUrl = LlmDefaults.DEFAULT_BASE_URL,
-        modelName = "llama3.2:1b",
+        modelName = loadOllamaGenerationModel(),
         temperature = LlmDefaults.DEFAULT_TEMPERATURE,
         maxTokens = null, // No limit for RAG
         timeoutMs = LlmDefaults.DEFAULT_TIMEOUT_MS
@@ -128,13 +133,17 @@ object RagDefaults {
     object Embedding {
         /**
          * Default base URL for embedding API (typically same as Ollama).
+         * Loads from local.secrets.properties (OLLAMA_BASE_URL) if available.
          */
-        const val DEFAULT_BASE_URL = LlmDefaults.DEFAULT_BASE_URL
+        val DEFAULT_BASE_URL: String
+            get() = LlmDefaults.DEFAULT_BASE_URL
         
         /**
          * Default embedding model name.
+         * Loads from local.secrets.properties (OLLAMA_EMBEDDING_MODEL) if available.
          */
-        const val DEFAULT_MODEL = "nomic-embed-text:v1.5"
+        val DEFAULT_MODEL: String
+            get() = loadOllamaEmbeddingModel()
         
         /**
          * Default timeout for HTTP requests to embedding API (milliseconds).

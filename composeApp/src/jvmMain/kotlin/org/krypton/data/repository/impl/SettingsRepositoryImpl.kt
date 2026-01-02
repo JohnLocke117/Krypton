@@ -10,6 +10,7 @@ import org.krypton.migrateSettings
 import org.krypton.validateSettings
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.data.repository.SettingsPersistence
+import org.krypton.config.SecretsDefaults
 
 /**
  * JVM implementation of SettingsRepository.
@@ -34,12 +35,12 @@ class SettingsRepositoryImpl(
             if (validated.isValid) {
                 migrated
             } else {
-                // If validation fails on load, use defaults
-                Settings()
+                // If validation fails on load, use defaults from local.secrets.properties
+                SecretsDefaults.createDefaultSettings()
             }
         } else {
-            // File doesn't exist, create default settings
-            val defaultSettings = Settings()
+            // File doesn't exist, create default settings from local.secrets.properties
+            val defaultSettings = SecretsDefaults.createDefaultSettings()
             persistence.saveSettingsToFile(settingsPath, defaultSettings)
             defaultSettings
         }

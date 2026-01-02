@@ -15,7 +15,7 @@ object ChatDefaults {
      */
     val DEFAULT_LLM = LlmModelConfig(
         baseUrl = LlmDefaults.DEFAULT_BASE_URL,
-        modelName = "llama3.2:1b",
+        modelName = loadOllamaGenerationModel(),
         temperature = LlmDefaults.DEFAULT_TEMPERATURE,
         maxTokens = 2048,
         timeoutMs = LlmDefaults.DEFAULT_TIMEOUT_MS

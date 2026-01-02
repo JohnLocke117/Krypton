@@ -1,16 +1,28 @@
 package org.krypton.config
 
 /**
+ * Platform-specific implementation to load OLLAMA base URL from secrets.
+ */
+internal expect fun loadOllamaBaseUrl(): String
+
+/**
+ * Platform-specific implementation to load OLLAMA generation model from secrets.
+ */
+internal expect fun loadOllamaGenerationModel(): String
+
+/**
  * Shared default configuration for LLM (Language Model) services.
  * 
  * Consolidates common LLM settings used across chat and RAG systems.
- * This is the single source of truth for Ollama/LLM base configuration.
+ * Default values are loaded from local.secrets.properties when available.
  */
 object LlmDefaults {
     /**
      * Default base URL for Ollama/LLM API.
+     * Loads from local.secrets.properties (OLLAMA_BASE_URL) if available.
      */
-    const val DEFAULT_BASE_URL = "http://localhost:11434"
+    val DEFAULT_BASE_URL: String
+        get() = loadOllamaBaseUrl()
     
     /**
      * Default temperature for text generation (0.0 to 2.0).

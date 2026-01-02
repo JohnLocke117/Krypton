@@ -54,7 +54,8 @@
             "/Users/vararya/Varun/Test"
         ],
         "autosaveIntervalSeconds": 60,
-        "telemetryEnabled": false
+        "telemetryEnabled": false,
+        "vaultRootUri": null
     },
     "rag": {
         "vectorBackend": "CHROMADB",
@@ -65,14 +66,22 @@
         "chromaTenant": "default",
         "chromaDatabase": "defaultDB",
         "ragEnabled": true,
-        "llamaModel": "llama3.2:1b",
-        "embeddingModel": "nomic-embed-text:v1.5",
+        "llamaModel": "llama3.1:8b",
+        "embeddingModel": "mxbai-embed-large:335m",
         "topK": 5,
         "similarityThreshold": 0.25,
         "maxK": 10,
         "displayK": 5,
         "queryRewritingEnabled": false,
         "multiQueryEnabled": true,
-        "rerankerModel": "xitao/bge-reranker-v2-m3"
+        "rerankingEnabled": false,
+        "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M"
+    },
+    "llm": {
+        "provider": "OLLAMA",
+        "ollamaBaseUrl": "http://localhost:11434",
+        "ollamaModel": "llama3.1:8b",
+        "geminiModel": "gemini-2.5-flash",
+        "agentRoutingLlmProvider": null
     }
 }

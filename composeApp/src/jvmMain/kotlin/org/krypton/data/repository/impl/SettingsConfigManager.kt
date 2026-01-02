@@ -47,8 +47,8 @@ object SettingsConfigManager {
             return path
         }
         
-        // Default to user-specified path
-        val defaultPath = "/Users/vararya/Varun/Code/Krypton/settings.json"
+        // Default to settings.json in current working directory or project root
+        val defaultPath = findDefaultSettingsPath()
         AppLogger.d("SettingsConfigManager", "Using default settings path: $defaultPath")
         return defaultPath
     }
@@ -98,6 +98,55 @@ object SettingsConfigManager {
             }
         } catch (e: Exception) {
             null
+        }
+    }
+    
+    /**
+     * Finds the default settings.json path by looking for it in:
+     * 1. Current working directory
+     * 2. Project root (where build.gradle.kts or settings.gradle.kts exists)
+     */
+    private fun findDefaultSettingsPath(): String {
+        // Try current working directory first
+        val userDir = System.getProperty("user.dir")
+        if (userDir != null) {
+            val cwdSettings = Paths.get(userDir, "settings.json")
+            if (Files.exists(cwdSettings)) {
+                return cwdSettings.toAbsolutePath().normalize().toString()
+            }
+        }
+        
+        // Walk up from current directory looking for project root
+        var currentDir = if (userDir != null) Paths.get(userDir) else Paths.get(".")
+        var levels = 0
+        while (levels < 10) {
+            val buildFile = currentDir.resolve("build.gradle.kts")
+            val settingsFile = currentDir.resolve("settings.gradle.kts")
+            val gradleWrapper = currentDir.resolve("gradlew")
+            
+            // If we find project markers, check for settings.json here
+            if (Files.exists(buildFile) || Files.exists(settingsFile) || Files.exists(gradleWrapper)) {
+                val projectSettings = currentDir.resolve("settings.json")
+                if (Files.exists(projectSettings)) {
+                    return projectSettings.toAbsolutePath().normalize().toString()
+                }
+                // Even if settings.json doesn't exist, use this as the default location
+                return projectSettings.toAbsolutePath().normalize().toString()
+            }
+            
+            val parent = currentDir.parent
+            if (parent == null || parent == currentDir) {
+                break
+            }
+            currentDir = parent
+            levels++
+        }
+        
+        // Fallback to current working directory
+        return if (userDir != null) {
+            Paths.get(userDir, "settings.json").toAbsolutePath().normalize().toString()
+        } else {
+            Paths.get("settings.json").toAbsolutePath().normalize().toString()
         }
     }
 }
