@@ -73,7 +73,7 @@
         "maxK": 10,
         "displayK": 5,
         "queryRewritingEnabled": false,
-        "multiQueryEnabled": true,
+        "multiQueryEnabled": false,
         "rerankingEnabled": false,
         "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M",
         "embeddingMaxTokens": 409,
