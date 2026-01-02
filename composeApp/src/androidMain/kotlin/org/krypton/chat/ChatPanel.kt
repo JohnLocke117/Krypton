@@ -668,28 +668,16 @@ actual fun ChatPanel(
                                 )
                                 optimisticUserMessage = optimisticMessage
                                 
-                                // Check if RAG mode requires a vault
-                                val requiresVault = retrievalMode == RetrievalMode.RAG || retrievalMode == RetrievalMode.HYBRID
+                                // On Android, RAG is query-only with ChromaDB Cloud, so no vault is required
+                                // Use default vault ID when no vault is open (RAG will work without it)
+                                val effectiveVaultId = currentVaultPath ?: "default"
                                 
-                                if (requiresVault && currentVaultPath == null) {
-                                    // Show error - sendMessage will handle displaying the error via status
-                                    chatStateHolder.sendMessage(
-                                        message = messageText,
-                                        retrievalMode = retrievalMode,
-                                        vaultId = "",
-                                        currentNotePath = currentNotePath
-                                    )
-                                } else {
-                                    // Use default vault ID for non-RAG modes when no vault is open
-                                    val effectiveVaultId = currentVaultPath ?: "default"
-                                    
-                                    chatStateHolder.sendMessage(
-                                        message = messageText,
-                                        retrievalMode = retrievalMode,
-                                        vaultId = effectiveVaultId,
-                                        currentNotePath = currentNotePath
-                                    )
-                                }
+                                chatStateHolder.sendMessage(
+                                    message = messageText,
+                                    retrievalMode = retrievalMode,
+                                    vaultId = effectiveVaultId,
+                                    currentNotePath = currentNotePath
+                                )
                             }
                         }
                     )
@@ -713,28 +701,16 @@ actual fun ChatPanel(
                                 )
                                 optimisticUserMessage = optimisticMessage
                                 
-                                // Check if RAG mode requires a vault
-                                val requiresVault = retrievalMode == RetrievalMode.RAG || retrievalMode == RetrievalMode.HYBRID
+                                // On Android, RAG is query-only with ChromaDB Cloud, so no vault is required
+                                // Use default vault ID when no vault is open (RAG will work without it)
+                                val effectiveVaultId = currentVaultPath ?: "default"
                                 
-                                if (requiresVault && currentVaultPath == null) {
-                                    // Show error - sendMessage will handle displaying the error via status
-                                    chatStateHolder.sendMessage(
-                                        message = messageText,
-                                        retrievalMode = retrievalMode,
-                                        vaultId = "",
-                                        currentNotePath = currentNotePath
-                                    )
-                                } else {
-                                    // Use default vault ID for non-RAG modes when no vault is open
-                                    val effectiveVaultId = currentVaultPath ?: "default"
-                                    
-                                    chatStateHolder.sendMessage(
-                                        message = messageText,
-                                        retrievalMode = retrievalMode,
-                                        vaultId = effectiveVaultId,
-                                        currentNotePath = currentNotePath
-                                    )
-                                }
+                                chatStateHolder.sendMessage(
+                                    message = messageText,
+                                    retrievalMode = retrievalMode,
+                                    vaultId = effectiveVaultId,
+                                    currentNotePath = currentNotePath
+                                )
                             }
                         },
                         enabled = inputText.isNotBlank() && !isLoading

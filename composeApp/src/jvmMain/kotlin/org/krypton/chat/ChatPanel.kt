@@ -205,7 +205,8 @@ actual fun ChatPanel(
     }
     
     // Get extended RAG components with sync services from DI
-    val extendedRagComponents: ExtendedRagComponents? = remember {
+    // Make it reactive to vectorBackend changes so re-ingestion uses the correct backend
+    val extendedRagComponents: ExtendedRagComponents? = remember(selectedBackend) {
         try {
             koin.getOrNull<ExtendedRagComponents>()
         } catch (e: Exception) {
@@ -693,6 +694,13 @@ actual fun ChatPanel(
                                         }
                                     }
                                     
+                                    // Log backend selection
+                                    val backendName = when (backend) {
+                                        VectorBackend.CHROMADB -> "ChromaDB Local"
+                                        VectorBackend.CHROMA_CLOUD -> "ChromaDB Cloud"
+                                    }
+                                    AppLogger.i("ChatPanel", "VectorDB selected: $backendName")
+                                    
                                     coroutineScope.launch {
                                         settingsRepository.update { current ->
                                             current.copy(
@@ -866,6 +874,14 @@ actual fun ChatPanel(
     // Show re-index dialog if prompt is requested OR if re-indexing is in progress/complete
     val showReindexDialog = showReindexPrompt || isIngesting || reindexSuccess || reindexError != null
     
+    // Get current backend name for display
+    val currentBackendName = remember(selectedBackend) {
+        when (selectedBackend) {
+            VectorBackend.CHROMADB -> "ChromaDB Local"
+            VectorBackend.CHROMA_CLOUD -> "ChromaDB Cloud"
+        }
+    }
+    
     if (showDialog) {
         IngestionPromptDialog(
             onContinue = {
@@ -888,6 +904,13 @@ actual fun ChatPanel(
             isIngesting = isIngesting,
             errorMessage = ingestionError,
             success = ingestionSuccess,
+            title = "Index Vault",
+            message = when {
+                ingestionSuccess -> "Vault indexed successfully in $currentBackendName! RAG mode is now enabled."
+                ingestionError != null -> ingestionError
+                isIngesting -> "Indexing vault to $currentBackendName... This may take a few minutes."
+                else -> "This vault hasn't been indexed yet. Indexing will generate embeddings for all markdown files in $currentBackendName. This may take a few minutes."
+            },
             theme = theme
         )
     }
@@ -993,10 +1016,10 @@ actual fun ChatPanel(
             success = reindexSuccess,
             title = "Re-index Vault",
             message = when {
-                reindexSuccess -> "Vault re-indexed successfully! All files are now up to date."
+                reindexSuccess -> "Vault re-indexed successfully in $currentBackendName! All files are now up to date."
                 reindexError != null -> reindexError
-                isIngesting -> "Re-indexing vault... This may take a few minutes."
-                else -> "Some files in this vault have changed. Re-indexing will update embeddings for changed files only."
+                isIngesting -> "Re-indexing vault to $currentBackendName... This may take a few minutes."
+                else -> "Some files in this vault have changed. Re-indexing will update embeddings for changed files only in $currentBackendName."
             },
             theme = theme
         )

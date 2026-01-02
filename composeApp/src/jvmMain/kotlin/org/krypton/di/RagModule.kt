@@ -314,7 +314,8 @@ val ragModule = module {
     }
     
     // ExtendedRagComponents (created from RagComponents if available)
-    single<ExtendedRagComponents?>(createdAtStart = false) {
+    // Using factory instead of single to allow recreation when settings change (e.g., vectorBackend)
+    factory<ExtendedRagComponents?> {
         try {
             val ragComponents: RagComponents? = try {
                 get<RagComponents>()

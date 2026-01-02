@@ -18,6 +18,14 @@ import org.krypton.util.AppLogger
 import org.krypton.ui.state.UiStatus
 
 /**
+ * Platform-specific check: Does RAG mode require a vault to be open?
+ * 
+ * - Android: RAG is query-only with ChromaDB Cloud, so no vault required
+ * - Desktop (JVM): RAG requires a vault for indexing local notes
+ */
+internal expect fun ragRequiresVault(): Boolean
+
+/**
  * State holder for chat functionality using StateFlow pattern.
  * 
  * Manages chat messages, loading states, and error handling.
@@ -86,7 +94,8 @@ class ChatStateHolder(
         }
         
         // Check if RAG mode requires a vault but vaultId is empty
-        val requiresVault = retrievalMode == RetrievalMode.RAG || retrievalMode == RetrievalMode.HYBRID
+        // On Android, RAG is query-only with ChromaDB Cloud, so no vault is required
+        val requiresVault = (retrievalMode == RetrievalMode.RAG || retrievalMode == RetrievalMode.HYBRID) && ragRequiresVault()
         if (requiresVault && vaultId.isBlank()) {
             _status.value = UiStatus.Error(
                 "RAG mode requires a vault to be open. Please open a vault first or disable RAG mode.",

@@ -267,23 +267,21 @@ fun VectorStoreSelector(
         AppIconWithTooltip(
             tooltip = getBackendDisplayName(selectedBackend),
             modifier = Modifier.size(24.dp),
-            enabled = ragEnabled,
+            enabled = true, // Always enabled, regardless of RAG
             position = TooltipPosition.ABOVE,
             onClick = {
-                if (ragEnabled) {
-                    onExpandedChange(!expanded)
-                }
+                onExpandedChange(!expanded)
             }
         ) {
             AppIcon(
                 type = AppIconType.DatabaseUpload,
                 contentDescription = "Vector DB",
                 modifier = Modifier.size(20.dp),
-                tint = if (ragEnabled) theme.TextPrimary else theme.TextSecondary.copy(alpha = 0.5f)
+                tint = theme.TextPrimary // Always enabled
             )
         }
         DropdownMenu(
-            expanded = expanded && ragEnabled,
+            expanded = expanded, // Always allow dropdown, regardless of RAG
             onDismissRequest = { onExpandedChange(false) },
             modifier = Modifier
                 .background(theme.BackgroundElevated)
