@@ -85,5 +85,10 @@
         "ollamaModel": "llama3.1:8b",
         "geminiModel": "gemini-2.5-flash",
         "agentRoutingLlmProvider": null
+    },
+    "study": {
+        "maxNotes": 5,
+        "maxFlashcardsPerNote": 5,
+        "quizFlashcardCount": 10
     }
 }

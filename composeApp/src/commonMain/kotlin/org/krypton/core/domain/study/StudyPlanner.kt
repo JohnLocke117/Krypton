@@ -11,5 +11,14 @@ interface StudyPlanner {
      * @param goal The study goal to plan for
      */
     suspend fun planForGoal(goal: StudyGoal)
+    
+    /**
+     * Generates a brief roadmap (1-2 paragraphs) for a goal using LLM.
+     * 
+     * @param goal The study goal
+     * @param notes List of matched note paths
+     * @return Generated roadmap text
+     */
+    suspend fun generateRoadmap(goal: StudyGoal, notes: List<String>): String
 }
 

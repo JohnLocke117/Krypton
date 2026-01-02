@@ -8,8 +8,31 @@ import org.krypton.util.AppLogger
  */
 class JvmSettingsConfigProvider : SettingsConfigProvider {
     
-    override fun getSettingsFilePath(): String {
+    override fun getSettingsFilePath(vaultId: String?): String {
+        // Check for vault-specific settings first
+        if (vaultId != null && vaultId.isNotBlank()) {
+            val vaultPath = getVaultSettingsPath(vaultId)
+            if (vaultPath != null) {
+                val vaultSettingsFile = java.nio.file.Paths.get(vaultPath)
+                if (java.nio.file.Files.exists(vaultSettingsFile)) {
+                    return vaultPath
+                }
+            }
+        }
+        
+        // Fall back to app-wide settings
         return SettingsConfigManager.getSettingsFilePath()
+    }
+    
+    override fun getVaultSettingsPath(vaultId: String): String? {
+        return try {
+            val vaultPath = java.nio.file.Paths.get(vaultId)
+            val kryptonDir = vaultPath.resolve(".krypton")
+            val settingsFile = kryptonDir.resolve("settings.json")
+            settingsFile.toString()
+        } catch (e: Exception) {
+            null
+        }
     }
     
     override fun setSettingsFilePath(path: String): Boolean {

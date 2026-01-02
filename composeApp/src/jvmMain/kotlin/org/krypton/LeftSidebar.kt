@@ -131,7 +131,10 @@ fun LeftSidebar(
                         SettingsPanel(modifier = Modifier.fillMaxSize())
                     }
                     RibbonButton.Study -> {
-                        StudyPanel(modifier = Modifier.fillMaxSize())
+                        StudyPanel(
+                            editorStateHolder = state,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
@@ -631,77 +634,96 @@ private fun SidebarTopBar(
         modifier = modifier.fillMaxWidth(),
         color = appColors.sidebarBackground
     ) {
-        // Only show icons when Files panel is active
-        if (activeRibbonButton == RibbonButton.Files) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        // Show content based on active panel
+        when (activeRibbonButton) {
+            RibbonButton.Files -> {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // New File icon button
-                    SidebarIconButton(
-                        icon = Res.drawable.file_copy,
-                        contentDescription = "New File",
-                        onClick = { 
-                            state.startCreatingNewFile()
-                        },
-                        enabled = currentDirectory != null,
-                        theme = theme,
-                        modifier = Modifier
-                    )
-                    
-                    // New Folder icon button
-                    SidebarIconButton(
-                        icon = Res.drawable.folder_copy,
-                        contentDescription = "New Folder",
-                        onClick = { 
-                            state.startCreatingNewFolder()
-                        },
-                        enabled = currentDirectory != null,
-                        theme = theme,
-                        modifier = Modifier
-                    )
-                    
-                    // Refresh icon button
-                    SidebarIconButton(
-                        icon = Res.drawable.refresh,
-                        contentDescription = "Refresh",
-                        onClick = { 
-                            state.triggerTreeRefresh()
-                            AppLogger.action("FileExplorer", "ManualRefresh", "")
-                        },
-                        enabled = currentDirectory != null,
-                        theme = theme,
-                        modifier = Modifier
-                    )
-                    
-                    // Collapse all icon button
-                    SidebarIconButton(
-                        icon = Res.drawable.collapse_all,
-                        contentDescription = "Collapse All",
-                        onClick = { 
-                            state.triggerCollapseAll()
-                            AppLogger.action("FileExplorer", "CollapseAll", "")
-                        },
-                        enabled = currentDirectory != null,
-                        theme = theme,
-                        modifier = Modifier
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // New File icon button
+                        SidebarIconButton(
+                            icon = Res.drawable.file_copy,
+                            contentDescription = "New File",
+                            onClick = { 
+                                state.startCreatingNewFile()
+                            },
+                            enabled = currentDirectory != null,
+                            theme = theme,
+                            modifier = Modifier
+                        )
+                        
+                        // New Folder icon button
+                        SidebarIconButton(
+                            icon = Res.drawable.folder_copy,
+                            contentDescription = "New Folder",
+                            onClick = { 
+                                state.startCreatingNewFolder()
+                            },
+                            enabled = currentDirectory != null,
+                            theme = theme,
+                            modifier = Modifier
+                        )
+                        
+                        // Refresh icon button
+                        SidebarIconButton(
+                            icon = Res.drawable.refresh,
+                            contentDescription = "Refresh",
+                            onClick = { 
+                                state.triggerTreeRefresh()
+                                AppLogger.action("FileExplorer", "ManualRefresh", "")
+                            },
+                            enabled = currentDirectory != null,
+                            theme = theme,
+                            modifier = Modifier
+                        )
+                        
+                        // Collapse all icon button
+                        SidebarIconButton(
+                            icon = Res.drawable.collapse_all,
+                            contentDescription = "Collapse All",
+                            onClick = { 
+                                state.triggerCollapseAll()
+                                AppLogger.action("FileExplorer", "CollapseAll", "")
+                            },
+                            enabled = currentDirectory != null,
+                            theme = theme,
+                            modifier = Modifier
+                        )
+                    }
+                }
+            }
+            RibbonButton.Study -> {
+                // Show "Study Goals" heading in top bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Study Goals",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = theme.TextPrimary
                     )
                 }
             }
-        } else {
-            // Empty top bar for other panels (Search, Settings, etc.)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-            )
+            else -> {
+                // Empty top bar for other panels (Search, Settings, etc.)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                )
+            }
         }
     }
 }

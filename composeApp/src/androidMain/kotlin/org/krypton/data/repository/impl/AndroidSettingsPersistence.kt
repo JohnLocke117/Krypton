@@ -21,8 +21,12 @@ class AndroidSettingsPersistence(
         encodeDefaults = true
     }
 
-    override fun getSettingsFilePath(): String {
-        return configProvider.getSettingsFilePath()
+    override fun getSettingsFilePath(vaultId: String?): String {
+        return configProvider.getSettingsFilePath(vaultId)
+    }
+    
+    override fun getVaultSettingsPath(vaultId: String): String? {
+        return configProvider.getVaultSettingsPath(vaultId)
     }
 
     override fun loadSettingsFromFile(path: String): Settings? {

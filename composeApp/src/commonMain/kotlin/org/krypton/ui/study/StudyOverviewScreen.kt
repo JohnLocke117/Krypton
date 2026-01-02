@@ -105,7 +105,7 @@ fun StudyOverviewScreen(
                 items(state.goals) { goal ->
                     GoalCard(
                         goal = goal,
-                        isSelected = state.selectedGoal?.id == goal.id,
+                        isSelected = state.currentGoal?.id == goal.id,
                         onClick = { onGoalSelected(goal.id) },
                         onDelete = { onDeleteGoal(goal.id) }
                     )
@@ -127,7 +127,7 @@ fun StudyOverviewScreen(
             
             Button(
                 onClick = onStartSessionClick,
-                enabled = state.selectedGoal != null && !state.isLoading,
+                enabled = state.currentGoal != null && !state.isLoading,
                 modifier = Modifier.weight(1f)
             ) {
                 Text(if (hasItemsForSelectedGoal) "Continue Session" else "Start Session")

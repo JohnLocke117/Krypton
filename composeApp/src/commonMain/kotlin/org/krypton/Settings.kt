@@ -118,6 +118,13 @@ data class RagSettings(
 )
 
 @Serializable
+data class StudySettings(
+    val maxNotes: Int = 5,
+    val maxFlashcardsPerNote: Int = 5,
+    val quizFlashcardCount: Int = 10 // Number of flashcards to show in quiz (or all if less)
+)
+
+@Serializable
 data class Settings(
     val version: Int = 1,
     val editor: EditorSettings = EditorSettings(),
@@ -125,6 +132,7 @@ data class Settings(
     val colors: ColorSettings = ColorSettings(),
     val app: AppSettings = AppSettings(),
     val rag: RagSettings = RagSettings(),
-    val llm: LlmSettings = LlmSettings()
+    val llm: LlmSettings = LlmSettings(),
+    val study: StudySettings = StudySettings()
 )
 

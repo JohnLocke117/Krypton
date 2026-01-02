@@ -21,7 +21,8 @@ class SettingsRepositoryImpl(
     private val mutex = Mutex()
     
     // Get settings path dynamically each time (can change via config)
-    private fun getSettingsPath(): String = persistence.getSettingsFilePath()
+    // For now, use app-wide settings (vault-specific can be added later if needed)
+    private fun getSettingsPath(vaultId: String? = null): String = persistence.getSettingsFilePath(vaultId)
     
     private val _settingsFlow = MutableStateFlow<Settings>(loadInitialSettings())
     override val settingsFlow: StateFlow<Settings> = _settingsFlow.asStateFlow()

@@ -1,9 +1,10 @@
 package org.krypton.di
 
 import org.krypton.core.domain.study.StudyGoalRepository
-import org.krypton.core.domain.study.StudyItemRepository
+import org.krypton.core.domain.study.StudySessionRepository
+import org.krypton.core.domain.study.StudyCacheRepository
 import org.krypton.core.domain.study.StudyPlanner
-import org.krypton.core.domain.study.StudyScheduler
+import org.krypton.core.domain.study.StudyRunner
 import org.krypton.data.study.*
 import org.krypton.ui.study.StudyModeState
 import org.krypton.ui.study.StudyModeStateImpl
@@ -21,24 +22,31 @@ val studyModule = module {
     
     // Repositories
     single<StudyGoalRepository> { StudyGoalRepositoryImpl(get()) }
-    single<StudyItemRepository> { StudyItemRepositoryImpl(get(), get()) }
+    single<StudySessionRepository> { StudySessionRepositoryImpl(get(), get()) }
+    single<StudyCacheRepository> { StudyCacheRepositoryImpl(get(), get(), get()) }
     
     // Domain services
     single<StudyPlanner> {
         StudyPlannerImpl(
             fileSystem = get(),
-            flashcardService = get(),
-            studyItemRepository = get(),
             timeProvider = get(),
             searchNoteAgent = get(),
-            settingsRepository = get()
+            settingsRepository = get(),
+            sessionRepository = get(),
+            llamaClient = get(),
+            persistence = get()
         )
     }
     
-    single<StudyScheduler> {
-        StudySchedulerImpl(
-            studyGoalRepository = get(),
-            studyItemRepository = get()
+    single<StudyRunner> {
+        StudyRunnerImpl(
+            sessionRepository = get(),
+            cacheRepository = get(),
+            goalRepository = get(),
+            summarizeNoteAgent = get(),
+            flashcardService = get(),
+            settingsRepository = get(),
+            timeProvider = get()
         )
     }
     
@@ -46,11 +54,15 @@ val studyModule = module {
     single<StudyModeState> {
         StudyModeStateImpl(
             studyGoalRepository = get(),
+            studySessionRepository = get(),
+            studyCacheRepository = get(),
             studyPlanner = get(),
-            studyScheduler = get(),
-            studyItemRepository = get(),
+            studyRunner = get(),
+            searchNoteAgent = get(),
+            settingsRepository = get(),
             timeProvider = get(),
-            coroutineScope = get()
+            coroutineScope = get(),
+            persistence = get()
         )
     }
 }

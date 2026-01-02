@@ -42,9 +42,12 @@ class StudyGoalRepositoryImpl(
         if (dataCache.value[vaultId] == null) {
             scope.launch {
                 try {
-                    val data = persistence.loadStudyData(vaultId) ?: StudyData()
+                    // Try loading from new goals.json, fallback to legacy study-data.json
+                    val goalsData = persistence.loadGoals(vaultId)
+                    val goals = goalsData?.goals ?: emptyList()
+                    val data = StudyData(goals = goals)
                     updateCache(vaultId, data)
-                    AppLogger.d("StudyGoalRepository", "Loaded initial data from persistence for vault '$vaultId': ${data.goals.size} goals")
+                    AppLogger.d("StudyGoalRepository", "Loaded initial data from persistence for vault '$vaultId': ${goals.size} goals")
                 } catch (e: Exception) {
                     AppLogger.e("StudyGoalRepository", "Failed to load initial data for vault '$vaultId'", e)
                 }
@@ -80,13 +83,15 @@ class StudyGoalRepositoryImpl(
     override suspend fun upsert(goal: StudyGoal) {
         try {
             AppLogger.d("StudyGoalRepository", "Upserting goal: ${goal.title} for vault: ${goal.vaultId}")
-            val currentData = loadData(goal.vaultId)
-            val updatedGoals = currentData.goals.filterNot { it.id == goal.id } + goal
-            val updatedData = currentData.copy(goals = updatedGoals)
+            val currentGoals = loadGoals(goal.vaultId)
+            val updatedGoals = currentGoals.goals.filterNot { it.id == goal.id } + goal
+            val goalsData = GoalsData(goals = updatedGoals)
             
             AppLogger.d("StudyGoalRepository", "Saving ${updatedGoals.size} goals to persistence")
-            if (persistence.saveStudyData(goal.vaultId, updatedData)) {
+            if (persistence.saveGoals(goal.vaultId, goalsData)) {
                 // Update cache - this will trigger the flow to emit
+                val currentData = loadData(goal.vaultId)
+                val updatedData = currentData.copy(goals = updatedGoals)
                 updateCache(goal.vaultId, updatedData)
                 AppLogger.d("StudyGoalRepository", "Cache updated, flow should emit")
             } else {
@@ -100,12 +105,14 @@ class StudyGoalRepositoryImpl(
     override suspend fun deleteGoal(id: StudyGoalId) {
         try {
             val goal = getGoal(id) ?: return
-            val currentData = loadData(goal.vaultId)
-            val updatedGoals = currentData.goals.filterNot { it.id == id }
-            val updatedItems = currentData.items.filterNot { it.goalId == id }
-            val updatedData = StudyData(goals = updatedGoals, items = updatedItems)
+            val currentGoals = loadGoals(goal.vaultId)
+            val updatedGoals = currentGoals.goals.filterNot { it.id == id }
+            val goalsData = GoalsData(goals = updatedGoals)
             
-            if (persistence.saveStudyData(goal.vaultId, updatedData)) {
+            if (persistence.saveGoals(goal.vaultId, goalsData)) {
+                // Update cache
+                val currentData = loadData(goal.vaultId)
+                val updatedData = currentData.copy(goals = updatedGoals)
                 updateCache(goal.vaultId, updatedData)
             } else {
                 AppLogger.e("StudyGoalRepository", "Failed to delete goal: $id")
@@ -115,12 +122,25 @@ class StudyGoalRepositoryImpl(
         }
     }
     
+    private suspend fun loadGoals(vaultId: String): GoalsData {
+        // Try loading from new goals.json, fallback to legacy study-data.json
+        val goalsData = persistence.loadGoals(vaultId)
+        if (goalsData != null) {
+            return goalsData
+        }
+        // Fallback to legacy format
+        val legacyData = persistence.loadStudyData(vaultId)
+        return GoalsData(goals = legacyData?.goals ?: emptyList())
+    }
+    
     private suspend fun loadData(vaultId: String): StudyData {
         // Check cache first
         dataCache.value[vaultId]?.let { return it }
         
-        // Load from persistence
-        val data = persistence.loadStudyData(vaultId) ?: StudyData()
+        // Load from persistence (try new format first, then legacy)
+        val goalsData = persistence.loadGoals(vaultId)
+        val goals = goalsData?.goals ?: emptyList()
+        val data = StudyData(goals = goals)
         updateCache(vaultId, data)
         return data
     }

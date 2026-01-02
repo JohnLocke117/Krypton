@@ -125,8 +125,8 @@ $content"""
             }
             
             var jsonStr = trimmed.substring(jsonStart, jsonEnd + 1)
-            // Remove trailing commas to make it valid JSON
-            jsonStr = removeTrailingCommas(jsonStr)
+            // Clean up JSON: remove trailing commas, fix backticks, etc.
+            jsonStr = cleanJsonString(jsonStr)
             
             val jsonArray = json.parseToJsonElement(jsonStr).jsonArray
             
@@ -163,12 +163,27 @@ $content"""
     }
 
     /**
-     * Removes trailing commas from JSON string to make it valid JSON.
+     * Cleans up JSON string to make it valid JSON.
+     * Handles trailing commas, backticks in strings, and other common issues.
      */
-    private fun removeTrailingCommas(jsonStr: String): String {
-        return jsonStr
+    private fun cleanJsonString(jsonStr: String): String {
+        var cleaned = jsonStr
+            // Remove trailing commas
             .replace(Regex(",\\s*\\}"), "}")
             .replace(Regex(",\\s*\\]"), "]")
+        
+        // Fix backticks in JSON strings (replace backticks with escaped quotes or remove them)
+        // Pattern: find strings with backticks like `"answer": `"text"` and fix them
+        cleaned = cleaned.replace(Regex("`([^`]+)`"), "\"$1\"")
+        
+        // Fix cases where backticks are used instead of quotes at the start/end of string values
+        // Pattern: `"key": `value` should become `"key": "value"`
+        cleaned = cleaned.replace(Regex(":\\s*`([^`]+)`"), ": \"$1\"")
+        
+        // Fix escaped backticks in strings (backslash-backtick becomes quote)
+        cleaned = cleaned.replace("\\`", "\"")
+        
+        return cleaned
     }
 }
 

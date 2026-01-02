@@ -1,15 +1,14 @@
 package org.krypton.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import org.koin.core.context.GlobalContext
-import org.krypton.ObsidianThemeValues
 import org.krypton.data.repository.SettingsRepository
-import org.krypton.ui.study.CreateGoalDialog
-import org.krypton.ui.study.StudyModeState
-import org.krypton.ui.study.StudyOverviewScreen
-import org.krypton.ui.study.StudySessionScreen
+import org.krypton.ui.study.*
 
 /**
  * Android study tab with full-screen session mode.
@@ -17,7 +16,7 @@ import org.krypton.ui.study.StudySessionScreen
 @Composable
 fun StudyTab(
     settingsRepository: SettingsRepository,
-    theme: ObsidianThemeValues,
+    theme: org.krypton.ObsidianThemeValues,
     modifier: Modifier = Modifier,
 ) {
     // Get study mode state from Koin
@@ -28,60 +27,109 @@ fun StudyTab(
     val vaultId = settings.app.vaultRootUri ?: ""
     
     // Load goals for current vault
-    // Always call loadGoals, even with empty vaultId, since goals may be saved with empty vaultId
     LaunchedEffect(vaultId) {
         studyModeState.loadGoals(vaultId)
     }
     
     val state by studyModeState.state.collectAsState()
-    var showCreateDialog by remember { mutableStateOf(false) }
-    
-    // Check if selected goal has items (for "Continue Session" button)
-    var hasItems by remember(state.selectedGoal?.id) { mutableStateOf(false) }
-    
-    // Observe items for selected goal
-    LaunchedEffect(state.selectedGoal?.id) {
-        state.selectedGoal?.id?.let { goalId ->
-            val studyItemRepository = org.koin.core.context.GlobalContext.get().get<org.krypton.core.domain.study.StudyItemRepository>()
-            studyItemRepository.observeItemsForGoal(goalId).collect { items ->
-                hasItems = items.isNotEmpty()
-            }
-        } ?: run { hasItems = false }
-    }
     
     Box(modifier = modifier.fillMaxSize()) {
-        if (state.showSessionView && state.todaySession != null) {
-            // Show full-screen session with back button
-            StudySessionScreen(
-                state = state,
-                onRate = { studyModeState.rateCurrentItem(it) },
-                onNext = { studyModeState.moveToNextItem() },
-                onExit = { studyModeState.navigateBackToGoals() },
-                onBack = { studyModeState.navigateBackToGoals() },
-                isFullScreen = true
-            )
-        } else {
-            // Show overview when no active session
-            StudyOverviewScreen(
-                state = state,
-                onGoalSelected = { studyModeState.selectGoal(it) },
-                onCreateGoalClick = { showCreateDialog = true },
-                onStartSessionClick = { studyModeState.startTodaySession() },
-                onDeleteGoal = { studyModeState.deleteGoal(it) },
-                hasItemsForSelectedGoal = hasItems
-            )
+        // Toast notification overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(1000f),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            ToastNotification(toastMessage = state.toastMessage)
+        }
+        
+        when {
+            // Show session view
+            state.showSession -> {
+                val currentSession = state.currentSession
+                if (currentSession != null) {
+                    SessionScreen(
+                        session = currentSession,
+                    state = state,
+                    onBack = { studyModeState.navigateBackToGoals() },
+                    onStartQuiz = { sessionId, count ->
+                        studyModeState.startQuiz(sessionId, count)
+                    },
+                    onSubmitAnswer = { sessionId, index, isCorrect ->
+                        studyModeState.submitQuizAnswer(sessionId, index, isCorrect)
+                    },
+                    onNextQuestion = { sessionId ->
+                        studyModeState.moveToNextQuestion(sessionId)
+                    },
+                    onCompleteQuiz = { sessionId ->
+                        studyModeState.completeQuiz(sessionId)
+                    },
+                    isFullScreen = true
+                    )
+                } else {
+                    // No session available
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        Text("No session available")
+                    }
+                }
+            }
+            
+            // Show roadmap view
+            state.showRoadmap -> {
+                val currentGoal = state.currentGoal
+                if (currentGoal != null) {
+                    GoalRoadmapScreen(
+                        goal = currentGoal,
+                    sessions = state.sessions,
+                    onBack = { studyModeState.navigateBackToGoals() },
+                    onStartSession = { sessionId ->
+                        studyModeState.prepareSession(sessionId)
+                    },
+                    onCreateStudyPlan = {
+                        state.currentGoal?.id?.let { studyModeState.createStudyPlan(it) }
+                    },
+                    planningInProgress = state.planningInProgress
+                    )
+                } else {
+                    // No goal available
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = androidx.compose.ui.Alignment.Center
+                    ) {
+                        Text("No goal available")
+                    }
+                }
+            }
+            
+            // Show create goal dialog
+            state.showCreateGoalDialog -> {
+                CreateGoalScreen(
+                    onDismiss = { studyModeState.dismissCreateGoalDialog() },
+                    onCreate = { title, description, topics, targetDate ->
+                        studyModeState.createGoal(vaultId, title, description, topics, targetDate)
+                        studyModeState.dismissCreateGoalDialog()
+                    }
+                )
+            }
+            
+            // Show goal list
+            else -> {
+                StudyGoalListScreen(
+                    state = state,
+                    onGoalSelected = { goalId ->
+                        studyModeState.selectGoal(goalId)
+                        studyModeState.viewRoadmap(goalId)
+                    },
+                    onCreateGoalClick = { studyModeState.showCreateGoalDialog() },
+                    onDeleteGoal = { goalId ->
+                        studyModeState.deleteGoal(goalId)
+                    }
+                )
+            }
         }
     }
-    
-    // Create goal dialog
-    if (showCreateDialog) {
-        CreateGoalDialog(
-            onDismiss = { showCreateDialog = false },
-            onCreate = { title, description, targetDate ->
-                studyModeState.createGoal(vaultId, title, description, targetDate)
-            },
-            theme = theme
-        )
-    }
 }
-

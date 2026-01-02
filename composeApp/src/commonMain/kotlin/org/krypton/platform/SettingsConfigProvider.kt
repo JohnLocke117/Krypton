@@ -11,10 +11,20 @@ package org.krypton.platform
 interface SettingsConfigProvider {
     /**
      * Gets the file path where settings should be stored.
+     * Checks for vault-specific settings first, then falls back to app-wide settings.
      * 
+     * @param vaultId Optional vault ID to check for vault-specific settings
      * @return Path as a String
      */
-    fun getSettingsFilePath(): String
+    fun getSettingsFilePath(vaultId: String? = null): String
+    
+    /**
+     * Gets the vault-specific settings file path.
+     * 
+     * @param vaultId Vault ID
+     * @return Path to `.krypton/settings.json` in vault root, or null if vaultId is invalid
+     */
+    fun getVaultSettingsPath(vaultId: String): String?
     
     /**
      * Sets the settings file path.
