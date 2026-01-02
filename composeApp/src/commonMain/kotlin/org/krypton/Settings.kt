@@ -83,7 +83,12 @@ data class LlmSettings(
     val provider: LlmProvider = LlmProvider.OLLAMA,
     val ollamaBaseUrl: String = org.krypton.config.RagDefaults.DEFAULT_LLM.baseUrl,
     val ollamaModel: String = org.krypton.config.RagDefaults.DEFAULT_LLM.modelName,
-    val geminiModel: String = "gemini-2.5-flash"
+    val geminiModel: String = "gemini-2.5-flash",
+    /**
+     * LLM provider to use for agent intent classification/routing.
+     * If null, defaults to Ollama on Desktop and Gemini on Android.
+     */
+    val agentRoutingLlmProvider: LlmProvider? = null
 )
 
 @Serializable

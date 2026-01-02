@@ -78,6 +78,7 @@ class OllamaChatService(
             }
             
             // Check agents before normal flow
+            var agentError: String? = null
             val agentResult = agents?.firstNotNullOfOrNull { agent ->
                 try {
                     AppLogger.i("Chat", "═══════════════════════════════════════════════════════════")
@@ -99,7 +100,9 @@ class OllamaChatService(
                     }
                     result
                 } catch (e: Exception) {
-                    AppLogger.e("Chat", "Agent ${agent::class.simpleName} error (continuing with normal flow): ${e.message}", e)
+                    val errorMsg = e.message ?: "Agent execution failed"
+                    AppLogger.e("Chat", "Agent ${agent::class.simpleName} error (continuing with normal flow): $errorMsg", e)
+                    agentError = "${agent::class.simpleName}: $errorMsg"
                     null
                 }
             }
@@ -114,11 +117,12 @@ class OllamaChatService(
                             appendLine()
                             appendLine("- **Title:** ${agentResult.title}")
                             appendLine("- **File:** `${agentResult.filePath}`")
-                            appendLine()
-                            appendLine("**Preview:**")
-                            appendLine("```markdown")
-                            appendLine(agentResult.preview)
-                            appendLine("```")
+                            if (agentResult.preview.isNotBlank()) {
+                                appendLine()
+                                appendLine("**Preview:**")
+                                appendLine()
+                                appendLine(agentResult.preview)
+                            }
                         }
                     }
                     is AgentResult.NotesFound -> {
@@ -173,7 +177,8 @@ class OllamaChatService(
                 
                 return@withContext ChatResult(
                     conversationId = convId,
-                    assistantMessage = assistantMsg
+                    assistantMessage = assistantMsg,
+                    agentError = agentError
                 )
             }
             
@@ -233,7 +238,8 @@ class OllamaChatService(
             
             ChatResult(
                 conversationId = convId,
-                assistantMessage = assistantMsg
+                assistantMessage = assistantMsg,
+                agentError = agentError
             )
         } catch (e: ChatException) {
             AppLogger.e("Chat", "ChatError: ${e.message}", e)

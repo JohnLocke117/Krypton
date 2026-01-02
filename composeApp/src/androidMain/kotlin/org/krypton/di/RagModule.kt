@@ -127,6 +127,32 @@ val ragModule = module {
         }
     }
     
+    // LlamaClient specifically for agent intent classification/routing
+    // Android: Always uses Gemini (only option available)
+    // Using factory to allow recreation when settings change
+    factory<LlamaClient>(qualifier = org.koin.core.qualifier.named("AgentRouting")) {
+        val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
+        val settings = settingsRepository.settingsFlow.value
+        val llmSettings = settings.llm
+        val httpEngine: HttpClientEngine = get()
+        
+        // Android always uses Gemini for agent routing
+        val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
+        val baseUrl = SecretsLoader.loadSecret("GEMINI_API_BASE_URL")
+            ?: "https://generativelanguage.googleapis.com/v1beta/models/${llmSettings.geminiModel}:generateContent"
+        
+        if (apiKey.isNullOrBlank()) {
+            throw IllegalStateException("GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API.")
+        }
+        
+        GeminiClient(
+            apiKey = apiKey,
+            baseUrl = baseUrl,
+            model = llmSettings.geminiModel,
+            httpClientEngine = httpEngine
+        )
+    }
+    
     // Reranker with conditional binding and fallback logic
     single<Reranker> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()

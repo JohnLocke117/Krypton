@@ -7,20 +7,129 @@ import org.krypton.rag.LlamaClient
 import org.krypton.util.AppLogger
 
 /**
- * Agent that creates markdown notes when users request it.
+ * Interface for creating markdown notes.
  * 
- * Detects intent patterns like "create a note on X" and generates
- * a markdown note about the topic, saving it to the current vault.
+ * Assumes intent has already been classified as CREATE_NOTE by MasterAgent.
+ * Focuses purely on execution: extracting topic, generating content, and creating the file.
  */
-class CreateNoteAgent(
+interface CreateNoteAgent {
+    /**
+     * Executes note creation for the given message.
+     * 
+     * @param message The user's message (assumed to be a note creation request)
+     * @param history Conversation history
+     * @param context Agent context
+     * @return AgentResult.NoteCreated on success
+     * @throws Exception if execution fails (vault not open, file write fails, etc.)
+     */
+    suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult
+}
+
+/**
+ * Implementation of CreateNoteAgent that creates markdown notes.
+ * 
+ * Extracts topic from message, generates content using LLM, and creates the file.
+ */
+class CreateNoteAgentImpl(
     private val llamaClient: LlamaClient,
     private val fileSystem: FileSystem,
     private val settingsRepository: SettingsRepository
-) : ChatAgent {
+) : CreateNoteAgent {
 
     companion object {
-        // Intent detection patterns (case-insensitive)
-        private val INTENT_PATTERNS = listOf(
+        private const val PREVIEW_LENGTH = 200
+    }
+
+    override suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult {
+        val modelName = when (context.settings.llm.provider) {
+            org.krypton.LlmProvider.OLLAMA -> context.settings.llm.ollamaModel
+            org.krypton.LlmProvider.GEMINI -> context.settings.llm.geminiModel
+        }
+        AppLogger.i("CreateNoteAgent", "Executing note creation - message: \"$message\", model: $modelName")
+        
+        // Check if vault is open
+        var vaultPath = context.currentVaultPath
+        if (vaultPath.isNullOrBlank()) {
+            throw IllegalStateException("No vault open. Please open a vault to create notes.")
+        }
+
+        // Handle "default" vault ID on Android - resolve to actual vault path
+        if (vaultPath == "default") {
+            // Try to get vault root from settings
+            val vaultRootUri = context.settings.app.vaultRootUri
+            if (vaultRootUri != null && vaultRootUri.isNotBlank()) {
+                vaultPath = vaultRootUri
+            } else {
+                // Fallback: use default Documents/Vault directory
+                // This matches AndroidVaultPicker.pickVaultRoot() fallback behavior
+                // Note: This is Android-specific, but CreateNoteAgent is common code
+                // The actual path resolution should ideally be done in platform-specific code,
+                // but for now we handle it here to avoid breaking the agent interface
+                throw IllegalStateException(
+                    "No vault is open. Please open a vault folder to create notes. " +
+                    "The 'default' vault ID cannot be used for note creation."
+                )
+            }
+        }
+
+        // Validate vault path exists and is a directory
+        if (!fileSystem.isDirectory(vaultPath)) {
+            throw IllegalStateException("Vault path is not a directory: $vaultPath")
+        }
+
+        // Extract topic from message (assume intent already classified, so extract directly)
+        val topic = extractTopic(message) ?: throw IllegalArgumentException(
+            "Could not extract topic from message: $message"
+        )
+
+        AppLogger.i("CreateNoteAgent", "Extracted topic: $topic")
+
+        // Generate content
+        val content = generateNoteContent(topic)
+        if (content.isBlank()) {
+            throw IllegalStateException("Generated content is empty for topic: $topic")
+        }
+
+        // Generate filename
+        val fileName = generateFileName(topic, vaultPath)
+        val filePath = "$vaultPath/$fileName"
+
+        // Write file
+        val success = fileSystem.writeFile(filePath, content)
+        if (!success) {
+            throw IllegalStateException("Failed to write file: $filePath")
+        }
+
+        // Extract title and preview
+        val title = extractTitle(content, topic)
+        val preview = extractPreview(content)
+
+        AppLogger.i("CreateNoteAgent", "Created note: $filePath")
+
+        return AgentResult.NoteCreated(
+            filePath = filePath,
+            title = title,
+            preview = preview
+        )
+    }
+
+    /**
+     * Extracts the topic from a message.
+     * Assumes message is a note creation request and extracts the topic directly.
+     */
+    private fun extractTopic(message: String): String? {
+        // Try common patterns, but be flexible since intent is already classified
+        val lowerMessage = message.lowercase().trim()
+        
+        val patterns = listOf(
             "create a note on",
             "create a short note on",
             "create note on",
@@ -28,94 +137,16 @@ class CreateNoteAgent(
             "make a note on",
             "write a note about",
             "write a note on",
-            "create a note about"
+            "create a note about",
+            "note on",
+            "note about",
+            "create",
+            "make",
+            "write"
         )
         
-        private const val PREVIEW_LENGTH = 200
-    }
-
-    override suspend fun tryHandle(
-        message: String,
-        chatHistory: List<ChatMessage>,
-        context: AgentContext
-    ): AgentResult? {
-        val modelName = when (context.settings.llm.provider) {
-            org.krypton.LlmProvider.OLLAMA -> context.settings.llm.ollamaModel
-            org.krypton.LlmProvider.GEMINI -> context.settings.llm.geminiModel
-        }
-        AppLogger.i("CreateNoteAgent", "Starting query - message: \"$message\", model: $modelName")
-        
-        // Check if vault is open
-        val vaultPath = context.currentVaultPath
-        if (vaultPath.isNullOrBlank()) {
-            AppLogger.d("CreateNoteAgent", "Ending query - no vault open, agent cannot operate")
-            return null // No vault open, agent cannot operate
-        }
-
-        // Validate vault path exists and is a directory
-        if (!fileSystem.isDirectory(vaultPath)) {
-            AppLogger.w("CreateNoteAgent", "Vault path is not a directory: $vaultPath")
-            AppLogger.d("CreateNoteAgent", "Ending query - invalid vault path")
-            return null
-        }
-
-        // Detect intent
-        val topic = extractTopic(message) ?: run {
-            AppLogger.d("CreateNoteAgent", "Ending query - no intent detected")
-            return null
-        }
-
-        AppLogger.i("CreateNoteAgent", "Detected note creation intent for topic: $topic")
-
-        try {
-            // Generate content
-            val content = generateNoteContent(topic)
-            if (content.isBlank()) {
-                AppLogger.w("CreateNoteAgent", "Generated content is empty for topic: $topic")
-                AppLogger.d("CreateNoteAgent", "Ending query - empty content generated")
-                return null
-            }
-
-            // Generate filename
-            val fileName = generateFileName(topic, vaultPath)
-            val filePath = "$vaultPath/$fileName"
-
-            // Write file
-            val success = fileSystem.writeFile(filePath, content)
-            if (!success) {
-                AppLogger.e("CreateNoteAgent", "Failed to write file: $filePath")
-                AppLogger.d("CreateNoteAgent", "Ending query - file write failed")
-                return null
-            }
-
-            // Extract title and preview
-            val title = extractTitle(content, topic)
-            val preview = extractPreview(content)
-
-            AppLogger.i("CreateNoteAgent", "Created note: $filePath")
-            AppLogger.i("CreateNoteAgent", "Ending query - success, file: $filePath, model: $modelName")
-
-            return AgentResult.NoteCreated(
-                filePath = filePath,
-                title = title,
-                preview = preview
-            )
-        } catch (e: Exception) {
-            AppLogger.e("CreateNoteAgent", "Error creating note for topic: $topic, model: $modelName", e)
-            AppLogger.d("CreateNoteAgent", "Ending query - exception occurred")
-            return null
-        }
-    }
-
-    /**
-     * Extracts the topic from a message if it matches intent patterns.
-     */
-    private fun extractTopic(message: String): String? {
-        val lowerMessage = message.lowercase().trim()
-        
-        for (pattern in INTENT_PATTERNS) {
+        for (pattern in patterns) {
             if (lowerMessage.contains(pattern)) {
-                // Extract text after the pattern
                 val index = lowerMessage.indexOf(pattern)
                 val afterPattern = message.substring(index + pattern.length).trim()
                 if (afterPattern.isNotBlank()) {
@@ -124,7 +155,8 @@ class CreateNoteAgent(
             }
         }
         
-        return null
+        // If no pattern matches, return the whole message as topic
+        return message.trim().takeIf { it.isNotBlank() }
     }
 
     /**
@@ -242,4 +274,3 @@ class CreateNoteAgent(
         return preview.take(PREVIEW_LENGTH).trim()
     }
 }
-

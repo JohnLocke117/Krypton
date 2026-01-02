@@ -37,9 +37,11 @@ interface ChatService {
  * 
  * @param conversationId The conversation ID (newly created or existing)
  * @param assistantMessage The assistant's response message (in new conversation ChatMessage format)
+ * @param agentError Optional error message if an agent failed and chat reverted to normal flow
  */
 data class ChatResult(
     val conversationId: ConversationId,
     val assistantMessage: org.krypton.chat.conversation.ChatMessage,
+    val agentError: String? = null
 )
 

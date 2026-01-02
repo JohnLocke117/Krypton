@@ -66,6 +66,7 @@ actual fun ChatPanel(
     val isLoading by chatStateHolder.isLoading.collectAsState()
     val chatStatus by chatStateHolder.status.collectAsState()
     val agentMessage by chatStateHolder.agentMessage.collectAsState()
+    val agentError by chatStateHolder.agentError.collectAsState()
     
     // Extract error message from status
     val error = (chatStatus as? UiStatus.Error)?.message
@@ -595,10 +596,12 @@ actual fun ChatPanel(
             tavilyError = tavilyError,
             llmProviderError = llmProviderError,
             chatError = error,
+            agentError = agentError,
             onDismissRebuildStatus = { rebuildStatus = null },
             onDismissTavilyError = { tavilyError = null },
             onDismissLlmProviderError = { llmProviderError = null },
             onDismissChatError = { chatStateHolder.clearError() },
+            onDismissAgentError = { chatStateHolder.clearAgentError() },
             theme = theme
         )
 

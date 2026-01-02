@@ -81,6 +81,7 @@
         "provider": "OLLAMA",
         "ollamaBaseUrl": "http://localhost:11434",
         "ollamaModel": "llama3.1:8b",
-        "geminiModel": "gemini-2.5-flash"
+        "geminiModel": "gemini-2.5-flash",
+        "agentRoutingLlmProvider": null
     }
 }

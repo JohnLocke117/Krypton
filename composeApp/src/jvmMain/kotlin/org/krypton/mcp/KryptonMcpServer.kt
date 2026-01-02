@@ -214,17 +214,23 @@ private fun registerCreateNoteTool(
                 )
             
             val context = buildAgentContext(vaultPath, settingsRepository)
-            val result = runBlocking {
-                agent.tryHandle("create a note on $topic", emptyList(), context)
+            val noteResult = runBlocking {
+                try {
+                    agent.execute("create a note on $topic", emptyList(), context) as AgentResult.NoteCreated
+                } catch (e: Exception) {
+                    AppLogger.e("MCP", "Error executing create_note", e)
+                    return@runBlocking null
+                }
             }
             
-            val noteResult = result as? AgentResult.NoteCreated
-                ?: return@addTool CallToolResult(
+            if (noteResult == null) {
+                return@addTool CallToolResult(
                     isError = true,
                     content = listOf(
-                        textContent("Agent did not create a note. Make sure the vault path is valid and the agent can access it.")
+                        textContent("Failed to create note. Make sure the vault path is valid and the agent can access it.")
                     )
                 )
+            }
             
             val responseText = """
                 Note created successfully:
@@ -351,17 +357,23 @@ private fun registerSearchNotesTool(
             val limit = (paramsMap["limit"] as? Number)?.toInt() ?: 20
             
             val context = buildAgentContext(vaultPath, settingsRepository)
-            val result = runBlocking {
-                agent.tryHandle("search my notes for $query", emptyList(), context)
+            val notesFound = runBlocking {
+                try {
+                    agent.execute("search my notes for $query", emptyList(), context) as AgentResult.NotesFound
+                } catch (e: Exception) {
+                    AppLogger.e("MCP", "Error executing search_notes", e)
+                    return@runBlocking null
+                }
             }
             
-            val notesFound = result as? AgentResult.NotesFound
-                ?: return@addTool CallToolResult(
+            if (notesFound == null) {
+                return@addTool CallToolResult(
                     isError = true,
                     content = listOf(
-                        textContent("Agent did not return search results. Make sure the vault path is valid and contains markdown files.")
+                        textContent("Failed to search notes. Make sure the vault path is valid and contains markdown files.")
                     )
                 )
+            }
             
             val limited = notesFound.results.take(limit)
             
@@ -534,17 +546,23 @@ private fun registerSummarizeNotesTool(
                 else -> ""
             }
             
-            val result = runBlocking {
-                agent.tryHandle(message, emptyList(), context)
+            val summary = runBlocking {
+                try {
+                    agent.execute(message, emptyList(), context) as AgentResult.NoteSummarized
+                } catch (e: Exception) {
+                    AppLogger.e("MCP", "Error executing summarize_notes", e)
+                    return@runBlocking null
+                }
             }
             
-            val summary = result as? AgentResult.NoteSummarized
-                ?: return@addTool CallToolResult(
+            if (summary == null) {
+                return@addTool CallToolResult(
                     isError = true,
                     content = listOf(
-                        textContent("Agent did not return a summary. Make sure the vault/note path is valid and contains content.")
+                        textContent("Failed to summarize notes. Make sure the vault/note path is valid and contains content.")
                     )
                 )
+            }
             
             // Build JSON response with proper escaping
             val escapedSummary = escapeJson(summary.summary)

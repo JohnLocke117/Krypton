@@ -131,6 +131,46 @@ val ragModule = module {
         }
     }
     
+    // LlamaClient specifically for agent intent classification/routing
+    // Desktop: Uses agentRoutingLlmProvider if set, otherwise defaults to Ollama (free, local)
+    // Using factory to allow recreation when settings change
+    factory<LlamaClient>(qualifier = org.koin.core.qualifier.named("AgentRouting")) {
+        val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
+        val settings = settingsRepository.settingsFlow.value
+        val llmSettings = settings.llm
+        val httpEngine: HttpClientEngine = get()
+        
+        // Determine which provider to use for agent routing
+        val routingProvider = llmSettings.agentRoutingLlmProvider ?: LlmProvider.OLLAMA // Default to Ollama on Desktop
+        
+        when (routingProvider) {
+            LlmProvider.OLLAMA -> {
+                HttpLlamaClient(
+                    baseUrl = llmSettings.ollamaBaseUrl,
+                    model = llmSettings.ollamaModel,
+                    apiPath = "/api/generate",
+                    httpClientEngine = httpEngine
+                )
+            }
+            LlmProvider.GEMINI -> {
+                val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
+                val baseUrl = SecretsLoader.loadSecret("GEMINI_API_BASE_URL")
+                    ?: "https://generativelanguage.googleapis.com/v1beta/models/${llmSettings.geminiModel}:generateContent"
+                
+                if (apiKey.isNullOrBlank()) {
+                    throw IllegalStateException("GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API.")
+                }
+                
+                GeminiClient(
+                    apiKey = apiKey,
+                    baseUrl = baseUrl,
+                    model = llmSettings.geminiModel,
+                    httpClientEngine = httpEngine
+                )
+            }
+        }
+    }
+    
     // Reranker with conditional binding and fallback logic
     single<Reranker> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()

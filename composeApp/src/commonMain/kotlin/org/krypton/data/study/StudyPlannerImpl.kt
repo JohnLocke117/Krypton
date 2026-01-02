@@ -45,7 +45,12 @@ class StudyPlannerImpl(
             
             // Search for notes related to the goal title
             val searchMessage = "search my notes for ${goal.title}"
-            val searchResult = searchNoteAgent.tryHandle(searchMessage, emptyList(), agentContext)
+            val searchResult = try {
+                searchNoteAgent.execute(searchMessage, emptyList(), agentContext)
+            } catch (e: Exception) {
+                AppLogger.w("StudyPlanner", "SearchNoteAgent execution failed for '${goal.title}'", e)
+                null
+            }
             
             val notePaths = if (searchResult is AgentResult.NotesFound) {
                 AppLogger.i("StudyPlanner", "Found ${searchResult.results.size} notes related to '${goal.title}'")

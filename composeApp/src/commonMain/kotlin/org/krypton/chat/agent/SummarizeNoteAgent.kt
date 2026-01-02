@@ -11,21 +11,44 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Agent that summarizes notes when users request it.
+ * Interface for summarizing notes.
  * 
+ * Assumes intent has already been classified as SUMMARIZE_NOTE by MasterAgent.
  * Supports two modes:
  * 1. Current-note mode: Summarizes the currently active note
  * 2. Topic-from-vault mode: Summarizes notes about a specific topic from the vault
  */
-class SummarizeNoteAgent(
+interface SummarizeNoteAgent {
+    /**
+     * Executes note summarization for the given message.
+     * 
+     * @param message The user's message (assumed to be a summarization request)
+     * @param history Conversation history
+     * @param context Agent context
+     * @return AgentResult.NoteSummarized on success
+     * @throws Exception if execution fails (no current note, no vault, no relevant notes found, etc.)
+     */
+    suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult
+}
+
+/**
+ * Implementation of SummarizeNoteAgent that summarizes notes.
+ * 
+ * Supports current-note mode and topic-from-vault mode.
+ */
+class SummarizeNoteAgentImpl(
     private val llamaClient: LlamaClient,
     private val ragRetriever: RagRetriever?,
     private val fileSystem: FileSystem,
     private val settingsRepository: SettingsRepository
-) : ChatAgent {
+) : SummarizeNoteAgent {
 
     companion object {
-        // Intent patterns for current-note mode
+        // Patterns for current-note mode
         private val CURRENT_NOTE_PATTERNS = listOf(
             "summarize this note",
             "summarize the current note",
@@ -36,8 +59,7 @@ class SummarizeNoteAgent(
             "what is this note about"
         )
         
-        // Intent patterns for topic-from-vault mode
-        // Note: Patterns use "summarize" but matching is case-insensitive, so "summarise" (British spelling) will also match
+        // Patterns for topic-from-vault mode
         private val TOPIC_PATTERNS = listOf(
             "summarize my notes about",
             "summarize my notes on",
@@ -58,16 +80,16 @@ class SummarizeNoteAgent(
         private const val MAX_WORDS_PER_CHUNK = 800    // Limit chunk size for 8B model
     }
 
-    override suspend fun tryHandle(
+    override suspend fun execute(
         message: String,
-        chatHistory: List<ChatMessage>,
+        history: List<ChatMessage>,
         context: AgentContext
-    ): AgentResult? {
+    ): AgentResult {
         val modelName = when (context.settings.llm.provider) {
             org.krypton.LlmProvider.OLLAMA -> context.settings.llm.ollamaModel
             org.krypton.LlmProvider.GEMINI -> context.settings.llm.geminiModel
         }
-        AppLogger.i("SummarizeNoteAgent", "Starting query - message: \"$message\", model: $modelName")
+        AppLogger.i("SummarizeNoteAgent", "Executing note summarization - message: \"$message\", model: $modelName")
         
         val lowerMessage = message.lowercase().trim()
         
@@ -84,8 +106,19 @@ class SummarizeNoteAgent(
             return handleTopicMode(context, topic, modelName)
         }
         
-        AppLogger.d("SummarizeNoteAgent", "Ending query - no intent detected")
-        return null
+        // If neither mode matches, try to infer from context
+        // If there's a current note, assume current-note mode
+        if (context.currentNotePath != null) {
+            return handleCurrentNoteMode(context, modelName)
+        }
+        
+        // Otherwise, try to extract topic from the message itself
+        val inferredTopic = message.trim()
+        if (inferredTopic.isNotBlank()) {
+            return handleTopicMode(context, inferredTopic, modelName)
+        }
+        
+        throw IllegalArgumentException("Could not determine summarization mode from message: $message")
     }
 
     /**
@@ -94,61 +127,47 @@ class SummarizeNoteAgent(
     private suspend fun handleCurrentNoteMode(
         context: AgentContext,
         modelName: String
-    ): AgentResult? {
+    ): AgentResult {
         val notePath = context.currentNotePath
         if (notePath.isNullOrBlank()) {
-            AppLogger.d("SummarizeNoteAgent", "Ending query - no current note path")
-            return null
+            throw IllegalStateException("No current note open. Please open a note to summarize it.")
         }
 
         if (!fileSystem.isFile(notePath)) {
-            AppLogger.w("SummarizeNoteAgent", "Current note path is not a file: $notePath")
-            AppLogger.d("SummarizeNoteAgent", "Ending query - invalid note path")
-            return null
+            throw IllegalStateException("Current note path is not a file: $notePath")
         }
 
-        try {
-            val content = withContext(Dispatchers.IO) {
-                fileSystem.readFile(notePath)
-            }
-
-            if (content.isNullOrBlank()) {
-                AppLogger.w("SummarizeNoteAgent", "Note content is empty: $notePath")
-                AppLogger.d("SummarizeNoteAgent", "Ending query - empty content")
-                return null
-            }
-
-            val title = extractTitle(content, notePath)
-            // For current note mode, use a simple prompt
-            val summary = generateSummaryForCurrentNote(content)
-
-            if (summary.isBlank()) {
-                AppLogger.w("SummarizeNoteAgent", "Generated summary is empty for note: $notePath")
-                AppLogger.d("SummarizeNoteAgent", "Ending query - empty summary")
-                return null
-            }
-
-            // Get relative path
-            val vaultPath = context.currentVaultPath
-            val relativePath = if (vaultPath != null && notePath.startsWith(vaultPath)) {
-                notePath.removePrefix(vaultPath).removePrefix("/")
-            } else {
-                notePath
-            }
-
-            AppLogger.i("SummarizeNoteAgent", "Summarized current note: $notePath")
-            AppLogger.d("SummarizeNoteAgent", "Ending query - success, model: $modelName")
-
-            return AgentResult.NoteSummarized(
-                title = title,
-                summary = summary,
-                sourceFiles = listOf(relativePath)
-            )
-        } catch (e: Exception) {
-            AppLogger.e("SummarizeNoteAgent", "Error summarizing current note: $notePath, model: $modelName", e)
-            AppLogger.d("SummarizeNoteAgent", "Ending query - exception occurred")
-            return null
+        val content = withContext(Dispatchers.IO) {
+            fileSystem.readFile(notePath)
         }
+
+        if (content.isNullOrBlank()) {
+            throw IllegalStateException("Note content is empty: $notePath")
+        }
+
+        val title = extractTitle(content, notePath)
+        // For current note mode, use a simple prompt
+        val summary = generateSummaryForCurrentNote(content)
+
+        if (summary.isBlank()) {
+            throw IllegalStateException("Generated summary is empty for note: $notePath")
+        }
+
+        // Get relative path
+        val vaultPath = context.currentVaultPath
+        val relativePath = if (vaultPath != null && notePath.startsWith(vaultPath)) {
+            notePath.removePrefix(vaultPath).removePrefix("/")
+        } else {
+            notePath
+        }
+
+        AppLogger.i("SummarizeNoteAgent", "Summarized current note: $notePath")
+
+        return AgentResult.NoteSummarized(
+            title = title,
+            summary = summary,
+            sourceFiles = listOf(relativePath)
+        )
     }
 
     /**
@@ -158,92 +177,79 @@ class SummarizeNoteAgent(
         context: AgentContext,
         topic: String,
         modelName: String
-    ): AgentResult? {
+    ): AgentResult {
         val vaultPath = context.currentVaultPath
         if (vaultPath.isNullOrBlank()) {
-            AppLogger.d("SummarizeNoteAgent", "Ending query - no vault open")
-            return null
+            throw IllegalStateException("No vault open. Please open a vault to summarize notes.")
         }
 
         if (ragRetriever == null) {
-            AppLogger.d("SummarizeNoteAgent", "Ending query - RagRetriever not available for topic mode")
-            return null
+            throw IllegalStateException("RagRetriever not available. RAG must be enabled to summarize notes by topic.")
         }
 
-        try {
-            // Build better retrieval query
-            val retrievalQuery = buildRetrievalQuery(topic)
-            AppLogger.i("SummarizeNoteAgent", "Retrieval query: \"$retrievalQuery\"")
-            
-            // Retrieve relevant chunks
-            val allChunks = ragRetriever.retrieveChunks(retrievalQuery)
-            
-            // Filter for relevance and limit count
-            val relevantChunks = allChunks
-                .filter { isChunkRelevant(it, topic) }
-                .take(MAX_CHUNKS_FOR_SUMMARY)
-            
-            AppLogger.i("SummarizeNoteAgent", "Retrieved ${allChunks.size} chunks, ${relevantChunks.size} relevant after filtering")
+        // Build better retrieval query
+        val retrievalQuery = buildRetrievalQuery(topic)
+        AppLogger.i("SummarizeNoteAgent", "Retrieval query: \"$retrievalQuery\"")
+        
+        // Retrieve relevant chunks
+        val allChunks = ragRetriever.retrieveChunks(retrievalQuery)
+        
+        // Filter for relevance and limit count
+        val relevantChunks = allChunks
+            .filter { isChunkRelevant(it, topic) }
+            .take(MAX_CHUNKS_FOR_SUMMARY)
+        
+        AppLogger.i("SummarizeNoteAgent", "Retrieved ${allChunks.size} chunks, ${relevantChunks.size} relevant after filtering")
 
-            if (relevantChunks.isEmpty()) {
-                AppLogger.i("SummarizeNoteAgent", "No relevant chunks found for topic: $topic")
-                AppLogger.d("SummarizeNoteAgent", "Ending query - no relevant chunks")
-                return null
-            }
-            
-            val chunks = relevantChunks
-
-            // Extract unique file paths from chunks
-            val sourceFiles = chunks.mapNotNull { chunk ->
-                chunk.metadata["filePath"]
-            }.distinct().map { filePath ->
-                // Convert to relative path if possible
-                if (vaultPath != null && filePath.startsWith(vaultPath)) {
-                    filePath.removePrefix(vaultPath).removePrefix("/")
-                } else {
-                    filePath
-                }
-            }
-
-            // Concatenate chunks for context (truncate long chunks)
-            val contextText = buildString {
-                chunks.forEachIndexed { index, chunk ->
-                    val filePath = chunk.metadata["filePath"] ?: "unknown"
-                    val sectionTitle = chunk.metadata["sectionTitle"]
-                    val truncatedText = truncateChunkText(chunk.text, MAX_WORDS_PER_CHUNK)
-                    
-                    if (index > 0) appendLine()
-                    if (sectionTitle != null) {
-                        appendLine("## $sectionTitle")
-                    }
-                    appendLine("From: $filePath")
-                    appendLine()
-                    appendLine(truncatedText)
-                    appendLine()
-                }
-            }
-
-            val summary = generateSummary(contextText, topic)
-
-            if (summary.isBlank()) {
-                AppLogger.w("SummarizeNoteAgent", "Generated summary is empty for topic: $topic")
-                AppLogger.d("SummarizeNoteAgent", "Ending query - empty summary")
-                return null
-            }
-
-            AppLogger.i("SummarizeNoteAgent", "Summarized topic: $topic from ${sourceFiles.size} files")
-            AppLogger.d("SummarizeNoteAgent", "Ending query - success, model: $modelName")
-
-            return AgentResult.NoteSummarized(
-                title = topic,
-                summary = summary,
-                sourceFiles = sourceFiles
-            )
-        } catch (e: Exception) {
-            AppLogger.e("SummarizeNoteAgent", "Error summarizing topic: $topic, model: $modelName", e)
-            AppLogger.d("SummarizeNoteAgent", "Ending query - exception occurred")
-            return null
+        if (relevantChunks.isEmpty()) {
+            throw IllegalStateException("No relevant chunks found for topic: $topic")
         }
+        
+        val chunks = relevantChunks
+
+        // Extract unique file paths from chunks
+        val sourceFiles = chunks.mapNotNull { chunk ->
+            chunk.metadata["filePath"]
+        }.distinct().map { filePath ->
+            // Convert to relative path if possible
+            if (vaultPath != null && filePath.startsWith(vaultPath)) {
+                filePath.removePrefix(vaultPath).removePrefix("/")
+            } else {
+                filePath
+            }
+        }
+
+        // Concatenate chunks for context (truncate long chunks)
+        val contextText = buildString {
+            chunks.forEachIndexed { index, chunk ->
+                val filePath = chunk.metadata["filePath"] ?: "unknown"
+                val sectionTitle = chunk.metadata["sectionTitle"]
+                val truncatedText = truncateChunkText(chunk.text, MAX_WORDS_PER_CHUNK)
+                
+                if (index > 0) appendLine()
+                if (sectionTitle != null) {
+                    appendLine("## $sectionTitle")
+                }
+                appendLine("From: $filePath")
+                appendLine()
+                appendLine(truncatedText)
+                appendLine()
+            }
+        }
+
+        val summary = generateSummary(contextText, topic)
+
+        if (summary.isBlank()) {
+            throw IllegalStateException("Generated summary is empty for topic: $topic")
+        }
+
+        AppLogger.i("SummarizeNoteAgent", "Summarized topic: $topic from ${sourceFiles.size} files")
+
+        return AgentResult.NoteSummarized(
+            title = topic,
+            summary = summary,
+            sourceFiles = sourceFiles
+        )
     }
 
     /**
@@ -361,4 +367,3 @@ Summary:"""
             .replace('_', ' ')
     }
 }
-

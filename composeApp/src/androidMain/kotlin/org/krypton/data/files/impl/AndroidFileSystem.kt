@@ -205,6 +205,48 @@ class AndroidFileSystem(
             
             if (uri != null && uri.scheme == "content") {
                 // SAF-based access using DocumentFile
+                // Check if this is a tree URI with a filename appended (e.g., tree/primary:Documents/Vault/filename.md)
+                if (filePath.contains("/tree/") && !filePath.endsWith("/")) {
+                    // Extract tree URI and filename
+                    val treeUriStr = filePath.substringBeforeLast("/")
+                    val fileName = filePath.substringAfterLast("/")
+                    
+                    val treeUri = try {
+                        Uri.parse(treeUriStr)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    
+                    if (treeUri != null) {
+                        val treeDocument = DocumentFile.fromTreeUri(context, treeUri)
+                        if (treeDocument != null && treeDocument.isDirectory) {
+                            // Find or create the file
+                            var fileDocument = treeDocument.findFile(fileName)
+                            if (fileDocument == null) {
+                                // Create the file if it doesn't exist
+                                fileDocument = treeDocument.createFile("text/markdown", fileName)
+                            }
+                            
+                            if (fileDocument != null && fileDocument.canWrite()) {
+                                context.contentResolver.openOutputStream(fileDocument.uri, "wt")?.use { outputStream ->
+                                    outputStream.bufferedWriter().use { writer ->
+                                        writer.write(content)
+                                        writer.flush()
+                                    }
+                                } ?: run {
+                                    AppLogger.w("AndroidFileSystem", "Failed to open output stream for: $filePath")
+                                    return false
+                                }
+                                return true
+                            } else {
+                                AppLogger.w("AndroidFileSystem", "Cannot write to file: $filePath (no write permission or file creation failed)")
+                                return false
+                            }
+                        }
+                    }
+                }
+                
+                // Try as single document URI (for existing files)
                 val fileDocument = DocumentFile.fromSingleUri(context, uri)
                 if (fileDocument != null && fileDocument.canWrite()) {
                     // Use "wt" mode to truncate existing content
@@ -255,8 +297,56 @@ class AndroidFileSystem(
     
     override fun isDirectory(path: String): Boolean {
         return try {
-            File(path).isDirectory
+            // Check if path is a SAF URI
+            val uri = try {
+                Uri.parse(path)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                // Try as tree URI first (for directory access)
+                val treeDocument = DocumentFile.fromTreeUri(context, uri)
+                if (treeDocument != null && treeDocument.isDirectory) {
+                    return true
+                }
+                
+                // Try as single document URI
+                val fileDocument = DocumentFile.fromSingleUri(context, uri)
+                if (fileDocument != null && fileDocument.isDirectory) {
+                    return true
+                }
+                
+                // If that fails and it's a tree URI with document path, try tree-based access
+                if (path.contains("/tree/") && path.contains("/document/")) {
+                    // Extract tree URI (everything up to /document/)
+                    val treeUriStr = path.substringBefore("/document/")
+                    val documentPath = path.substringAfter("/document/")
+                    
+                    val treeUri = try {
+                        Uri.parse(treeUriStr)
+                    } catch (e: Exception) {
+                        null
+                    }
+                    
+                    if (treeUri != null) {
+                        val treeDoc = DocumentFile.fromTreeUri(context, treeUri)
+                        if (treeDoc != null) {
+                            // Find the document within the tree
+                            val fileDoc = findDocumentFile(treeDoc, documentPath)
+                            return fileDoc != null && fileDoc.isDirectory
+                        }
+                    }
+                }
+                
+                false
+            } else {
+                // File path-based access
+                File(path).isDirectory
+            }
         } catch (e: Exception) {
+            AppLogger.e("AndroidFileSystem", "Failed to check if path is directory: $path", e)
             false
         }
     }

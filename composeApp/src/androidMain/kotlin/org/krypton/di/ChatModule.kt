@@ -2,8 +2,16 @@ package org.krypton.di
 
 import org.krypton.chat.ChatService
 import org.krypton.chat.agent.CreateNoteAgent
+import org.krypton.chat.agent.CreateNoteAgentImpl
 import org.krypton.chat.agent.SearchNoteAgent
+import org.krypton.chat.agent.SearchNoteAgentImpl
 import org.krypton.chat.agent.SummarizeNoteAgent
+import org.krypton.chat.agent.SummarizeNoteAgentImpl
+import org.krypton.chat.agent.IntentClassifier
+import org.krypton.chat.agent.LlmIntentClassifier
+import org.krypton.chat.agent.MasterAgent
+import org.krypton.chat.agent.MasterAgentImpl
+import org.koin.core.qualifier.named
 import org.krypton.chat.conversation.ConversationMemoryPolicy
 import org.krypton.chat.conversation.ConversationMemoryProvider
 import org.krypton.chat.conversation.ConversationRepository
@@ -125,32 +133,38 @@ val chatModule = module {
         }
     }
     
-    // CreateNoteAgent (for note creation functionality)
+    // IntentClassifier for agent routing (uses separate LlamaClient for agent routing)
+    factory<IntentClassifier> {
+        val agentRoutingLlmClient: LlamaClient = get(qualifier = named("AgentRouting"))
+        LlmIntentClassifier(llmClient = agentRoutingLlmClient)
+    }
+    
+    // CreateNoteAgent (execution-only, no intent matching)
     // All dependencies (LlamaClient, FileSystem, SettingsRepository) are always available
     // Using factory to get fresh LlamaClient when provider changes
     factory<CreateNoteAgent> {
-        CreateNoteAgent(
+        CreateNoteAgentImpl(
             llamaClient = get(),
             fileSystem = get(),
             settingsRepository = get()
         )
     }
     
-    // SearchNoteAgent (for note search functionality)
+    // SearchNoteAgent (execution-only, no intent matching)
     single<SearchNoteAgent> {
         val ragRetriever: RagRetriever? = try {
             get<RagRetriever>()
         } catch (e: Exception) {
             null
         }
-        SearchNoteAgent(
+        SearchNoteAgentImpl(
             ragRetriever = ragRetriever,
             fileSystem = get(),
             settingsRepository = get()
         )
     }
     
-    // SummarizeNoteAgent (for note summarization functionality)
+    // SummarizeNoteAgent (execution-only, no intent matching)
     // Using factory to get fresh LlamaClient when provider changes
     factory<SummarizeNoteAgent> {
         val ragRetriever: RagRetriever? = try {
@@ -158,11 +172,21 @@ val chatModule = module {
         } catch (e: Exception) {
             null
         }
-        SummarizeNoteAgent(
+        SummarizeNoteAgentImpl(
             llamaClient = get(),
             ragRetriever = ragRetriever,
             fileSystem = get(),
             settingsRepository = get()
+        )
+    }
+    
+    // MasterAgent (the only ChatAgent, routes to concrete agents based on intent)
+    single<MasterAgent> {
+        MasterAgentImpl(
+            classifier = get(),
+            createNoteAgent = get(),
+            searchNoteAgent = get(),
+            summarizeNoteAgent = get()
         )
     }
     
@@ -187,23 +211,12 @@ val chatModule = module {
         }
         val settingsRepository: SettingsRepository = get()
         
-        // Collect all available agents
-        val agents = buildList<org.krypton.chat.agent.ChatAgent> {
-            try {
-                add(get<CreateNoteAgent>())
-            } catch (e: Exception) {
-                // CreateNoteAgent should always be available, but handle gracefully
-            }
-            try {
-                add(get<SearchNoteAgent>())
-            } catch (e: Exception) {
-                // SearchNoteAgent may not be available if dependencies are missing
-            }
-            try {
-                add(get<SummarizeNoteAgent>())
-            } catch (e: Exception) {
-                // SummarizeNoteAgent may not be available if dependencies are missing
-            }
+        // Only MasterAgent is exposed as ChatAgent (it handles routing internally)
+        val agents = try {
+            listOf(get<MasterAgent>())
+        } catch (e: Exception) {
+            // MasterAgent should always be available, but handle gracefully
+            null
         }
         
         // GeminiChatService handles retrieval internally and conversation management
@@ -214,7 +227,7 @@ val chatModule = module {
             settingsRepository = settingsRepository,
             conversationRepository = get(),
             memoryProvider = get(),
-            agents = if (agents.isNotEmpty()) agents else null
+            agents = agents
         )
     }
 }

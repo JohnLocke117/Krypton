@@ -55,6 +55,10 @@ class ChatStateHolder(
     private val _agentMessage = MutableStateFlow<ChatMessage?>(null)
     val agentMessage: StateFlow<ChatMessage?> = _agentMessage.asStateFlow()
     
+    // Agent error message (shown when agent fails and chat reverts to normal)
+    private val _agentError = MutableStateFlow<String?>(null)
+    val agentError: StateFlow<String?> = _agentError.asStateFlow()
+    
     // Keep error for backward compatibility
     @Deprecated("Use status instead", ReplaceWith("status"))
     val error: StateFlow<String?> = _status.map { 
@@ -150,6 +154,9 @@ class ChatStateHolder(
                 // Reload messages from repository to ensure consistency
                 loadConversationMessages(result.conversationId)
                 
+                // Set agent error if present (will be displayed in UI)
+                _agentError.value = result.agentError
+                
                 _status.value = UiStatus.Success
                 
                 AppLogger.i("ChatStateHolder", "Message sent successfully with mode: $retrievalMode, conversation: ${result.conversationId.value}")
@@ -218,6 +225,13 @@ class ChatStateHolder(
      */
     fun clearHistory() {
         createNewConversation()
+    }
+    
+    /**
+     * Clears the agent error state.
+     */
+    fun clearAgentError() {
+        _agentError.value = null
     }
     
     /**

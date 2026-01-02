@@ -10,21 +10,135 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Agent that searches notes when users request it.
+ * Interface for searching notes.
  * 
- * Detects intent patterns like "find notes about X" and performs both
- * vector search (semantic) and keyword search (exact matches) to find
- * relevant notes in the current vault.
+ * Assumes intent has already been classified as SEARCH_NOTES by MasterAgent.
+ * Focuses purely on execution: extracting query, performing search, and returning results.
  */
-class SearchNoteAgent(
+interface SearchNoteAgent {
+    /**
+     * Executes note search for the given message.
+     * 
+     * @param message The user's message (assumed to be a search request)
+     * @param history Conversation history
+     * @param context Agent context
+     * @return AgentResult.NotesFound on success
+     * @throws Exception if execution fails (vault not open, no results found, etc.)
+     */
+    suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult
+}
+
+/**
+ * Implementation of SearchNoteAgent that searches notes.
+ * 
+ * Extracts query from message, performs vector and keyword search, and returns results.
+ */
+class SearchNoteAgentImpl(
     private val ragRetriever: RagRetriever?,
     private val fileSystem: FileSystem,
     private val settingsRepository: SettingsRepository
-) : ChatAgent {
+) : SearchNoteAgent {
 
     companion object {
-        // Intent detection patterns (case-insensitive)
-        private val INTENT_PATTERNS = listOf(
+        private const val SNIPPET_LENGTH = 150
+        private const val MAX_KEYWORD_RESULTS = 20
+    }
+
+    override suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult {
+        val modelName = when (context.settings.llm.provider) {
+            org.krypton.LlmProvider.OLLAMA -> context.settings.llm.ollamaModel
+            org.krypton.LlmProvider.GEMINI -> context.settings.llm.geminiModel
+        }
+        AppLogger.i("SearchNoteAgent", "Executing note search - message: \"$message\", model: $modelName")
+        
+        // Check if vault is open
+        val vaultPath = context.currentVaultPath
+        if (vaultPath.isNullOrBlank()) {
+            throw IllegalStateException("No vault open. Please open a vault to search notes.")
+        }
+
+        // Validate vault path exists and is a directory
+        if (!fileSystem.isDirectory(vaultPath)) {
+            throw IllegalStateException("Vault path is not a directory: $vaultPath")
+        }
+
+        // Extract query from message (assume intent already classified, so extract directly)
+        val query = extractQuery(message) ?: throw IllegalArgumentException(
+            "Could not extract search query from message: $message"
+        )
+
+        AppLogger.i("SearchNoteAgent", "Extracted query: $query")
+
+        // Perform vector search if available
+        val vectorResults = if (ragRetriever != null) {
+            try {
+                val chunks = ragRetriever.retrieveChunks(query)
+                // Assign decreasing similarity scores based on order (first chunk is most relevant)
+                chunks.mapIndexed { index, chunk ->
+                    val filePath = chunk.metadata["filePath"] ?: "unknown"
+                    // Assign similarity based on position (higher for earlier results)
+                    // First result gets 0.9, decreasing by 0.1 for each subsequent result, minimum 0.3
+                    val similarity = (0.9 - (index * 0.1)).coerceAtLeast(0.3)
+                    VectorMatch(
+                        filePath = filePath,
+                        chunk = chunk,
+                        similarity = similarity
+                    )
+                }
+            } catch (e: Exception) {
+                AppLogger.w("SearchNoteAgent", "Vector search failed: ${e.message}", e)
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+
+        // Perform keyword search
+        val keywordResults = performKeywordSearch(vaultPath, query)
+
+        // Merge and deduplicate results
+        val mergedResults = mergeResults(vectorResults, keywordResults, vaultPath)
+
+        if (mergedResults.isEmpty()) {
+            throw IllegalStateException("No matching notes found for query: $query")
+        }
+
+        // Convert to NoteMatch format
+        val noteMatches = mergedResults.map { result ->
+            val title = extractTitle(result.filePath, result.content)
+            val snippet = extractSnippet(result.content, query)
+            AgentResult.NotesFound.NoteMatch(
+                filePath = result.relativePath,
+                title = title,
+                snippet = snippet,
+                score = result.combinedScore
+            )
+        }
+
+        AppLogger.i("SearchNoteAgent", "Found ${noteMatches.size} matching notes for query: $query")
+
+        return AgentResult.NotesFound(
+            query = query,
+            results = noteMatches
+        )
+    }
+
+    /**
+     * Extracts the search query from a message.
+     * Assumes message is a search request and extracts the query directly.
+     */
+    private fun extractQuery(message: String): String? {
+        val lowerMessage = message.lowercase().trim()
+        
+        val patterns = listOf(
             "find notes about",
             "find notes on",
             "search my notes for",
@@ -37,118 +151,16 @@ class SearchNoteAgent(
             "list notes on",
             "which notes talk about",
             "which notes mention",
-            "which notes discuss"
+            "which notes discuss",
+            "find",
+            "search",
+            "show",
+            "list",
+            "which"
         )
         
-        private const val SNIPPET_LENGTH = 150
-        private const val MAX_KEYWORD_RESULTS = 20
-    }
-
-    override suspend fun tryHandle(
-        message: String,
-        chatHistory: List<ChatMessage>,
-        context: AgentContext
-    ): AgentResult? {
-        val modelName = when (context.settings.llm.provider) {
-            org.krypton.LlmProvider.OLLAMA -> context.settings.llm.ollamaModel
-            org.krypton.LlmProvider.GEMINI -> context.settings.llm.geminiModel
-        }
-        AppLogger.i("SearchNoteAgent", "Starting query - message: \"$message\", model: $modelName")
-        
-        // Check if vault is open
-        val vaultPath = context.currentVaultPath
-        if (vaultPath.isNullOrBlank()) {
-            AppLogger.d("SearchNoteAgent", "Ending query - no vault open, agent cannot operate")
-            return null
-        }
-
-        // Validate vault path exists and is a directory
-        if (!fileSystem.isDirectory(vaultPath)) {
-            AppLogger.w("SearchNoteAgent", "Vault path is not a directory: $vaultPath")
-            AppLogger.d("SearchNoteAgent", "Ending query - invalid vault path")
-            return null
-        }
-
-        // Detect intent and extract query
-        val query = extractQuery(message) ?: run {
-            AppLogger.d("SearchNoteAgent", "Ending query - no intent detected")
-            return null
-        }
-
-        AppLogger.i("SearchNoteAgent", "Detected note search intent for query: $query")
-
-        try {
-            // Perform vector search if available
-            val vectorResults = if (ragRetriever != null) {
-                try {
-                    val chunks = ragRetriever.retrieveChunks(query)
-                    // Assign decreasing similarity scores based on order (first chunk is most relevant)
-                    chunks.mapIndexed { index, chunk ->
-                        val filePath = chunk.metadata["filePath"] ?: "unknown"
-                        // Assign similarity based on position (higher for earlier results)
-                        // First result gets 0.9, decreasing by 0.1 for each subsequent result, minimum 0.3
-                        val similarity = (0.9 - (index * 0.1)).coerceAtLeast(0.3)
-                        VectorMatch(
-                            filePath = filePath,
-                            chunk = chunk,
-                            similarity = similarity
-                        )
-                    }
-                } catch (e: Exception) {
-                    AppLogger.w("SearchNoteAgent", "Vector search failed: ${e.message}", e)
-                    emptyList()
-                }
-            } else {
-                emptyList()
-            }
-
-            // Perform keyword search
-            val keywordResults = performKeywordSearch(vaultPath, query)
-
-            // Merge and deduplicate results
-            val mergedResults = mergeResults(vectorResults, keywordResults, vaultPath)
-
-            if (mergedResults.isEmpty()) {
-                AppLogger.i("SearchNoteAgent", "No matching notes found for query: $query")
-                AppLogger.d("SearchNoteAgent", "Ending query - no results")
-                return null
-            }
-
-            // Convert to NoteMatch format
-            val noteMatches = mergedResults.map { result ->
-                val title = extractTitle(result.filePath, result.content)
-                val snippet = extractSnippet(result.content, query)
-                AgentResult.NotesFound.NoteMatch(
-                    filePath = result.relativePath,
-                    title = title,
-                    snippet = snippet,
-                    score = result.combinedScore
-                )
-            }
-
-            AppLogger.i("SearchNoteAgent", "Found ${noteMatches.size} matching notes for query: $query")
-            AppLogger.d("SearchNoteAgent", "Ending query - success, results: ${noteMatches.size}")
-
-            return AgentResult.NotesFound(
-                query = query,
-                results = noteMatches
-            )
-        } catch (e: Exception) {
-            AppLogger.e("SearchNoteAgent", "Error searching notes for query: $query, model: $modelName", e)
-            AppLogger.d("SearchNoteAgent", "Ending query - exception occurred")
-            return null
-        }
-    }
-
-    /**
-     * Extracts the search query from a message if it matches intent patterns.
-     */
-    private fun extractQuery(message: String): String? {
-        val lowerMessage = message.lowercase().trim()
-        
-        for (pattern in INTENT_PATTERNS) {
+        for (pattern in patterns) {
             if (lowerMessage.contains(pattern)) {
-                // Extract text after the pattern
                 val index = lowerMessage.indexOf(pattern)
                 val afterPattern = message.substring(index + pattern.length).trim()
                 if (afterPattern.isNotBlank()) {
@@ -157,7 +169,8 @@ class SearchNoteAgent(
             }
         }
         
-        return null
+        // If no pattern matches, return the whole message as query
+        return message.trim().takeIf { it.isNotBlank() }
     }
 
     /**
@@ -397,4 +410,3 @@ class SearchNoteAgent(
         val combinedScore: Double
     )
 }
-
