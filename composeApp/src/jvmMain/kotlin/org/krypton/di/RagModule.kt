@@ -16,6 +16,7 @@ import org.krypton.VectorBackend
 import org.krypton.LlmProvider
 import org.krypton.rag.reranker.DedicatedOllamaReranker
 import org.krypton.rag.reranker.LlmbasedFallbackReranker
+import org.krypton.rag.EmbeddingTextSanitizer
 import org.krypton.util.AppLogger
 import org.koin.dsl.module
 import kotlinx.coroutines.runBlocking
@@ -38,15 +39,27 @@ val ragModule = module {
         )
     }
     
+    // EmbeddingTextSanitizer for ensuring texts don't exceed embedding limits
+    single<EmbeddingTextSanitizer> {
+        val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
+        val ragSettings = settingsRepository.settingsFlow.value.rag
+        EmbeddingTextSanitizer(
+            maxTokens = ragSettings.embeddingMaxTokens,
+            maxChars = ragSettings.embeddingMaxChars
+        )
+    }
+    
     // Embedder for generating embeddings
     single<Embedder> {
         val settingsRepository: org.krypton.data.repository.SettingsRepository = get()
         val ragSettings = settingsRepository.settingsFlow.value.rag
         val httpEngine: HttpClientEngine = get()
+        val sanitizer: EmbeddingTextSanitizer = get()
         HttpEmbedder(
             baseUrl = ragSettings.embeddingBaseUrl,
             model = ragSettings.embeddingModel,
             apiPath = "/api/embed",
+            sanitizer = sanitizer,
             httpClientEngine = httpEngine
         )
     }

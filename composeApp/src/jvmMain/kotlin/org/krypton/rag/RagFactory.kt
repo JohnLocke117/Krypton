@@ -5,6 +5,7 @@ import org.krypton.data.rag.impl.ChromaDBVectorStore
 import org.krypton.data.rag.impl.HttpEmbedder
 import org.krypton.data.rag.impl.HttpLlamaClient
 import org.krypton.data.rag.impl.RagServiceImpl
+import org.krypton.rag.EmbeddingTextSanitizer
 
 /**
  * Extended RAG components with JVM-specific services.
@@ -39,11 +40,16 @@ fun createRagComponentsLegacy(
         database = config.chromaDatabase
     )
     
-    // Create embedder
+    // Create embedder with sanitizer (using defaults for fallback)
+    val sanitizer = EmbeddingTextSanitizer(
+        maxTokens = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_TOKENS,
+        maxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
+    )
     val embedder = HttpEmbedder(
         baseUrl = config.embeddingBaseUrl,
         model = config.embeddingModel,
         apiPath = "/api/embed",
+        sanitizer = sanitizer,
         httpClientEngine = httpClientEngine
     )
     

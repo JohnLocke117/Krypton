@@ -5,6 +5,7 @@ import org.krypton.data.rag.impl.ChromaDBVectorStore
 import org.krypton.data.rag.impl.HttpEmbedder
 import org.krypton.data.rag.impl.HttpLlamaClient
 import org.krypton.data.rag.impl.RagServiceImpl
+import org.krypton.rag.EmbeddingTextSanitizer
 
 /**
  * JVM implementation of HTTP client engine factory.
@@ -38,12 +39,19 @@ actual fun createRagComponents(
     )
     
     // Use provided embedder (from DI) or create one for backward compatibility
-    val embedderToUse = embedder ?: HttpEmbedder(
-        baseUrl = config.embeddingBaseUrl,
-        model = config.embeddingModel,
-        apiPath = "/api/embed",
-        httpClientEngine = httpClientEngine
-    )
+    val embedderToUse = embedder ?: run {
+        val sanitizer = EmbeddingTextSanitizer(
+            maxTokens = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_TOKENS,
+            maxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
+        )
+        HttpEmbedder(
+            baseUrl = config.embeddingBaseUrl,
+            model = config.embeddingModel,
+            apiPath = "/api/embed",
+            sanitizer = sanitizer,
+            httpClientEngine = httpClientEngine
+        )
+    }
     
     // Use provided LlamaClient or create a new one
     val llamaClientToUse = llamaClient ?: HttpLlamaClient(

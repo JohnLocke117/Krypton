@@ -78,14 +78,28 @@ object SecretsDefaults {
             )
         }
         
+        // Compute embedding max tokens from context length if available
+        val embeddingContextLength = getOllamaEmbeddingModelContextLength()
+        val embeddingMaxTokens = if (embeddingContextLength != null && embeddingContextLength > 0) {
+            // Use 80% of context length as conservative safety margin
+            (embeddingContextLength * 0.8).toInt().coerceAtLeast(100)
+        } else {
+            // Use default from RagDefaults
+            org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_TOKENS
+        }
+        
         val ragSettings = if (embeddingModel != null) {
             defaultSettings.rag.copy(
                 embeddingBaseUrl = ollamaBaseUrl,
-                embeddingModel = embeddingModel
+                embeddingModel = embeddingModel,
+                embeddingMaxTokens = embeddingMaxTokens,
+                embeddingMaxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
             )
         } else {
             defaultSettings.rag.copy(
-                embeddingBaseUrl = ollamaBaseUrl
+                embeddingBaseUrl = ollamaBaseUrl,
+                embeddingMaxTokens = embeddingMaxTokens,
+                embeddingMaxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
             )
         }
         

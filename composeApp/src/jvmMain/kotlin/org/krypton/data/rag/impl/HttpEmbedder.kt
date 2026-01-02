@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 import org.krypton.config.RagDefaults
 import org.krypton.rag.Embedder
 import org.krypton.rag.EmbeddingTaskType
+import org.krypton.rag.EmbeddingTextSanitizer
 import org.krypton.rag.models.Embedding
 import org.krypton.util.AppLogger
 import kotlin.time.Duration.Companion.seconds
@@ -26,12 +27,14 @@ import kotlin.time.Duration.Companion.seconds
  * @param baseUrl Base URL of the embedding service (e.g., "http://localhost:11434")
  * @param model Model name (e.g., "nomic-embed-text:v1.5")
  * @param apiPath API endpoint path (default: "/api/embed" for Ollama)
+ * @param sanitizer Text sanitizer to ensure texts don't exceed embedding limits
  * @param httpClientEngine HTTP client engine (platform-specific)
  */
 class HttpEmbedder(
     private val baseUrl: String,
     private val model: String,
     private val apiPath: String = "/api/embed",
+    private val sanitizer: EmbeddingTextSanitizer,
     httpClientEngine: HttpClientEngine
 ) : Embedder {
     
@@ -93,8 +96,11 @@ class HttpEmbedder(
             return@withContext emptyList()
         }
         
+        // Sanitize all texts before embedding to prevent context length errors
+        val safeTexts = sanitizer.sanitizeAll(texts)
+        
         // Use the existing embed method with SEARCH_DOCUMENT task type
-        val floatArrays = embed(texts, EmbeddingTaskType.SEARCH_DOCUMENT)
+        val floatArrays = embed(safeTexts, EmbeddingTaskType.SEARCH_DOCUMENT)
         
         // Convert FloatArray to Embedding (List<Float>)
         return@withContext floatArrays.map { floatArray ->
@@ -103,8 +109,11 @@ class HttpEmbedder(
     }
     
     override suspend fun embedQuery(text: String): Embedding = withContext(Dispatchers.IO) {
+        // Sanitize query text before embedding to prevent context length errors
+        val safeText = sanitizer.sanitize(text)
+        
         // Use the existing embed method with SEARCH_QUERY task type
-        val floatArrays = embed(listOf(text), EmbeddingTaskType.SEARCH_QUERY)
+        val floatArrays = embed(listOf(safeText), EmbeddingTaskType.SEARCH_QUERY)
         
         if (floatArrays.isEmpty()) {
             throw EmbeddingException("No embedding returned for query")

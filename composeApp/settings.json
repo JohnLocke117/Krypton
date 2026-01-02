@@ -15,7 +15,7 @@
     "ui": {
         "ribbonWidth": 48,
         "sidebarMinWidth": 200,
-        "sidebarDefaultWidth": 280,
+        "sidebarDefaultWidth": 320,
         "sidebarMaxWidth": 400,
         "tabHeight": 36,
         "tabPadding": 12,
@@ -75,7 +75,9 @@
         "queryRewritingEnabled": false,
         "multiQueryEnabled": true,
         "rerankingEnabled": false,
-        "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M"
+        "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M",
+        "embeddingMaxTokens": 409,
+        "embeddingMaxChars": 2000
     },
     "llm": {
         "provider": "OLLAMA",

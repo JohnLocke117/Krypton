@@ -11,6 +11,12 @@ import org.krypton.config.models.RetrievalConfig
 internal expect fun loadOllamaEmbeddingModel(): String
 
 /**
+ * Platform-specific implementation to load default embedding max tokens from secrets.
+ * Returns default constant if not available in secrets.
+ */
+internal expect fun loadDefaultEmbeddingMaxTokens(): Int
+
+/**
  * Default configuration values for RAG (Retrieval-Augmented Generation) system.
  * 
  * These defaults are used when user settings are missing or invalid.
@@ -187,6 +193,27 @@ object RagDefaults {
          * Default: 500 tokens (conservative, works for 512 token models and larger).
          */
         const val MAX_EMBEDDING_CONTEXT_TOKENS = 500
+        
+        /**
+         * Default maximum tokens for embedding sanitizer.
+         * 
+         * This is used as the default value for RagSettings.embeddingMaxTokens.
+         * Can be overridden by loading from OLLAMA_EMBEDDING_MODEL_CONTEXT_LENGTH in secrets.
+         * 
+         * Default: 500 tokens (conservative, works for 512 token models and larger).
+         */
+        val DEFAULT_EMBEDDING_MAX_TOKENS: Int
+            get() = loadDefaultEmbeddingMaxTokens()
+        
+        /**
+         * Default maximum characters for embedding sanitizer.
+         * 
+         * This is used as the default value for RagSettings.embeddingMaxChars.
+         * Acts as a hard upper bound fallback.
+         * 
+         * Default: 2000 chars (conservative fallback).
+         */
+        const val DEFAULT_EMBEDDING_MAX_CHARS = 2000
         
         /**
          * Prefix length for document embeddings ("search_document: ").

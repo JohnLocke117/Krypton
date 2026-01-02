@@ -112,7 +112,9 @@ data class RagSettings(
     val queryRewritingEnabled: Boolean = false,
     val multiQueryEnabled: Boolean = false,
     val rerankingEnabled: Boolean = false,
-    val rerankerModel: String? = org.krypton.config.RagDefaults.DEFAULT_RERANKER_MODEL
+    val rerankerModel: String? = org.krypton.config.RagDefaults.DEFAULT_RERANKER_MODEL,
+    val embeddingMaxTokens: Int = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_TOKENS,
+    val embeddingMaxChars: Int = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
 )
 
 @Serializable
