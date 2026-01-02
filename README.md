@@ -6,14 +6,26 @@ Krypton is a modern, AI-powered note-taking application built with Kotlin Multip
 
 Krypton is designed to be your intelligent knowledge companion. It provides:
 
-- **Rich Markdown Editor**: Live preview, syntax highlighting, and a modern editing experience
+### Core Features
+
+- **Rich Markdown Editor**: Live preview, syntax highlighting, auto-save, undo/redo, and a modern editing experience
 - **AI Chat Interface**: Interact with your notes using AI, with support for RAG, web search, and hybrid modes
 - **Intelligent Agents**: Specialized agents for note creation, search, and summarization that understand natural language intents
-- **Vector Search**: Automatic indexing of your markdown notes for semantic search
+- **Vector Search**: Automatic indexing of your markdown notes for semantic search with ChromaDB
 - **File Management**: Full file and folder CRUD operations with a clean, intuitive interface
 - **Flashcard Generation**: AI-powered flashcard generation from your notes
-- **MCP Server**: Expose agents as tools via Model Context Protocol for integration with external clients
+- **MCP Server**: Expose agents as tools via Model Context Protocol for integration with external clients (Desktop only)
 - **Cross-Platform**: Built with Kotlin Multiplatform, supporting Desktop (JVM) and Android
+
+### Advanced Features
+
+- **RAG Pipeline**: Automatic document chunking, embedding generation, and semantic retrieval
+- **Reranking**: Dedicated reranker models or LLM-based fallback for improved retrieval quality
+- **Query Processing**: Optional query rewriting and multi-query expansion for better search results
+- **Hybrid Retrieval**: Combine local note search with web search for comprehensive answers
+- **Vault Management**: Support for multiple vaults with automatic indexing and file watching
+- **Theme Support**: Customizable themes with Catppuccin Mocha color scheme
+- **Mobile-Optimized UI**: Android-specific navigation and touch-optimized interface
 
 ## High-Level Architecture
 
@@ -85,7 +97,9 @@ Krypton follows a clean, modular architecture:
 - **State Management**: State holders pattern for UI state, domain state for business logic
 - **Coroutines**: Extensive use of Kotlin coroutines for async operations
 - **Modular Structure**: Clear separation of concerns with dedicated modules for RAG, chat, UI, etc.
-- **Platform Abstraction**: Common code in `commonMain`, platform-specific in `jvmMain`
+- **Platform Abstraction**: Common code in `commonMain`, platform-specific in `jvmMain`/`androidMain`
+- **Interface-Based Design**: Platform-agnostic interfaces in `commonMain`, implementations in platform-specific source sets
+- **Graceful Degradation**: Features degrade gracefully when dependencies are unavailable
 
 ## Running the Project
 
@@ -203,11 +217,17 @@ MCP_PORT=9000 ./gradlew :composeApp:runMcpServer
 
 ### Configuration
 
-Settings are stored in a JSON file and can be accessed via the Settings dialog in the application. Key settings include:
+Settings are stored in a platform-specific location and can be accessed via the Settings dialog in the application. Key settings include:
 
-- **RAG Settings**: ChromaDB URL, embedding model, LLM model, similarity thresholds
-- **Editor Settings**: Theme, font, tab size, line numbers
-- **UI Settings**: Sidebar widths, panel sizes, colors
+- **RAG Settings**: ChromaDB URL, embedding model, LLM model, similarity thresholds, reranking options
+- **Editor Settings**: Theme, font, tab size, line numbers, autosave interval
+- **UI Settings**: Sidebar widths, panel sizes, colors, layout preferences
+- **Chat Settings**: Default retrieval mode, conversation history management
+- **App Settings**: Vault paths, recent folders, window state
+
+**Settings Storage:**
+- **Desktop (JVM)**: JSON file in user's application data directory
+- **Android**: SharedPreferences with JSON serialization
 
 ## Project Structure
 
@@ -216,27 +236,36 @@ Krypton/
 ├── composeApp/
 │   ├── src/
 │   │   ├── commonMain/          # Shared code across platforms
-│   │   │   ├── kotlin/org/krypton/krypton/
-│   │   │   │   ├── chat/        # Chat service interfaces
+│   │   │   ├── kotlin/org/krypton/
+│   │   │   │   ├── chat/        # Chat service, agents, retrieval modes
 │   │   │   │   ├── core/        # Domain logic (editor, search, flashcard)
-│   │   │   │   ├── data/        # Data layer interfaces
-│   │   │   │   ├── markdown/    # Markdown parsing
-│   │   │   │   ├── rag/         # RAG components
-│   │   │   │   ├── retrieval/   # Retrieval services
-│   │   │   │   ├── web/         # Web search
-│   │   │   │   ├── platform/   # Platform abstractions
-│   │   │   │   └── ui/          # Shared UI components
-│   │   │   └── sqldelight/      # Database schemas
+│   │   │   │   ├── data/        # Data layer interfaces (file system, settings)
+│   │   │   │   ├── markdown/    # Markdown parsing and rendering
+│   │   │   │   ├── rag/         # RAG components (embedding, indexing, retrieval)
+│   │   │   │   ├── retrieval/   # Retrieval orchestration services
+│   │   │   │   ├── web/         # Web search integration (Tavily)
+│   │   │   │   ├── platform/   # Platform abstractions (vault picker, settings)
+│   │   │   │   ├── ui/          # Shared UI components and state holders
+│   │   │   │   ├── prompt/     # Prompt building utilities
+│   │   │   │   ├── config/     # Configuration defaults and models
+│   │   │   │   └── util/       # Utilities (logging, ID generation, time)
+│   │   │   └── sqldelight/      # Database schemas (if used)
 │   │   ├── jvmMain/             # JVM/Desktop-specific code
-│   │   │   ├── kotlin/          # UI components, DI setup, MCP server
-│   │   │   └── composeResources/ # Resources (fonts, icons)
+│   │   │   ├── kotlin/          # Desktop UI, DI setup, MCP server, platform impls
+│   │   │   └── composeResources/ # Resources (fonts, icons, SVG)
 │   │   └── androidMain/         # Android-specific code
-│   │       ├── kotlin/          # Android UI, platform implementations
+│   │       ├── kotlin/          # Android UI, platform implementations, SAF
 │   │       └── AndroidManifest.xml
 │   └── build.gradle.kts
 ├── gradle/
 │   └── libs.versions.toml       # Dependency versions
 ├── build.gradle.kts
+├── readme/                      # Detailed documentation
+│   ├── architecture.md
+│   ├── ai-chat.md
+│   ├── agents.md
+│   ├── android.md
+│   └── coding-guidelines.md
 └── README.md
 ```
 
@@ -281,10 +310,24 @@ The project uses Compose Hot Reload for faster development iteration. Changes to
 - Use Storage Access Framework (SAF) for file access
 - See [Android Support](./readme/android.md) for detailed guidelines
 
-## License
+## Key Features Summary
 
-[Add your license here]
+### Desktop (JVM)
+- Full-featured markdown editor with live preview
+- Multi-panel layout with docked sidebars
+- AI chat with RAG, web search, and hybrid modes
+- Intelligent agents (create note, search, summarize)
+- Vector search with ChromaDB
+- Flashcard generation
+- MCP server for external tool integration
+- File management with full CRUD operations
+- Customizable themes and settings
 
-## Contributing
-
-[Add contribution guidelines here]
+### Android
+- Mobile-optimized navigation with bottom bar
+- All core features from desktop version
+- Slide-in drawers for sidebars
+- Storage Access Framework (SAF) integration
+- Touch-optimized UI components
+- Shared business logic with desktop
+- MCP server not available (JVM-only)

@@ -286,10 +286,12 @@ The chat system includes robust error handling:
 
 Potential improvements to the chat system:
 
-- Support for multiple vector backends
-- Streaming responses for better UX
-- Conversation memory management
-- Custom prompt templates
-- Citation tracking for retrieved chunks
-- Query result caching
+- Support for multiple vector backends (currently ChromaDB)
+- Streaming responses for better UX (currently full response)
+- Conversation memory management (currently full history)
+- Custom prompt templates (currently fixed templates)
+- Citation tracking for retrieved chunks (currently context only)
+- Query result caching (currently no caching)
+- Multi-turn conversation optimization
+- Context window management for long conversations
 

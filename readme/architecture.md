@@ -53,9 +53,9 @@ Krypton follows a layered, modular architecture with clear separation of concern
 
 ### External Services
 
-- **ChromaDB**: Vector database for embeddings (via Docker)
-- **Ollama**: Local LLM server for text generation and embeddings
-- **Tavily**: Web search API (optional)
+- **ChromaDB**: Vector database for embeddings (via Docker, required for RAG)
+- **Ollama**: Local LLM server for text generation and embeddings (optional but recommended)
+- **Tavily**: Web search API (optional, requires API key)
 
 ## Project Structure
 
@@ -63,41 +63,56 @@ Krypton follows a layered, modular architecture with clear separation of concern
 
 ```
 composeApp/src/
-├── commonMain/              # Shared code
-│   ├── kotlin/org/krypton/krypton/
-│   │   ├── chat/           # Chat interfaces
-│   │   ├── core/           # Domain logic
-│   │   ├── data/           # Data layer
-│   │   ├── markdown/       # Markdown parsing
-│   │   ├── rag/            # RAG components
-│   │   ├── retrieval/      # Retrieval services
-│   │   ├── web/            # Web search
-│   │   └── ui/             # Shared UI components
-│   └── sqldelight/         # Database schemas
+├── commonMain/              # Shared code across platforms
+│   ├── kotlin/org/krypton/
+│   │   ├── chat/           # Chat interfaces, agents, retrieval modes
+│   │   ├── core/           # Domain logic (editor, search, flashcard)
+│   │   ├── data/           # Data layer interfaces
+│   │   ├── markdown/       # Markdown parsing and rendering
+│   │   ├── rag/            # RAG components (embedding, indexing, retrieval)
+│   │   ├── retrieval/      # Retrieval orchestration
+│   │   ├── web/            # Web search integration
+│   │   ├── platform/       # Platform abstractions
+│   │   ├── ui/             # Shared UI components and state holders
+│   │   ├── prompt/         # Prompt building
+│   │   ├── config/         # Configuration defaults
+│   │   └── util/           # Utilities (logging, ID, time)
+│   └── sqldelight/         # Database schemas (if used)
 ├── jvmMain/                # JVM/Desktop-specific code
-│   ├── kotlin/             # UI, DI, platform code, MCP server
-│   └── composeResources/   # Resources (fonts, icons)
+│   ├── kotlin/             # Desktop UI, DI setup, MCP server, platform impls
+│   └── composeResources/   # Resources (fonts, icons, SVG)
 └── androidMain/            # Android-specific code
-    ├── kotlin/             # Android UI, platform implementations
+    ├── kotlin/             # Android UI, platform implementations, SAF
     └── AndroidManifest.xml # Android manifest
 ```
 
 ### Module Organization
 
 - **chat/**: Chat service interfaces and models
-  - **chat/agent/**: Agent system for intent-based actions
+  - **chat/agent/**: Agent system for intent-based actions (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+  - **chat/rag/**: RAG-specific chat context
+  - **chat/web/**: Web search context
+  - **chat/ui/**: Chat UI components (message list, status bar)
 - **core/domain/**: Business logic and domain models
+  - **core/domain/editor/**: Editor domain logic (autosave, undo/redo, document model)
   - **core/domain/flashcard/**: Flashcard generation service
+  - **core/domain/search/**: Search domain logic (pattern matching, search engine)
 - **data/**: Data access layer (repositories, file system)
-  - **data/flashcard/**: Flashcard service implementations
-- **markdown/**: Markdown parsing and rendering
-- **rag/**: RAG pipeline components (embedding, indexing, retrieval)
-- **retrieval/**: High-level retrieval orchestration
-- **web/**: Web search integration
+  - **data/files/**: File system abstraction interface
+  - **data/repository/**: Settings repository and persistence interfaces
+- **markdown/**: Markdown parsing and rendering (JetBrains Markdown engine)
+- **rag/**: RAG pipeline components
+  - **rag/reranker/**: Reranking implementations (dedicated and LLM-based)
+  - **rag/models/**: RAG data models (Embedding, RagChunk, RagResult)
+- **retrieval/**: High-level retrieval orchestration (RagRetriever, RetrievalService)
+- **web/**: Web search integration (Tavily API client)
 - **ui/**: UI utilities and state management
-- **platform/**: Platform abstraction interfaces (VaultPicker, SettingsConfigProvider)
+  - **ui/state/**: State holders (EditorStateHolder, ChatStateHolder, SearchStateHolder)
+- **platform/**: Platform abstraction interfaces (VaultPicker, SettingsConfigProvider, NoteFile, VaultDirectory)
+- **prompt/**: Prompt building utilities (PromptBuilder, PromptContext)
+- **config/**: Configuration defaults and models (RAG, Chat, Editor, UI, Search defaults)
 - **mcp/**: MCP server implementation (JVM only)
-- **util/**: Utility functions (logging, ID generation, time)
+- **util/**: Utility functions (logging via Kermit, ID generation, time provider)
 
 ## Key Design Choices
 
@@ -503,20 +518,24 @@ Krypton can generate flashcards from markdown notes using LLM:
 
 ### Android Support
 
-Krypton now includes full Android support with mobile-optimized UI and platform-specific implementations.
+Krypton includes full Android support with mobile-optimized UI and platform-specific implementations.
 
 **Key Components:**
-- Mobile navigation (Notes List, Editor, Chat, Settings)
+- Mobile navigation with bottom bar (Notes List, Editor, Chat, Settings)
 - Android-specific file system using Storage Access Framework (SAF)
-- Android settings persistence using SharedPreferences
-- Platform-specific vault picker
-- Mobile-optimized UI components
+- Android settings persistence using SharedPreferences with JSON serialization
+- Platform-specific vault picker with SAF integration
+- Mobile-optimized UI components (drawers, cards, touch targets)
 
 **Architecture:**
-- Platform abstractions in `commonMain` (interfaces)
-- Android implementations in `androidMain`
-- Dependency injection via `androidPlatformModule`
-- Shared business logic across platforms
+- Platform abstractions in `commonMain` (interfaces: VaultPicker, SettingsConfigProvider, FileSystem)
+- Android implementations in `androidMain` (AndroidVaultPicker, AndroidSettingsConfigProvider, AndroidFileSystem)
+- Dependency injection via `androidPlatformModule` registered in MainActivity
+- Shared business logic across platforms (all domain, RAG, chat logic in commonMain)
+
+**UI Differences:**
+- Desktop: Multi-panel layout with docked sidebars
+- Android: Single-screen navigation with slide-in drawers
 
 See **[Android Support](./android.md)** for comprehensive Android documentation.
 
@@ -538,15 +557,34 @@ See **[Android Support](./android.md)** for comprehensive Android documentation.
 - Stateless components where possible
 - Multi-platform support via Kotlin Multiplatform
 
+## Technology Versions
+
+Key technology versions used in Krypton:
+
+- **Kotlin**: 2.2.21
+- **Compose Multiplatform**: 1.9.3
+- **Koin**: 3.5.6
+- **Ktor**: 3.2.3 (for MCP SDK compatibility, overrides libs.versions.toml)
+- **Kermit**: 2.0.4
+- **Kotlinx Coroutines**: 1.10.2
+- **Kotlinx Serialization**: 1.7.3
+- **MCP SDK**: 0.8.1
+- **JetBrains Markdown**: 0.5.2
+- **Android Gradle Plugin**: 8.7.3
+- **Android SDK**: Min 24, Target 35
+
+Note: Ktor 3.2.3 is required for MCP SDK compatibility and is specified directly in `build.gradle.kts` rather than using the version catalog.
+
 ## Conclusion
 
 Krypton's architecture prioritizes:
 
-- **Modularity**: Clear separation of concerns
-- **Testability**: Easy to test individual components
-- **Maintainability**: Clean code structure
-- **Extensibility**: Easy to add new features
-- **Performance**: Efficient resource usage
+- **Modularity**: Clear separation of concerns with dedicated modules
+- **Testability**: Easy to test individual components through interfaces
+- **Maintainability**: Clean code structure with clear boundaries
+- **Extensibility**: Easy to add new features through well-defined interfaces
+- **Performance**: Efficient resource usage with coroutines and lazy loading
+- **Platform Independence**: Shared business logic with platform-specific implementations
 
-The architecture evolves with the project, maintaining these principles while adapting to new requirements.
+The architecture evolves with the project, maintaining these principles while adapting to new requirements. The modular design allows for easy extension and modification without affecting other parts of the system.
 

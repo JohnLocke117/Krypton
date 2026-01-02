@@ -161,29 +161,44 @@ All desktop features are available on Android:
 ✅ **Markdown Editor**
 - Live preview mode
 - Syntax highlighting
-- Auto-save
-- Undo/redo
+- Auto-save with configurable interval
+- Undo/redo support
+- Line numbers (configurable)
+- Customizable font and tab size
 
 ✅ **AI Chat**
 - RAG mode (with ChromaDB)
-- Web search mode (Tavily)
-- Hybrid mode
+- Web search mode (Tavily API)
+- Hybrid mode (combines RAG + web)
+- Plain chat mode (NONE)
 - Agent system (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+- Conversation history
+- Streaming responses
 
 ✅ **File Management**
 - Create, read, update, delete files
-- Folder navigation
-- File search
+- Create and navigate folders
+- File search (keyword-based)
+- Recent folders tracking
+- Vault selection via SAF
 
 ✅ **Vector Search**
-- Automatic indexing
-- Semantic search
-- RAG retrieval
+- Automatic indexing of markdown files
+- Semantic search via ChromaDB
+- RAG retrieval with reranking
+- Incremental updates (only changed files re-indexed)
 
 ✅ **Settings**
-- Editor preferences
-- RAG configuration
-- UI customization
+- Editor preferences (theme, font, tab size, line numbers)
+- RAG configuration (ChromaDB URL, models, thresholds)
+- UI customization (colors, sidebar widths)
+- Chat settings (default retrieval mode)
+- App settings (vault paths, recent folders)
+
+✅ **Flashcards**
+- AI-powered flashcard generation from notes
+- Question-answer pairs
+- Source file tracking
 
 ### Mobile-Specific Features
 
@@ -321,11 +336,10 @@ Compose UI tests can be written using:
 
 ### Current Limitations
 
-1. **Vault Location**: Currently limited to app-internal storage
-2. **File Paths**: Some SAF providers don't expose file paths
-3. **Settings UI**: Full settings dialog not yet implemented (uses simple dialog)
-4. **Compiled View**: Markdown compiled view not yet implemented for Android
-5. **MCP Server**: MCP server is JVM-only (not available on Android)
+1. **Vault Location**: Default vault uses app-internal storage; external vaults via SAF are supported but path extraction may fail for some providers
+2. **File Paths**: Some SAF providers (cloud storage) don't expose file paths, requiring DocumentFile API for full support
+3. **MCP Server**: MCP server is JVM-only (not available on Android)
+4. **Desktop-Specific Features**: Some desktop UI features (multi-panel layout, docked sidebars) are replaced with mobile-optimized alternatives
 
 ### Platform Differences
 
@@ -338,9 +352,9 @@ Compose UI tests can be written using:
 - Android: Single-screen navigation with bottom bar
 
 **Feature Parity:**
-- Core features: ✅ Full parity
-- UI features: ⚠️ Some differences (mobile-optimized)
-- Advanced features: ⚠️ Some desktop-only (MCP server)
+- Core features: ✅ Full parity (editor, chat, RAG, file management, agents)
+- UI features: ⚠️ Mobile-optimized (navigation-based instead of multi-panel)
+- Advanced features: ⚠️ MCP server is desktop-only (all other features available)
 
 ## Troubleshooting
 
