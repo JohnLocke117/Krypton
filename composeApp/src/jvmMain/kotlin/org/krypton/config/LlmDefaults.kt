@@ -1,7 +1,7 @@
 package org.krypton.config
 
 /**
- * JVM implementation that loads from local.secrets.properties.
+ * JVM implementation that loads from local.properties.
  */
 internal actual fun loadOllamaBaseUrl(): String {
     return SecretsDefaults.getOllamaBaseUrl() ?: "http://localhost:11434"

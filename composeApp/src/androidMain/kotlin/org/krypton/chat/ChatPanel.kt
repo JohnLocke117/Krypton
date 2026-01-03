@@ -357,7 +357,7 @@ actual fun ChatPanel(
                         if (provider == LlmProvider.GEMINI) {
                             val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
                             if (apiKey.isNullOrBlank()) {
-                                llmProviderError = "GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API."
+                                llmProviderError = "GEMINI_API_KEY not found in local.properties. Please add it to use Gemini API."
                                 llmProviderDropdownExpanded = false
                                 return@LlmProviderSelector
                             }
@@ -568,7 +568,7 @@ actual fun ChatPanel(
                             if (backend == VectorBackend.CHROMA_CLOUD) {
                                 val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
                                 if (apiKey.isNullOrBlank()) {
-                                    tavilyError = "CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud."
+                                    tavilyError = "CHROMA_API_KEY not found in local.properties. Please add it to use ChromaDB Cloud."
                                     dropdownExpanded = false
                                     return@VectorStoreSelector
                                 }

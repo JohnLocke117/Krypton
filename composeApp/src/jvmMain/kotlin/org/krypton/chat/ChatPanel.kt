@@ -524,7 +524,7 @@ actual fun ChatPanel(
                                     // Validate API key before switching
                                     val apiKey = SecretsLoader.loadSecret("GEMINI_API_KEY")
                                     if (apiKey.isNullOrBlank()) {
-                                        llmProviderError = "GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API."
+                                        llmProviderError = "GEMINI_API_KEY not found in local.properties. Please add it to use Gemini API."
                                         llmProviderDropdownExpanded = false
                                         // Revert to Ollama
                                         coroutineScope.launch {
@@ -688,7 +688,7 @@ actual fun ChatPanel(
                                         // Validate API key before switching
                                         val apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
                                         if (apiKey.isNullOrBlank()) {
-                                            tavilyError = "CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud."
+                                            tavilyError = "CHROMA_API_KEY not found in local.properties. Please add it to use ChromaDB Cloud."
                                             dropdownExpanded = false
                                             return@VectorStoreSelector
                                         }

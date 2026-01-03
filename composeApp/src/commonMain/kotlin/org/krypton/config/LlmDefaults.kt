@@ -14,12 +14,12 @@ internal expect fun loadOllamaGenerationModel(): String
  * Shared default configuration for LLM (Language Model) services.
  * 
  * Consolidates common LLM settings used across chat and RAG systems.
- * Default values are loaded from local.secrets.properties when available.
+ * Default values are loaded from local.properties when available.
  */
 object LlmDefaults {
     /**
      * Default base URL for Ollama/LLM API.
-     * Loads from local.secrets.properties (OLLAMA_BASE_URL) if available.
+     * Loads from local.properties (OLLAMA_BASE_URL) if available.
      */
     val DEFAULT_BASE_URL: String
         get() = loadOllamaBaseUrl()

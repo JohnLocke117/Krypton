@@ -139,14 +139,14 @@ object RagDefaults {
     object Embedding {
         /**
          * Default base URL for embedding API (typically same as Ollama).
-         * Loads from local.secrets.properties (OLLAMA_BASE_URL) if available.
+         * Loads from local.properties (OLLAMA_BASE_URL) if available.
          */
         val DEFAULT_BASE_URL: String
             get() = LlmDefaults.DEFAULT_BASE_URL
         
         /**
          * Default embedding model name.
-         * Loads from local.secrets.properties (OLLAMA_EMBEDDING_MODEL) if available.
+         * Loads from local.properties (OLLAMA_EMBEDDING_MODEL) if available.
          */
         val DEFAULT_MODEL: String
             get() = loadOllamaEmbeddingModel()

@@ -6,13 +6,13 @@ import java.util.Properties
 import org.krypton.util.AppLogger
 
 /**
- * Utility for loading secrets from local.secrets.properties file.
+ * Utility for loading secrets from local.properties file.
  * 
  * The file should be located at the project root.
  */
 object SecretsLoader {
     /**
-     * Loads a secret value from local.secrets.properties.
+     * Loads a secret value from local.properties.
      * 
      * @param key The property key (e.g., "TAVILLY_API_KEY")
      * @return The property value, or null if file/key doesn't exist
@@ -30,7 +30,7 @@ object SecretsLoader {
             // Strategy 1: Current working directory
             val userDir = System.getProperty("user.dir")
             if (userDir != null) {
-                val candidate = File(userDir, "local.secrets.properties")
+                val candidate = File(userDir, "local.properties")
                 if (!searchPaths.contains(candidate)) {
                     searchPaths.add(candidate)
                 }
@@ -46,14 +46,14 @@ object SecretsLoader {
                 
                 // If we find project markers, add the secrets file from this directory
                 if (buildFile.exists() || settingsFile.exists() || gradleWrapper.exists()) {
-                    val secretsFile = File(currentDir, "local.secrets.properties")
+                    val secretsFile = File(currentDir, "local.properties")
                     if (!searchPaths.contains(secretsFile)) {
                         searchPaths.add(0, secretsFile) // Add at beginning for priority
                     }
                 }
                 
                 // Also add the file from current directory level
-                val candidate = File(currentDir, "local.secrets.properties")
+                val candidate = File(currentDir, "local.properties")
                 if (!searchPaths.contains(candidate)) {
                     searchPaths.add(candidate)
                 }

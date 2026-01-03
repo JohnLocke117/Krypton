@@ -165,7 +165,7 @@ ollama pull llama3.2
 
 #### 3. Configure API Keys (Optional)
 
-For web search functionality, create a `local.secrets.properties` file in the project root:
+For web search functionality, add the API key to your `local.properties` file in the project root:
 
 ```properties
 TAVILLY_API_KEY=your_tavily_api_key_here

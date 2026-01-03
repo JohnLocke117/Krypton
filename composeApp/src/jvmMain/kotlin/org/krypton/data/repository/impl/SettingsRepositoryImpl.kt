@@ -36,11 +36,11 @@ class SettingsRepositoryImpl(
             if (validated.isValid) {
                 migrated
             } else {
-                // If validation fails on load, use defaults from local.secrets.properties
+                // If validation fails on load, use defaults from local.properties
                 SecretsDefaults.createDefaultSettings()
             }
         } else {
-            // File doesn't exist, create default settings from local.secrets.properties
+            // File doesn't exist, create default settings from local.properties
             val defaultSettings = SecretsDefaults.createDefaultSettings()
             persistence.saveSettingsToFile(settingsPath, defaultSettings)
             defaultSettings

@@ -60,7 +60,7 @@ fun RetrievalModeSelector(
                 if (tavilyAvailable) {
                     onWebToggle()
                 } else {
-                    onTavilyError("Tavily API key not found. Please add TAVILLY_API_KEY to local.secrets.properties")
+                    onTavilyError("Tavily API key not found. Please add TAVILLY_API_KEY to local.properties")
                 }
             }
         ) {

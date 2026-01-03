@@ -86,7 +86,7 @@ val ragModule = module {
                 val database = SecretsLoader.loadSecret("CHROMA_DATABASE") ?: "defaultDB"
                 
                 if (apiKey.isNullOrBlank()) {
-                    throw IllegalStateException("CHROMA_API_KEY not found in local.secrets.properties. Please add it to use ChromaDB Cloud.")
+                    throw IllegalStateException("CHROMA_API_KEY not found in local.properties. Please add it to use ChromaDB Cloud.")
                 }
                 
                 // Ensure baseUrl uses https
@@ -131,7 +131,7 @@ val ragModule = module {
                     ?: "https://generativelanguage.googleapis.com/v1beta/models/${llmSettings.geminiModel}:generateContent"
                 
                 if (apiKey.isNullOrBlank()) {
-                    throw IllegalStateException("GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API.")
+                    throw IllegalStateException("GEMINI_API_KEY not found in local.properties. Please add it to use Gemini API.")
                 }
                 
                 GeminiClient(
@@ -171,7 +171,7 @@ val ragModule = module {
                     ?: "https://generativelanguage.googleapis.com/v1beta/models/${llmSettings.geminiModel}:generateContent"
                 
                 if (apiKey.isNullOrBlank()) {
-                    throw IllegalStateException("GEMINI_API_KEY not found in local.secrets.properties. Please add it to use Gemini API.")
+                    throw IllegalStateException("GEMINI_API_KEY not found in local.properties. Please add it to use Gemini API.")
                 }
                 
                 GeminiClient(

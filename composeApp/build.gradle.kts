@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.gradle.api.tasks.JavaExec
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -84,10 +85,51 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        
+        // Load secrets from local.properties and inject as BuildConfig fields
+        // This is optional - if local.properties doesn't exist, the build will still work
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            val localProperties = Properties()
+            localPropertiesFile.inputStream().use { stream ->
+                localProperties.load(stream)
+            }
+            
+            // Inject all secret keys as BuildConfig fields
+            localProperties.forEach { key: Any, value: Any? ->
+                val keyStr = key.toString().trim()
+                val valueStr = value?.toString()?.trim()
+                
+                // Skip empty keys, sdk.dir (Android SDK specific), and comments
+                if (keyStr.isNotEmpty() && 
+                    !keyStr.startsWith("#") && 
+                    keyStr != "sdk.dir" && 
+                    valueStr != null && 
+                    valueStr.isNotEmpty()) {
+                    
+                    // Convert key to valid BuildConfig field name (uppercase, replace dots/dashes with underscores)
+                    val buildConfigKey = keyStr.uppercase()
+                        .replace(".", "_")
+                        .replace("-", "_")
+                        .replace(" ", "_")
+                    
+                    // Escape the value properly for Java string literal
+                    val escapedValue = valueStr
+                        .replace("\\", "\\\\")
+                        .replace("\"", "\\\"")
+                        .replace("\n", "\\n")
+                        .replace("\r", "\\r")
+                        .replace("\t", "\\t")
+                    
+                    buildConfigField("String", buildConfigKey, "\"$escapedValue\"")
+                }
+            }
+        }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {

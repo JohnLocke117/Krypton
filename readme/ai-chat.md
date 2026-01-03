@@ -136,7 +136,7 @@ The `WebSearchClient` interface provides web search functionality. The implement
 - Returns structured `WebSnippet` objects
 
 **Configuration:**
-- Requires `TAVILLY_API_KEY` in `local.secrets.properties`
+- Requires `TAVILLY_API_KEY` in `local.properties`
 - `maxResults`: Maximum number of search results (default: 5)
 
 **Use Cases:**
@@ -311,7 +311,7 @@ data class RagSettings(
 
 ### Environment Variables
 
-- `TAVILLY_API_KEY`: Required for web search functionality (stored in `local.secrets.properties`)
+- `TAVILLY_API_KEY`: Required for web search functionality (stored in `local.properties`)
 
 ## Error Handling
 
