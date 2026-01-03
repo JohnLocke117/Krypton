@@ -1,6 +1,8 @@
 package org.krypton.data.study.impl
 
 import android.content.Context
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -120,16 +122,46 @@ class AndroidStudyPersistence(
     
     override suspend fun loadGoals(vaultId: String): GoalsData? = withContext(Dispatchers.IO) {
         try {
-            val file = getGoalsFile(vaultId)
-            if (file.exists() && file.isFile) {
-                val content = file.readText()
-                if (content.isBlank()) {
-                    null
-                } else {
-                    json.decodeFromString<GoalsData>(content)
-                }
-            } else {
+            val uri = try {
+                Uri.parse(vaultId)
+            } catch (e: Exception) {
                 null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val treeDocument = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+                val kryptonDir = treeDocument.findFile(".krypton")
+                if (kryptonDir == null || !kryptonDir.isDirectory) {
+                    return@withContext null
+                }
+                
+                val goalsFile = kryptonDir.findFile("goals.json")
+                if (goalsFile == null || !goalsFile.isFile) {
+                    return@withContext null
+                }
+                
+                context.contentResolver.openInputStream(goalsFile.uri)?.use { inputStream ->
+                    val content = inputStream.bufferedReader().readText()
+                    if (content.isBlank()) {
+                        null
+                    } else {
+                        json.decodeFromString<GoalsData>(content)
+                    }
+                } ?: null
+            } else {
+                // File path-based access (fallback)
+                val file = getGoalsFile(vaultId)
+                if (file.exists() && file.isFile) {
+                    val content = file.readText()
+                    if (content.isBlank()) {
+                        null
+                    } else {
+                        json.decodeFromString<GoalsData>(content)
+                    }
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             AppLogger.e("AndroidStudyPersistence", "Failed to load goals for vault: $vaultId", e)
@@ -139,14 +171,48 @@ class AndroidStudyPersistence(
     
     override suspend fun saveGoals(vaultId: String, data: GoalsData): Boolean = withContext(Dispatchers.IO) {
         try {
-            val file = getGoalsFile(vaultId)
-            
-            // Ensure .krypton directory exists
-            file.parentFile?.mkdirs()
-            
             val content = json.encodeToString(GoalsData.serializer(), data)
-            file.writeText(content)
-            true
+            
+            val uri = try {
+                Uri.parse(vaultId)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val treeDocument = DocumentFile.fromTreeUri(context, uri) ?: return@withContext false
+                
+                // Ensure .krypton directory exists
+                val kryptonDir = findOrCreateDirectory(treeDocument, ".krypton")
+                if (kryptonDir == null) {
+                    AppLogger.e("AndroidStudyPersistence", "Failed to create .krypton directory")
+                    return@withContext false
+                }
+                
+                // Find or create the goals.json file
+                var goalsFile = kryptonDir.findFile("goals.json")
+                if (goalsFile == null) {
+                    goalsFile = kryptonDir.createFile("application/json", "goals.json")
+                }
+                
+                if (goalsFile != null && goalsFile.canWrite()) {
+                    context.contentResolver.openOutputStream(goalsFile.uri)?.use { outputStream ->
+                        outputStream.bufferedWriter().use { writer ->
+                            writer.write(content)
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else {
+                // File path-based access (fallback)
+                val file = getGoalsFile(vaultId)
+                file.parentFile?.mkdirs()
+                file.writeText(content)
+                true
+            }
         } catch (e: Exception) {
             AppLogger.e("AndroidStudyPersistence", "Failed to save goals for vault: $vaultId", e)
             false
@@ -262,16 +328,52 @@ class AndroidStudyPersistence(
     
     override suspend fun loadGoalData(vaultId: String, goalId: String): GoalData? = withContext(Dispatchers.IO) {
         try {
-            val file = getGoalDataFile(vaultId, goalId)
-            if (file.exists() && file.isFile) {
-                val content = file.readText()
-                if (content.isBlank()) {
-                    null
-                } else {
-                    json.decodeFromString<GoalData>(content)
-                }
-            } else {
+            val uri = try {
+                Uri.parse(vaultId)
+            } catch (e: Exception) {
                 null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val treeDocument = DocumentFile.fromTreeUri(context, uri) ?: return@withContext null
+                val kryptonDir = treeDocument.findFile(".krypton")
+                if (kryptonDir == null || !kryptonDir.isDirectory) {
+                    return@withContext null
+                }
+                
+                val goalsDir = kryptonDir.findFile("goals")
+                if (goalsDir == null || !goalsDir.isDirectory) {
+                    return@withContext null
+                }
+                
+                val fileName = "$goalId.json"
+                val goalFile = goalsDir.findFile(fileName)
+                if (goalFile == null || !goalFile.isFile) {
+                    return@withContext null
+                }
+                
+                context.contentResolver.openInputStream(goalFile.uri)?.use { inputStream ->
+                    val content = inputStream.bufferedReader().readText()
+                    if (content.isBlank()) {
+                        null
+                    } else {
+                        json.decodeFromString<GoalData>(content)
+                    }
+                } ?: null
+            } else {
+                // File path-based access (fallback)
+                val file = getGoalDataFile(vaultId, goalId)
+                if (file.exists() && file.isFile) {
+                    val content = file.readText()
+                    if (content.isBlank()) {
+                        null
+                    } else {
+                        json.decodeFromString<GoalData>(content)
+                    }
+                } else {
+                    null
+                }
             }
         } catch (e: Exception) {
             AppLogger.e("AndroidStudyPersistence", "Failed to load goal data for goal: $goalId", e)
@@ -281,14 +383,49 @@ class AndroidStudyPersistence(
     
     override suspend fun saveGoalData(vaultId: String, goalId: String, data: GoalData): Boolean = withContext(Dispatchers.IO) {
         try {
-            val file = getGoalDataFile(vaultId, goalId)
-            
-            // Ensure .krypton/goals directory exists
-            file.parentFile?.mkdirs()
-            
             val content = json.encodeToString(GoalData.serializer(), data)
-            file.writeText(content)
-            true
+            
+            val uri = try {
+                Uri.parse(vaultId)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val treeDocument = DocumentFile.fromTreeUri(context, uri) ?: return@withContext false
+                
+                // Ensure .krypton/goals directory exists
+                val goalsDir = findOrCreateDirectory(treeDocument, ".krypton/goals")
+                if (goalsDir == null) {
+                    AppLogger.e("AndroidStudyPersistence", "Failed to create .krypton/goals directory")
+                    return@withContext false
+                }
+                
+                // Find or create the goal data file
+                val fileName = "$goalId.json"
+                var goalFile = goalsDir.findFile(fileName)
+                if (goalFile == null) {
+                    goalFile = goalsDir.createFile("application/json", fileName)
+                }
+                
+                if (goalFile != null && goalFile.canWrite()) {
+                    context.contentResolver.openOutputStream(goalFile.uri)?.use { outputStream ->
+                        outputStream.bufferedWriter().use { writer ->
+                            writer.write(content)
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else {
+                // File path-based access (fallback)
+                val file = getGoalDataFile(vaultId, goalId)
+                file.parentFile?.mkdirs()
+                file.writeText(content)
+                true
+            }
         } catch (e: Exception) {
             AppLogger.e("AndroidStudyPersistence", "Failed to save goal data for goal: $goalId", e)
             false
@@ -298,6 +435,60 @@ class AndroidStudyPersistence(
     private fun getGoalDataFile(vaultId: String, goalId: String): File {
         val vaultFile = File(vaultId)
         return File(vaultFile, ".krypton/goals/$goalId.json")
+    }
+    
+    /**
+     * Helper function to find or create a directory by relative path using DocumentFile.
+     */
+    private fun findOrCreateDirectory(root: DocumentFile?, path: String): DocumentFile? {
+        if (root == null) return null
+        if (path.isEmpty()) return root
+        
+        val parts = path.split("/").filter { it.isNotEmpty() }
+        var current = root
+        
+        for (part in parts) {
+            var child = current?.findFile(part)
+            if (child == null) {
+                child = current?.createDirectory(part)
+            }
+            current = child
+            if (current == null) break
+        }
+        
+        return current
+    }
+    
+    /**
+     * Ensures the .krypton directory exists in the vault.
+     * This should be called when a vault is initialized.
+     */
+    suspend fun ensureKryptonDirectory(vaultId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val uri = try {
+                Uri.parse(vaultId)
+            } catch (e: Exception) {
+                null
+            }
+            
+            if (uri != null && uri.scheme == "content") {
+                // SAF-based access using DocumentFile
+                val treeDocument = DocumentFile.fromTreeUri(context, uri) ?: return@withContext false
+                val kryptonDir = findOrCreateDirectory(treeDocument, ".krypton")
+                kryptonDir != null
+            } else {
+                // File path-based access (fallback)
+                val vaultFile = File(vaultId)
+                val kryptonDir = File(vaultFile, ".krypton")
+                if (!kryptonDir.exists()) {
+                    kryptonDir.mkdirs()
+                }
+                kryptonDir.exists() && kryptonDir.isDirectory
+            }
+        } catch (e: Exception) {
+            AppLogger.e("AndroidStudyPersistence", "Failed to ensure .krypton directory for vault: $vaultId", e)
+            false
+        }
     }
 }
 

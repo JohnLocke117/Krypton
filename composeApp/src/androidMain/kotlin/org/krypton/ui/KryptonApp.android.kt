@@ -348,6 +348,7 @@ private fun AndroidNotesListScreen(
 ) {
     val koin = remember { GlobalContext.get() }
     val fileSystem = remember { koin.get<FileSystem>() }
+    val studyPersistence = remember { koin.get<org.krypton.data.study.StudyPersistence>() }
     val context = LocalContext.current
     
     // Create Android-specific notes state holder
@@ -403,6 +404,10 @@ private fun AndroidNotesListScreen(
                     val vaultRoot = androidVaultPicker?.setVaultRootFromUri(uri)
                     
                     if (vaultRoot != null) {
+                        // Ensure .krypton directory exists
+                        val androidPersistence = studyPersistence as? org.krypton.data.study.impl.AndroidStudyPersistence
+                        androidPersistence?.ensureKryptonDirectory(vaultRoot.id)
+                        
                         // Initialize notes state holder with the new vault root
                         val rootDirectory = VaultDirectory(
                             uri = vaultRoot.id,
@@ -413,6 +418,10 @@ private fun AndroidNotesListScreen(
                         // Fallback to default vault on error
                         val defaultVaultRoot = vaultPicker.pickVaultRoot()
                         defaultVaultRoot?.let { root ->
+                            // Ensure .krypton directory exists
+                            val androidPersistence = studyPersistence as? org.krypton.data.study.impl.AndroidStudyPersistence
+                            androidPersistence?.ensureKryptonDirectory(root.id)
+                            
                             val rootDirectory = VaultDirectory(
                                 uri = root.id,
                                 displayPath = root.displayName
@@ -424,6 +433,10 @@ private fun AndroidNotesListScreen(
                     // Fallback to default vault on error
                     val defaultVaultRoot = vaultPicker.pickVaultRoot()
                     defaultVaultRoot?.let { root ->
+                        // Ensure .krypton directory exists
+                        val androidPersistence = studyPersistence as? org.krypton.data.study.impl.AndroidStudyPersistence
+                        androidPersistence?.ensureKryptonDirectory(root.id)
+                        
                         val rootDirectory = VaultDirectory(
                             uri = root.id,
                             displayPath = root.displayName
@@ -441,6 +454,10 @@ private fun AndroidNotesListScreen(
             try {
                 val vaultRoot = vaultPicker.pickVaultRoot()
                 if (vaultRoot != null) {
+                    // Ensure .krypton directory exists
+                    val androidPersistence = studyPersistence as? org.krypton.data.study.impl.AndroidStudyPersistence
+                    androidPersistence?.ensureKryptonDirectory(vaultRoot.id)
+                    
                     val rootDirectory = VaultDirectory(
                         uri = vaultRoot.id,
                         displayPath = vaultRoot.displayName
@@ -535,6 +552,17 @@ private fun AndroidNotesListScreen(
                     }
                 }
             },
+            onRefresh = {
+                coroutineScope.launch {
+                    val vaultRootUri = settingsRepository.settingsFlow.value.app.vaultRootUri
+                    if (vaultRootUri != null) {
+                        // Ensure .krypton directory exists
+                        val androidPersistence = studyPersistence as? org.krypton.data.study.impl.AndroidStudyPersistence
+                        androidPersistence?.ensureKryptonDirectory(vaultRootUri)
+                    }
+                    notesStateHolder.refresh()
+                }
+            },
             theme = theme
         )
         
@@ -606,6 +634,7 @@ private fun VaultTopBar(
     onOpenFolderPicker: () -> Unit,
     onCreateFile: (String) -> Unit,
     onCreateFolder: (String) -> Unit,
+    onRefresh: () -> Unit,
     theme: ObsidianThemeValues
 ) {
     var showNewFileDialog by remember { mutableStateOf(false) }
@@ -653,6 +682,10 @@ private fun VaultTopBar(
                 }
                 IconButton(onClick = { showNewFolderDialog = true }) {
                     Icon(Icons.Default.CreateNewFolder, contentDescription = "New folder", tint = theme.TextPrimary)
+                }
+                // Refresh vault button
+                IconButton(onClick = onRefresh) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh vault", tint = theme.TextPrimary)
                 }
             }
             
