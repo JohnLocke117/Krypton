@@ -186,35 +186,31 @@ private fun SessionCard(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Session title
+            Text(
+                text = "Session ${session.order}: ${session.topic}",
+                style = MaterialTheme.typography.bodySmall,
+                color = CatppuccinMochaColors.Text
+            )
+            
+            // Status badge (below title)
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                color = when (session.status) {
+                    SessionStatus.COMPLETED -> CatppuccinMochaColors.Green
+                    SessionStatus.PENDING -> CatppuccinMochaColors.Surface1
+                },
+                modifier = Modifier.wrapContentWidth()
             ) {
                 Text(
-                    text = "Session ${session.order}: ${session.topic}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = CatppuccinMochaColors.Text
-                )
-                
-                // Status badge
-                Surface(
-                    shape = MaterialTheme.shapes.small,
+                    text = session.status.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                     color = when (session.status) {
-                        SessionStatus.COMPLETED -> CatppuccinMochaColors.Green
-                        SessionStatus.PENDING -> CatppuccinMochaColors.Surface1
+                        SessionStatus.COMPLETED -> CatppuccinMochaColors.Base
+                        SessionStatus.PENDING -> CatppuccinMochaColors.Subtext1
                     }
-                ) {
-                    Text(
-                        text = session.status.name,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                        color = when (session.status) {
-                            SessionStatus.COMPLETED -> CatppuccinMochaColors.Base
-                            SessionStatus.PENDING -> CatppuccinMochaColors.Subtext1
-                        }
-                    )
-                }
+                )
             }
             
             Text(
