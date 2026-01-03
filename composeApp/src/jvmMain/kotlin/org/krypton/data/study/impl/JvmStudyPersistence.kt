@@ -7,6 +7,7 @@ import org.krypton.data.study.GoalsData
 import org.krypton.data.study.StudyData
 import org.krypton.data.study.StudyPersistence
 import org.krypton.data.study.SessionData
+import org.krypton.data.study.GoalData
 import org.krypton.util.AppLogger
 import java.nio.file.Files
 import java.nio.file.Path
@@ -278,6 +279,51 @@ class JvmStudyPersistence : StudyPersistence {
             AppLogger.e("JvmStudyPersistence", "Failed to load roadmap for goal: $goalId", e)
             null
         }
+    }
+    
+    override suspend fun loadGoalData(vaultId: String, goalId: String): GoalData? = withContext(Dispatchers.IO) {
+        try {
+            val filePath = getGoalDataPath(vaultId, goalId)
+            if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+                val content = Files.readString(filePath)
+                if (content.isBlank()) {
+                    null
+                } else {
+                    json.decodeFromString<GoalData>(content)
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            AppLogger.e("JvmStudyPersistence", "Failed to load goal data for goal: $goalId", e)
+            null
+        }
+    }
+    
+    override suspend fun saveGoalData(vaultId: String, goalId: String, data: GoalData): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val filePath = getGoalDataPath(vaultId, goalId)
+            
+            // Ensure .krypton/goals directory exists
+            Files.createDirectories(filePath.parent)
+            
+            val content = json.encodeToString(GoalData.serializer(), data)
+            Files.writeString(
+                filePath,
+                content,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            )
+            true
+        } catch (e: Exception) {
+            AppLogger.e("JvmStudyPersistence", "Failed to save goal data for goal: $goalId", e)
+            false
+        }
+    }
+    
+    private fun getGoalDataPath(vaultId: String, goalId: String): Path {
+        val vaultPath = Paths.get(vaultId)
+        return vaultPath.resolve(".krypton").resolve("goals").resolve("$goalId.json")
     }
 }
 

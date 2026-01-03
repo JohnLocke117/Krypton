@@ -183,7 +183,77 @@ $content"""
         // Fix escaped backticks in strings (backslash-backtick becomes quote)
         cleaned = cleaned.replace("\\`", "\"")
         
+        // Fix unescaped quotes inside string values
+        cleaned = escapeQuotesInStringValues(cleaned)
+        
         return cleaned
+    }
+    
+    /**
+     * Escapes unescaped quotes inside JSON string values.
+     * Handles cases like: "answer": "You use the command: "git init""
+     * Converts to: "answer": "You use the command: \"git init\""
+     */
+    private fun escapeQuotesInStringValues(jsonStr: String): String {
+        val result = StringBuilder()
+        var i = 0
+        var inString = false
+        var escapeNext = false
+        
+        while (i < jsonStr.length) {
+            val char = jsonStr[i]
+            
+            when {
+                escapeNext -> {
+                    // Previous char was backslash, so this char is escaped
+                    result.append(char)
+                    escapeNext = false
+                }
+                char == '\\' -> {
+                    // Escape character - next char will be escaped
+                    result.append(char)
+                    escapeNext = true
+                }
+                char == '"' && !escapeNext -> {
+                    if (inString) {
+                        // We're inside a string value. Check if this quote closes the string
+                        // Look ahead past whitespace to see what comes next
+                        var j = i + 1
+                        while (j < jsonStr.length && jsonStr[j].isWhitespace()) {
+                            j++
+                        }
+                        
+                        val isClosingQuote = when {
+                            j >= jsonStr.length -> true // End of input
+                            jsonStr[j] == ',' -> true // Followed by comma
+                            jsonStr[j] == '}' -> true // Followed by closing brace
+                            jsonStr[j] == ']' -> true // Followed by closing bracket
+                            else -> false // Likely an unescaped quote inside the string
+                        }
+                        
+                        if (isClosingQuote) {
+                            // This is the closing quote of the string
+                            result.append(char)
+                            inString = false
+                        } else {
+                            // This is an unescaped quote inside the string - escape it
+                            result.append("\\\"")
+                        }
+                    } else {
+                        // Start of a string (could be key or value)
+                        result.append(char)
+                        inString = true
+                    }
+                }
+                else -> {
+                    result.append(char)
+                }
+            }
+            
+            i++
+        }
+        
+        return result.toString()
     }
 }
 

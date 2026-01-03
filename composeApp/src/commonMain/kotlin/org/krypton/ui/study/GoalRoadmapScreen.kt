@@ -103,7 +103,7 @@ fun GoalRoadmapScreen(
             }
         }
         
-        // Create Study Plan button (if no sessions yet)
+        // Create Sessions button (if no sessions yet)
         if (sessions.isEmpty() && !planningInProgress) {
             Button(
                 onClick = onCreateStudyPlan,
@@ -113,7 +113,7 @@ fun GoalRoadmapScreen(
                     contentColor = CatppuccinMochaColors.Base
                 )
             ) {
-                Text("Create Study Plan", style = MaterialTheme.typography.bodySmall)
+                Text("Create Sessions", style = MaterialTheme.typography.bodySmall)
             }
         }
         
@@ -137,7 +137,7 @@ fun GoalRoadmapScreen(
                         color = CatppuccinMochaColors.Blue
                     )
                     Text(
-                        "Creating study plan...",
+                        "Creating sessions...",
                         style = MaterialTheme.typography.bodySmall,
                         color = CatppuccinMochaColors.Text
                     )

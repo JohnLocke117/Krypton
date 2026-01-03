@@ -51,8 +51,8 @@ fun StudyTab(
                 if (currentSession != null) {
                     SessionScreen(
                         session = currentSession,
-                    state = state,
-                    onBack = { studyModeState.navigateBackToGoals() },
+                state = state,
+                onBack = { studyModeState.navigateBackToGoals() },
                     onStartQuiz = { sessionId, count ->
                         studyModeState.startQuiz(sessionId, count)
                     },
@@ -65,9 +65,9 @@ fun StudyTab(
                     onCompleteQuiz = { sessionId ->
                         studyModeState.completeQuiz(sessionId)
                     },
-                    isFullScreen = true
-                    )
-                } else {
+                isFullScreen = true
+            )
+        } else {
                     // No session available
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -102,9 +102,9 @@ fun StudyTab(
                     ) {
                         Text("No goal available")
                     }
-                }
-            }
-            
+        }
+    }
+    
             // Show create goal dialog
             state.showCreateGoalDialog -> {
                 CreateGoalScreen(
@@ -127,7 +127,7 @@ fun StudyTab(
                     onCreateGoalClick = { studyModeState.showCreateGoalDialog() },
                     onDeleteGoal = { goalId ->
                         studyModeState.deleteGoal(goalId)
-                    }
+    }
                 )
             }
         }

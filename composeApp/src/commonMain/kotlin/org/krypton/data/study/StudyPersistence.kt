@@ -5,9 +5,7 @@ package org.krypton.data.study
  * 
  * Study data is stored in `.krypton` directory:
  * - Goals: `.krypton/goals.json` (all goals in one file)
- * - Goal data: `.krypton/goals/{goalId}/` (directory per goal)
- *   - `roadmap.md` - roadmap document
- *   - `{sessionId}.json` - session data file (contains session, summaries, flashcards, results)
+ * - Goal data: `.krypton/goals/{goalId}.json` (one JSON file per goal containing goal + all sessions + related data)
  */
 interface StudyPersistence {
     /**
@@ -111,5 +109,26 @@ interface StudyPersistence {
      * @return Roadmap content if found, null otherwise
      */
     suspend fun loadRoadmap(vaultId: String, goalId: String): String?
+    
+    /**
+     * Loads complete goal data from `.krypton/goals/{goalId}.json`
+     * This includes the goal, all its sessions, summaries, flashcards, and results.
+     * 
+     * @param vaultId Platform-specific vault identifier
+     * @param goalId ID of the goal
+     * @return GoalData if found, null otherwise
+     */
+    suspend fun loadGoalData(vaultId: String, goalId: String): GoalData?
+    
+    /**
+     * Saves complete goal data to `.krypton/goals/{goalId}.json`
+     * This includes the goal, all its sessions, summaries, flashcards, and results.
+     * 
+     * @param vaultId Platform-specific vault identifier
+     * @param goalId ID of the goal
+     * @param data GoalData to save
+     * @return true if successful, false on error
+     */
+    suspend fun saveGoalData(vaultId: String, goalId: String, data: GoalData): Boolean
 }
 

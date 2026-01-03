@@ -117,13 +117,13 @@ class StudyPlannerImpl(
                 }
             } else {
                 // Create a session for each topic
-                val settings = settingsRepository.settingsFlow.value
-                val agentContext = AgentContext(
-                    currentVaultPath = vaultPath,
-                    settings = settings,
-                    currentNotePath = null
-                )
-                
+            val settings = settingsRepository.settingsFlow.value
+            val agentContext = AgentContext(
+                currentVaultPath = vaultPath,
+                settings = settings,
+                currentNotePath = null
+            )
+            
                 for ((index, topic) in goal.topics.withIndex()) {
                     try {
                         AppLogger.i("StudyPlanner", "Searching notes for topic: $topic")
@@ -143,13 +143,13 @@ class StudyPlannerImpl(
                         } else {
                             // Search for notes related to this topic
                             val searchMessage = "search my notes for $topic"
-                            val searchResult = try {
-                                searchNoteAgent.execute(searchMessage, emptyList(), agentContext)
-                            } catch (e: Exception) {
+            val searchResult = try {
+                searchNoteAgent.execute(searchMessage, emptyList(), agentContext)
+            } catch (e: Exception) {
                                 AppLogger.w("StudyPlanner", "SearchNoteAgent execution failed for topic '$topic'", e)
-                                null
-                            }
-                            
+                null
+            }
+            
                             if (searchResult is AgentResult.NotesFound) {
                                 AppLogger.i("StudyPlanner", "Found ${searchResult.results.size} notes for topic '$topic'")
                                 // Convert to full paths
@@ -181,7 +181,7 @@ class StudyPlannerImpl(
                             sessions.add(session)
                             sessionRepository.upsertSession(session)
                             AppLogger.i("StudyPlanner", "Created session ${index + 1}: $topic (${notePaths.size} notes)")
-                        } else {
+            } else {
                             AppLogger.w("StudyPlanner", "Skipping session for topic '$topic' - no notes found")
                         }
                     } catch (e: Exception) {
@@ -190,8 +190,9 @@ class StudyPlannerImpl(
                 }
             }
             
-            // Generate roadmap document (markdown)
-            generateRoadmapDocument(goal, sessions)
+            // Save roadmap in GoalData (if goal has roadmap)
+            // The roadmap is already in the goal object from goal creation
+            // When sessions are saved via upsertSession, the roadmap will be included in GoalData
             
             AppLogger.i("StudyPlanner", "Created ${sessions.size} sessions for goal: ${goal.title}")
             
@@ -244,8 +245,8 @@ class StudyPlannerImpl(
                 append("You will study ${notes.size} relevant notes to achieve this goal.")
             }
         }
-    }
-    
+                    }
+                    
     /**
      * Generates a roadmap markdown document for the goal.
      */

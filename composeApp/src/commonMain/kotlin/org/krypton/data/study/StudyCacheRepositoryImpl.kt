@@ -6,6 +6,7 @@ import org.krypton.core.domain.study.NoteSummary
 import org.krypton.core.domain.study.SessionFlashcards
 import org.krypton.core.domain.study.SessionResult
 import org.krypton.util.AppLogger
+import org.krypton.data.study.GoalData
 
 /**
  * Implementation of StudyCacheRepository using StudyPersistence.
@@ -45,21 +46,28 @@ class StudyCacheRepositoryImpl(
                 return
             }
             
-            // Load existing session data
-            val existingSessionData = persistence.loadSessionData(goal.vaultId, goal.id.value, matchingSession.id.value)
-            val existingSummaries = existingSessionData?.noteSummaries?.filterNot { it.notePath == summary.notePath } ?: emptyList()
+            // Load existing goal data
+            val existingGoalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+            val existingSummaries = existingGoalData?.noteSummaries?.filterNot { it.notePath == summary.notePath } ?: emptyList()
             val updatedSummaries = existingSummaries + summary
             
-            val sessionData = (existingSessionData ?: org.krypton.data.study.SessionData(
-                session = matchingSession,
-                noteSummaries = emptyList(),
-                flashcards = null,
-                result = null
-            )).copy(noteSummaries = updatedSummaries)
+            val goalData = GoalData(
+                goal = goal,
+                roadmap = existingGoalData?.roadmap ?: goal.roadmap,
+                sessions = existingGoalData?.sessions ?: emptyList(),
+                noteSummaries = updatedSummaries,
+                sessionFlashcards = existingGoalData?.sessionFlashcards ?: emptyList(),
+                sessionResults = existingGoalData?.sessionResults ?: emptyList()
+            )
             
-            if (persistence.saveSessionData(goal.vaultId, goal.id.value, matchingSession.id.value, sessionData)) {
+            if (persistence.saveGoalData(goal.vaultId, goal.id.value, goalData)) {
                 // Update cache
-                val currentPlan = loadStudyPlan(goal.vaultId, goal.id.value)
+                val currentPlan = StudyData(
+                    sessions = goalData.sessions,
+                    noteSummaries = goalData.noteSummaries,
+                    sessionFlashcards = goalData.sessionFlashcards,
+                    sessionResults = goalData.sessionResults
+                )
                 updateCacheForGoal(goal.vaultId, goal.id.value, currentPlan)
                 AppLogger.d("StudyCacheRepository", "Saved note summary: ${summary.notePath}")
             } else {
@@ -73,8 +81,8 @@ class StudyCacheRepositoryImpl(
     override suspend fun getSessionFlashcards(sessionId: StudySessionId): SessionFlashcards? {
         val session = sessionRepository.getSession(sessionId) ?: return null
         val goal = goalRepository.getGoal(session.goalId) ?: return null
-        val sessionData = persistence.loadSessionData(goal.vaultId, goal.id.value, sessionId.value)
-        return sessionData?.flashcards
+        val goalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+        return goalData?.sessionFlashcards?.firstOrNull { it.sessionId == sessionId }
     }
     
     override suspend fun saveSessionFlashcards(flashcards: SessionFlashcards) {
@@ -89,18 +97,31 @@ class StudyCacheRepositoryImpl(
                 return
             }
             
-            // Load existing session data
-            val existingSessionData = persistence.loadSessionData(goal.vaultId, goal.id.value, session.id.value)
-            val sessionData = (existingSessionData ?: org.krypton.data.study.SessionData(
-                session = session,
-                noteSummaries = emptyList(),
-                flashcards = null,
-                result = null
-            )).copy(flashcards = flashcards)
+            // Load existing goal data
+            val existingGoalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+            val updatedFlashcards = if (existingGoalData != null) {
+                existingGoalData.sessionFlashcards.filterNot { it.sessionId == flashcards.sessionId } + flashcards
+            } else {
+                listOf(flashcards)
+            }
             
-            if (persistence.saveSessionData(goal.vaultId, goal.id.value, session.id.value, sessionData)) {
+            val goalData = GoalData(
+                goal = goal,
+                roadmap = existingGoalData?.roadmap ?: goal.roadmap,
+                sessions = existingGoalData?.sessions ?: emptyList(),
+                noteSummaries = existingGoalData?.noteSummaries ?: emptyList(),
+                sessionFlashcards = updatedFlashcards,
+                sessionResults = existingGoalData?.sessionResults ?: emptyList()
+            )
+            
+            if (persistence.saveGoalData(goal.vaultId, goal.id.value, goalData)) {
                 // Update cache
-                val currentPlan = loadStudyPlan(goal.vaultId, goal.id.value)
+                val currentPlan = StudyData(
+                    sessions = goalData.sessions,
+                    noteSummaries = goalData.noteSummaries,
+                    sessionFlashcards = goalData.sessionFlashcards,
+                    sessionResults = goalData.sessionResults
+                )
                 updateCacheForGoal(goal.vaultId, goal.id.value, currentPlan)
                 AppLogger.d("StudyCacheRepository", "Saved session flashcards: ${flashcards.sessionId}")
             } else {
@@ -114,8 +135,8 @@ class StudyCacheRepositoryImpl(
     override suspend fun getSessionResult(sessionId: StudySessionId): SessionResult? {
         val session = sessionRepository.getSession(sessionId) ?: return null
         val goal = goalRepository.getGoal(session.goalId) ?: return null
-        val sessionData = persistence.loadSessionData(goal.vaultId, goal.id.value, sessionId.value)
-        return sessionData?.result
+        val goalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+        return goalData?.sessionResults?.firstOrNull { it.sessionId == sessionId }
     }
     
     override suspend fun saveSessionResult(result: SessionResult) {
@@ -130,18 +151,31 @@ class StudyCacheRepositoryImpl(
                 return
             }
             
-            // Load existing session data
-            val existingSessionData = persistence.loadSessionData(goal.vaultId, goal.id.value, session.id.value)
-            val sessionData = (existingSessionData ?: org.krypton.data.study.SessionData(
-                session = session,
-                noteSummaries = emptyList(),
-                flashcards = null,
-                result = null
-            )).copy(result = result)
+            // Load existing goal data
+            val existingGoalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+            val updatedResults = if (existingGoalData != null) {
+                existingGoalData.sessionResults.filterNot { it.sessionId == result.sessionId } + result
+            } else {
+                listOf(result)
+            }
             
-            if (persistence.saveSessionData(goal.vaultId, goal.id.value, session.id.value, sessionData)) {
+            val goalData = GoalData(
+                goal = goal,
+                roadmap = existingGoalData?.roadmap ?: goal.roadmap,
+                sessions = existingGoalData?.sessions ?: emptyList(),
+                noteSummaries = existingGoalData?.noteSummaries ?: emptyList(),
+                sessionFlashcards = existingGoalData?.sessionFlashcards ?: emptyList(),
+                sessionResults = updatedResults
+            )
+            
+            if (persistence.saveGoalData(goal.vaultId, goal.id.value, goalData)) {
                 // Update cache
-                val currentPlan = loadStudyPlan(goal.vaultId, goal.id.value)
+                val currentPlan = StudyData(
+                    sessions = goalData.sessions,
+                    noteSummaries = goalData.noteSummaries,
+                    sessionFlashcards = goalData.sessionFlashcards,
+                    sessionResults = goalData.sessionResults
+                )
                 updateCacheForGoal(goal.vaultId, goal.id.value, currentPlan)
                 AppLogger.d("StudyCacheRepository", "Saved session result: ${result.sessionId}")
             } else {
@@ -168,7 +202,18 @@ class StudyCacheRepositoryImpl(
                 sessionResults = currentPlan.sessionResults.filterNot { it.sessionId == sessionId }
             )
             
-            if (persistence.saveStudyPlan(goal.vaultId, goal.id.value, updatedPlan)) {
+            // Load existing goal data to preserve roadmap
+            val existingGoalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+            val goalData = GoalData(
+                goal = goal,
+                roadmap = existingGoalData?.roadmap ?: goal.roadmap,
+                sessions = currentPlan.sessions,
+                noteSummaries = updatedPlan.noteSummaries,
+                sessionFlashcards = updatedPlan.sessionFlashcards,
+                sessionResults = updatedPlan.sessionResults
+            )
+            
+            if (persistence.saveGoalData(goal.vaultId, goal.id.value, goalData)) {
                 updateCacheForGoal(goal.vaultId, goal.id.value, updatedPlan)
                 AppLogger.d("StudyCacheRepository", "Deleted cached data for session: $sessionId")
             } else {
@@ -182,9 +227,17 @@ class StudyCacheRepositoryImpl(
     private suspend fun deleteCachedGoalData(goalId: org.krypton.core.domain.study.StudyGoalId) {
         try {
             val goal = goalRepository.getGoal(goalId) ?: return
-            // Delete the study plan file
-            val emptyPlan = StudyData()
-            if (persistence.saveStudyPlan(goal.vaultId, goalId.value, emptyPlan)) {
+            // Delete the goal data file by saving empty data (preserve roadmap)
+            val existingGoalData = persistence.loadGoalData(goal.vaultId, goalId.value)
+            val emptyGoalData = GoalData(
+                goal = goal,
+                roadmap = existingGoalData?.roadmap ?: goal.roadmap,
+                sessions = emptyList(),
+                noteSummaries = emptyList(),
+                sessionFlashcards = emptyList(),
+                sessionResults = emptyList()
+            )
+            if (persistence.saveGoalData(goal.vaultId, goalId.value, emptyGoalData)) {
                 // Update cache - remove all data for this goal
                 val currentCache = dataCache.value[goal.vaultId] ?: StudyData()
                 val goalSessions = currentCache.sessions.filter { it.goalId == goalId }
@@ -228,7 +281,17 @@ class StudyCacheRepositoryImpl(
         }
         
         // Load from persistence
-        val plan = persistence.loadStudyPlan(vaultId, goalId) ?: StudyData()
+        val goalData = persistence.loadGoalData(vaultId, goalId)
+        val plan = if (goalData != null) {
+            StudyData(
+                sessions = goalData.sessions,
+                noteSummaries = goalData.noteSummaries,
+                sessionFlashcards = goalData.sessionFlashcards,
+                sessionResults = goalData.sessionResults
+            )
+        } else {
+            StudyData()
+        }
         
         // Update cache
         val currentCache = dataCache.value[vaultId] ?: StudyData()

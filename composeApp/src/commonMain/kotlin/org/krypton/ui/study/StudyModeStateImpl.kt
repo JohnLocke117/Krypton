@@ -11,6 +11,7 @@ import org.krypton.chat.agent.AgentResult
 import org.krypton.chat.agent.SearchNoteAgent
 import org.krypton.core.domain.study.*
 import org.krypton.data.repository.SettingsRepository
+import org.krypton.data.study.StudyData
 import org.krypton.data.study.StudyPersistence
 import org.krypton.util.AppLogger
 import org.krypton.util.TimeProvider
@@ -163,6 +164,17 @@ class StudyModeStateImpl(
                     updatedAtMillis = now,
                 )
                 
+                // Save initial GoalData with roadmap (even if no sessions yet)
+                val initialGoalData = org.krypton.data.study.GoalData(
+                    goal = goal,
+                    roadmap = roadmap,
+                    sessions = emptyList(),
+                    noteSummaries = emptyList(),
+                    sessionFlashcards = emptyList(),
+                    sessionResults = emptyList()
+                )
+                persistence.saveGoalData(vaultId, goalId.value, initialGoalData)
+                
                 // Ensure flow collection is active before creating goal
                 if (goalsCollectionJob?.isActive != true || currentVaultId != vaultId) {
                     AppLogger.d("StudyModeState", "Flow collection not active for vault '$vaultId', starting it...")
@@ -266,42 +278,58 @@ class StudyModeStateImpl(
                     errorMessage = null
                 )
                 
-                AppLogger.i("StudyModeState", "Creating study plan for goal: ${goal.title}")
-                
-                // Generate roadmap using LLM
-                val notes = goal.matchedNotes.ifEmpty { 
-                    // Fallback: if no matched notes, use empty list
-                    emptyList()
+                // Load roadmap from persistence if not in goal
+                var updatedGoal = goal
+                if (goal.roadmap == null) {
+                    val roadmap = persistence.loadRoadmap(goal.vaultId, goal.id.value)
+                    if (roadmap != null) {
+                        updatedGoal = goal.copy(roadmap = roadmap)
+                        studyGoalRepository.upsert(updatedGoal)
+                    }
                 }
-                val roadmap = studyPlanner.generateRoadmap(goal, notes)
                 
-                // Save roadmap to .krypton directory
-                saveRoadmapToKrypton(goal, roadmap)
+                AppLogger.i("StudyModeState", "Creating sessions for goal: ${updatedGoal.title}")
                 
-                // Update goal with roadmap
-                val updatedGoal = goal.copy(
-                    roadmap = roadmap,
-                    updatedAtMillis = timeProvider.currentTimeMillis()
-                )
-                studyGoalRepository.upsert(updatedGoal)
-                
-                // Create sessions
+                // Create sessions (roadmap should already exist from goal creation)
                 studyPlanner.planForGoal(updatedGoal)
                 
-                // Refresh sessions for the goal
-                loadSessionsForGoal(goalId)
+                // Retry loading sessions with increasing delays until we find them
+                var sessions = emptyList<StudySession>()
+                var retryCount = 0
+                val maxRetries = 5
                 
-                // Update current goal in state with roadmap
-                _state.value = _state.value.copy(
-                    currentGoal = updatedGoal
-                )
+                while (sessions.isEmpty() && retryCount < maxRetries) {
+                    kotlinx.coroutines.delay(300L * (retryCount + 1)) // 300ms, 600ms, 900ms, etc.
+                    
+                    // Directly load goal data from persistence (bypassing cache)
+                    val goalData = persistence.loadGoalData(updatedGoal.vaultId, goalId.value)
+                    sessions = goalData?.sessions?.sortedBy { it.order } ?: emptyList()
+                    
+                    AppLogger.d("StudyModeState", "Attempt ${retryCount + 1}: Loaded ${sessions.size} sessions from persistence for goal: $goalId")
+                    retryCount++
+                }
+                
+                if (sessions.isEmpty()) {
+                    AppLogger.w("StudyModeState", "No sessions found after $maxRetries retries! Files might not be written yet.")
+                } else {
+                    AppLogger.i("StudyModeState", "Successfully loaded ${sessions.size} sessions from persistence for goal: $goalId")
+                }
+                
+                // Update state with loaded sessions and goal immediately
+                // Only update if this is still the current goal (prevent cross-contamination)
+                if (_state.value.currentGoal?.id == goalId) {
+                    _state.value = _state.value.copy(
+                        sessions = sessions, // Only this goal's sessions
+                        currentGoal = updatedGoal
+                    )
+                }
                 
                 // Clear loading state and show success toast
                 _state.value = _state.value.copy(
                     goalLoadingStates = _state.value.goalLoadingStates - goalId,
                     planningInProgress = false,
                     toastMessage = ToastMessage(
-                        text = "Study plan created successfully!",
+                        text = "Sessions created successfully!",
                         type = ToastType.SUCCESS
                     )
                 )
@@ -312,14 +340,14 @@ class StudyModeStateImpl(
                     toastMessage = null
                 )
                 
-                AppLogger.i("StudyModeState", "Successfully created study plan for goal: ${goal.title}")
+                AppLogger.i("StudyModeState", "Successfully created sessions for goal: ${updatedGoal.title}")
             } catch (e: Exception) {
-                AppLogger.e("StudyModeState", "Failed to create study plan: $goalId", e)
+                AppLogger.e("StudyModeState", "Failed to create sessions: $goalId", e)
                 _state.value = _state.value.copy(
                     goalLoadingStates = _state.value.goalLoadingStates - goalId,
                     planningInProgress = false,
                     toastMessage = ToastMessage(
-                        text = "Failed to create study plan: ${e.message}",
+                        text = "Failed to create sessions: ${e.message}",
                         type = ToastType.ERROR
                     )
                 )
@@ -375,10 +403,25 @@ class StudyModeStateImpl(
                         }
                     }
                     
+                    // Load goal data immediately (includes roadmap and sessions)
+                    val goalData = persistence.loadGoalData(goal.vaultId, goal.id.value)
+                    val sessions = goalData?.sessions?.sortedBy { it.order } ?: emptyList()
+                    
+                    // Update goal with roadmap from GoalData if available
+                    val updatedGoal = if (goalData?.roadmap != null && goal.roadmap == null) {
+                        goal.copy(roadmap = goalData.roadmap)
+                    } else {
+                        goal
+                    }
+                    
+                    // Always show ONLY sessions for the current goal (no cross-contamination)
                     _state.value = _state.value.copy(
-                        currentGoal = goal,
+                        currentGoal = updatedGoal,
+                        sessions = sessions, // Only this goal's sessions
                         errorMessage = null
                     )
+                    
+                    // Start flow collection to observe future changes
                     loadSessionsForGoal(goalId)
                 } else {
                     _state.value = _state.value.copy(
@@ -660,16 +703,25 @@ class StudyModeStateImpl(
     }
     
     private fun loadSessionsForGoal(goalId: StudyGoalId) {
-        // Cancel previous job only if it's for a different goal
-        val currentGoalId = _state.value.currentGoal?.id
-        if (currentGoalId != goalId) {
-            sessionsCollectionJob?.cancel()
-        }
+        // Always cancel previous job to force reload from persistence
+        sessionsCollectionJob?.cancel()
         
         sessionsCollectionJob = coroutineScope.launch {
             try {
                 studySessionRepository.observeSessionsForGoal(goalId).collect { sessions ->
-                    _state.value = _state.value.copy(sessions = sessions)
+                    // Don't overwrite state with empty sessions if we already have sessions FOR THIS GOAL
+                    // This prevents the flow from clearing sessions that were just loaded
+                    val existingSessionsForGoal = _state.value.sessions.filter { it.goalId == goalId }
+                    if (sessions.isEmpty() && existingSessionsForGoal.isNotEmpty()) {
+                        return@collect
+                    }
+                    
+                    // Only update if this is the current goal (prevent cross-contamination)
+                    // IMPORTANT: Replace ALL sessions, not merge, to prevent cross-contamination
+                    if (_state.value.currentGoal?.id == goalId) {
+                        _state.value = _state.value.copy(sessions = sessions) // Replace, don't merge
+                    }
+                    
                     AppLogger.d("StudyModeState", "Loaded ${sessions.size} sessions for goal: $goalId")
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {

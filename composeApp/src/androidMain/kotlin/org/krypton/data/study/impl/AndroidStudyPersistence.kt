@@ -8,6 +8,7 @@ import org.krypton.data.study.GoalsData
 import org.krypton.data.study.StudyData
 import org.krypton.data.study.StudyPersistence
 import org.krypton.data.study.SessionData
+import org.krypton.data.study.GoalData
 import org.krypton.util.AppLogger
 import java.io.File
 
@@ -257,6 +258,46 @@ class AndroidStudyPersistence(
             AppLogger.e("AndroidStudyPersistence", "Failed to load roadmap for goal: $goalId", e)
             null
         }
+    }
+    
+    override suspend fun loadGoalData(vaultId: String, goalId: String): GoalData? = withContext(Dispatchers.IO) {
+        try {
+            val file = getGoalDataFile(vaultId, goalId)
+            if (file.exists() && file.isFile) {
+                val content = file.readText()
+                if (content.isBlank()) {
+                    null
+                } else {
+                    json.decodeFromString<GoalData>(content)
+                }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            AppLogger.e("AndroidStudyPersistence", "Failed to load goal data for goal: $goalId", e)
+            null
+        }
+    }
+    
+    override suspend fun saveGoalData(vaultId: String, goalId: String, data: GoalData): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val file = getGoalDataFile(vaultId, goalId)
+            
+            // Ensure .krypton/goals directory exists
+            file.parentFile?.mkdirs()
+            
+            val content = json.encodeToString(GoalData.serializer(), data)
+            file.writeText(content)
+            true
+        } catch (e: Exception) {
+            AppLogger.e("AndroidStudyPersistence", "Failed to save goal data for goal: $goalId", e)
+            false
+        }
+    }
+    
+    private fun getGoalDataFile(vaultId: String, goalId: String): File {
+        val vaultFile = File(vaultId)
+        return File(vaultFile, ".krypton/goals/$goalId.json")
     }
 }
 
