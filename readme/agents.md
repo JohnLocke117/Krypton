@@ -1,15 +1,16 @@
 # Agents & Agentic Architecture
 
-Krypton includes an intelligent agent system that enables natural language interactions for specific tasks. Agents intercept user messages before normal chat processing, detect intents, and perform structured actions.
+Krypton includes an intelligent agent system that enables natural language interactions for specific tasks. The system uses a MasterAgent architecture with LLM-based intent classification to route messages to specialized concrete agents.
 
 ## Overview
 
-The agent system provides a way to handle specific user intents with dedicated, purpose-built handlers. Instead of relying solely on the LLM to interpret and execute actions, agents provide:
+The agent system provides a way to handle specific user intents with dedicated, purpose-built handlers. The architecture consists of:
 
-- **Intent Detection**: Pattern-based recognition of user requests
-- **Structured Actions**: Direct execution of specific operations
-- **Better UX**: Clear, formatted responses with actionable results
-- **Reliability**: Deterministic behavior for common tasks
+- **MasterAgent**: Single entry point that uses LLM-based intent classification to route messages
+- **IntentClassifier**: LLM-based classifier that determines user intent (CREATE_NOTE, SEARCH_NOTES, SUMMARIZE_NOTE, or NORMAL_CHAT)
+- **Concrete Agents**: Specialized agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent) that execute specific actions
+- **Structured Actions**: Direct execution of specific operations with clear, formatted responses
+- **Better UX**: Reliable, deterministic behavior for common tasks
 
 ## Architecture
 
@@ -20,21 +21,23 @@ User Message
     ↓
 OllamaChatService.sendMessage()
     ↓
-Check Agents (in order)
-    ├─→ CreateNoteAgent.tryHandle()
-    ├─→ SearchNoteAgent.tryHandle()
-    ├─→ SummarizeNoteAgent.tryHandle()
-    └─→ (if no agent matches)
-        ↓
-    Normal RAG/Chat Flow
+MasterAgent.tryHandle()
+    ↓
+IntentClassifier.classify() [LLM call]
+    ↓
+Route based on IntentType:
+    ├─→ CREATE_NOTE → CreateNoteAgent.execute()
+    ├─→ SEARCH_NOTES → SearchNoteAgent.execute()
+    ├─→ SUMMARIZE_NOTE → SummarizeNoteAgent.execute()
+    └─→ NORMAL_CHAT / UNKNOWN → null (fall back to normal RAG/Chat flow)
 ```
 
-### Agent Interface
+### MasterAgent
 
-All agents implement the `ChatAgent` interface:
+The `MasterAgent` is the single entry point for the agent system. It implements `ChatAgent` and is the only agent exposed to `ChatService`:
 
 ```kotlin
-interface ChatAgent {
+interface MasterAgent : ChatAgent {
     suspend fun tryHandle(
         message: String,
         chatHistory: List<ChatMessage>,
@@ -44,10 +47,66 @@ interface ChatAgent {
 ```
 
 **Key Points:**
-- Agents return `AgentResult?` - `null` means the agent didn't handle the message
-- First agent to return non-null result wins
-- Agents receive full context (vault path, current note, settings)
-- Agents are checked before normal chat flow
+- Single LLM call for intent classification (via `IntentClassifier`)
+- Routes to appropriate concrete agent based on classified intent
+- Returns `null` to fall back to normal chat flow if no agent matches
+- Handles errors gracefully, falling back to normal chat on failures
+
+### Intent Classification
+
+The `IntentClassifier` uses an LLM to classify user messages into one of four intent types:
+
+```kotlin
+enum class IntentType {
+    CREATE_NOTE,      // User wants to create a new note
+    SEARCH_NOTES,     // User wants to search/find notes
+    SUMMARIZE_NOTE,   // User wants a summary
+    NORMAL_CHAT,      // General conversation (fall back to normal chat)
+    UNKNOWN           // Classification failed (fall back to normal chat)
+}
+```
+
+**LlmIntentClassifier**:
+- Makes a single LLM call with a system prompt
+- Uses recent conversation history (last 4 messages) for context
+- Returns a single intent label
+- Falls back to `UNKNOWN` on errors or invalid responses
+
+### Concrete Agents
+
+Concrete agents are specialized interfaces that execute specific actions. They assume intent has already been classified by MasterAgent:
+
+```kotlin
+interface CreateNoteAgent {
+    suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult
+}
+
+interface SearchNoteAgent {
+    suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult
+}
+
+interface SummarizeNoteAgent {
+    suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult
+}
+```
+
+**Key Points:**
+- Concrete agents are **not** `ChatAgent` implementations
+- They focus purely on execution, not intent detection
+- They throw exceptions on failures (MasterAgent handles errors)
+- They return structured `AgentResult` objects
 
 ### Agent Context
 
@@ -78,30 +137,27 @@ These results are converted to formatted chat responses by `OllamaChatService`.
 
 **Purpose**: Creates new markdown notes based on user requests.
 
-**Intent Patterns:**
-- "create a note on [topic]"
-- "create a short note on [topic]"
-- "make a note about [topic]"
-- "write a note on [topic]"
+**Intent Classification**: Handled when `IntentClassifier` returns `CREATE_NOTE`
 
 **How It Works:**
 
-1. **Intent Detection**: Detects note creation patterns in the message
-2. **Topic Extraction**: Extracts the topic from the message
-3. **Content Generation**: Uses LLM to generate markdown content about the topic
-4. **File Creation**: Creates a new `.md` file in the current vault
-5. **Collision Handling**: Automatically handles filename collisions with numeric suffixes
+1. **Topic Extraction**: Extracts the topic from the message (assumes intent already classified)
+2. **Content Generation**: Uses LLM to generate markdown content about the topic
+3. **File Creation**: Creates a new `.md` file in the current vault
+4. **Collision Handling**: Automatically handles filename collisions with numeric suffixes
 
 **Example:**
 ```
 User: "create a note on machine learning basics"
 
-Agent:
-- Detects intent: "create a note on"
-- Extracts topic: "machine learning basics"
-- Generates content using LLM
-- Creates file: "machine-learning-basics.md"
-- Returns formatted response with preview
+Flow:
+1. MasterAgent receives message
+2. IntentClassifier classifies as CREATE_NOTE
+3. CreateNoteAgent.execute() called
+4. Extracts topic: "machine learning basics"
+5. Generates content using LLM
+6. Creates file: "machine-learning-basics.md"
+7. Returns AgentResult.NoteCreated with preview
 ```
 
 **Features:**
@@ -120,34 +176,31 @@ Agent:
 
 **Purpose**: Searches for notes matching a query using both semantic and keyword search.
 
-**Intent Patterns:**
-- "find notes about [query]"
-- "search my notes for [query]"
-- "show me notes on [query]"
-- "which notes talk about [query]"
+**Intent Classification**: Handled when `IntentClassifier` returns `SEARCH_NOTES`
 
 **How It Works:**
 
-1. **Intent Detection**: Detects search patterns in the message
-2. **Query Extraction**: Extracts the search query
-3. **Dual Search**:
+1. **Query Extraction**: Extracts the search query from the message (assumes intent already classified)
+2. **Dual Search**:
    - **Vector Search**: Uses RAG retriever for semantic similarity
    - **Keyword Search**: Performs text-based keyword matching
-4. **Result Merging**: Combines and deduplicates results
-5. **Scoring**: Assigns relevance scores (vector: 70%, keyword: 30%)
-6. **Formatting**: Returns formatted list with titles, snippets, and scores
+3. **Result Merging**: Combines and deduplicates results
+4. **Scoring**: Assigns relevance scores (vector: 70%, keyword: 30%)
+5. **Formatting**: Returns formatted list with titles, snippets, and scores
 
 **Example:**
 ```
 User: "find notes about AWS"
 
-Agent:
-- Detects intent: "find notes about"
-- Extracts query: "AWS"
-- Performs vector search (semantic)
-- Performs keyword search (exact matches)
-- Merges results with combined scores
-- Returns formatted list of matching notes
+Flow:
+1. MasterAgent receives message
+2. IntentClassifier classifies as SEARCH_NOTES
+3. SearchNoteAgent.execute() called
+4. Extracts query: "AWS"
+5. Performs vector search (semantic)
+6. Performs keyword search (exact matches)
+7. Merges results with combined scores
+8. Returns AgentResult.NotesFound with formatted list
 ```
 
 **Features:**
@@ -172,31 +225,21 @@ Agent:
 
 **Purpose**: Summarizes notes, either the current note or notes about a specific topic.
 
-**Intent Patterns:**
-
-**Current Note Mode:**
-- "summarize this note"
-- "summarize the current note"
-- "give me a summary of this note"
-- "what is this note about"
-
-**Topic Mode:**
-- "summarize my notes on [topic]"
-- "summarize my notes about [topic]"
-- "give me a summary of my notes on [topic]"
-- "what do my notes say about [topic]"
+**Intent Classification**: Handled when `IntentClassifier` returns `SUMMARIZE_NOTE`
 
 **How It Works:**
 
+The agent automatically determines the mode based on context:
+
 #### Current Note Mode:
-1. **Intent Detection**: Detects current note summarization patterns
+1. **Mode Detection**: Checks if `currentNotePath` is available in context
 2. **Note Validation**: Verifies current note exists and is readable
 3. **Content Retrieval**: Reads the current note content
 4. **Summary Generation**: Uses LLM with simple, direct prompt
 5. **Response**: Returns formatted summary
 
 #### Topic Mode:
-1. **Intent Detection**: Detects topic summarization patterns
+1. **Mode Detection**: No current note available, extracts topic from message
 2. **Topic Extraction**: Extracts the topic from the message
 3. **Retrieval Query**: Builds query "notes about [topic]"
 4. **Chunk Retrieval**: Retrieves relevant chunks using RAG
@@ -210,14 +253,17 @@ Agent:
 ```
 User: "summarize my notes on AWS"
 
-Agent:
-- Detects intent: "summarize my notes on"
-- Extracts topic: "AWS"
-- Retrieves chunks using query "notes about AWS"
-- Filters chunks for relevance (must contain "AWS")
-- Truncates long chunks to 800 words
-- Generates summary with simple prompt
-- Returns formatted summary with source file list
+Flow:
+1. MasterAgent receives message
+2. IntentClassifier classifies as SUMMARIZE_NOTE
+3. SummarizeNoteAgent.execute() called
+4. Detects topic mode (no current note)
+5. Extracts topic: "AWS"
+6. Retrieves chunks using query "notes about AWS"
+7. Filters chunks for relevance (must contain "AWS")
+8. Truncates long chunks to 800 words
+9. Generates summary with simple prompt
+10. Returns AgentResult.NoteSummarized with formatted summary
 ```
 
 **Features:**
@@ -261,115 +307,164 @@ This avoids:
 Agents are registered in the dependency injection system (`ChatModule.kt`):
 
 ```kotlin
-single<ChatService> {
-    val agents = buildList<ChatAgent> {
-        add(get<CreateNoteAgent>())
-        add(get<SearchNoteAgent>())
-        add(get<SummarizeNoteAgent>())
-    }
-    
-    OllamaChatService(
-        agents = if (agents.isNotEmpty()) agents else null
+// IntentClassifier (LLM-based)
+single<IntentClassifier> {
+    LlmIntentClassifier(llmClient = get())
+}
+
+// Concrete Agents (interfaces, not ChatAgent)
+single<CreateNoteAgent> { CreateNoteAgentImpl(...) }
+single<SearchNoteAgent> { SearchNoteAgentImpl(...) }
+single<SummarizeNoteAgent> { SummarizeNoteAgentImpl(...) }
+
+// MasterAgent (the only ChatAgent, routes to concrete agents)
+single<MasterAgent> {
+    MasterAgentImpl(
+        classifier = get(),
+        createNoteAgent = get(),
+        searchNoteAgent = get(),
+        summarizeNoteAgent = get()
     )
+}
+
+// ChatService (exposes only MasterAgent)
+factory<ChatService> {
+    val agents = listOf(get<MasterAgent>())
+    OllamaChatService(agents = agents, ...)
 }
 ```
 
-**Order Matters:**
-Agents are checked in registration order. The first agent to return a non-null result handles the message.
-
-**Graceful Degradation:**
-- If an agent's dependencies are unavailable, it's simply not added to the list
-- The chat service continues to work without that agent
-- No errors are thrown for missing optional dependencies
+**Key Points:**
+- Only `MasterAgent` implements `ChatAgent` and is exposed to `ChatService`
+- Concrete agents are registered separately and injected into `MasterAgent`
+- `IntentClassifier` is registered as a singleton
+- Graceful degradation: If `MasterAgent` fails, chat falls back to normal flow
 
 ## Agent vs. Normal Chat
 
 ### When Agents Are Used
 
 Agents handle messages when:
-- Intent patterns match
+- `IntentClassifier` classifies intent as `CREATE_NOTE`, `SEARCH_NOTES`, or `SUMMARIZE_NOTE`
 - Prerequisites are met (vault open, dependencies available)
-- Agent successfully processes the request
+- Concrete agent successfully executes the action
 
 ### When Normal Chat Is Used
 
 Normal chat flow (RAG/WEB/HYBRID) is used when:
-- No agent matches the intent
+- `IntentClassifier` classifies intent as `NORMAL_CHAT` or `UNKNOWN`
+- `MasterAgent` returns `null` (no agent matched or error occurred)
 - Agent prerequisites not met (e.g., no vault open)
-- Agent returns `null` (couldn't handle the message)
+- Concrete agent throws an exception (MasterAgent catches and returns `null`)
 
 **Benefits of This Design:**
-- Agents provide structured, reliable actions for common tasks
-- Normal chat provides flexible, conversational responses
-- Users get the best of both worlds
+- **LLM-based Intent Classification**: More accurate than pattern matching, understands context
+- **Single Classification Call**: One LLM call determines routing, more efficient than checking multiple agents
+- **Structured Actions**: Concrete agents provide reliable, deterministic behavior
+- **Flexible Fallback**: Normal chat provides flexible, conversational responses when agents don't match
+- **Better UX**: Users get structured actions for common tasks and flexible chat for everything else
 
 ## Extending the Agent System
 
 ### Adding a New Agent
 
-1. **Create Agent Class:**
+1. **Add Intent Type:**
 ```kotlin
-class MyAgent(
-    // Dependencies
-) : ChatAgent {
-    override suspend fun tryHandle(
+enum class IntentType {
+    CREATE_NOTE,
+    SEARCH_NOTES,
+    SUMMARIZE_NOTE,
+    MY_NEW_INTENT,  // Add new intent type
+    NORMAL_CHAT,
+    UNKNOWN
+}
+```
+
+2. **Update IntentClassifier:**
+Update `LlmIntentClassifier` system prompt to include the new intent type.
+
+3. **Create Concrete Agent Interface:**
+```kotlin
+interface MyNewAgent {
+    suspend fun execute(
         message: String,
-        chatHistory: List<ChatMessage>,
+        history: List<ChatMessage>,
         context: AgentContext
-    ): AgentResult? {
-        // Intent detection
-        // Action execution
-        // Return result or null
+    ): AgentResult
+}
+```
+
+4. **Implement Concrete Agent:**
+```kotlin
+class MyNewAgentImpl(
+    // Dependencies
+) : MyNewAgent {
+    override suspend fun execute(
+        message: String,
+        history: List<ChatMessage>,
+        context: AgentContext
+    ): AgentResult {
+        // Extract parameters from message
+        // Execute action
+        // Return appropriate AgentResult
     }
 }
 ```
 
-2. **Define Intent Patterns:**
+5. **Update MasterAgent:**
 ```kotlin
-companion object {
-    private val INTENT_PATTERNS = listOf(
-        "pattern 1",
-        "pattern 2"
+class MasterAgentImpl(
+    private val classifier: IntentClassifier,
+    private val createNoteAgent: CreateNoteAgent,
+    private val searchNoteAgent: SearchNoteAgent,
+    private val summarizeNoteAgent: SummarizeNoteAgent,
+    private val myNewAgent: MyNewAgent  // Add new agent
+) : MasterAgent {
+    override suspend fun tryHandle(...): AgentResult? {
+        val intent = classifier.classify(...)
+        return when (intent) {
+            IntentType.MY_NEW_INTENT -> myNewAgent.execute(...)
+            // ... other intents
+        }
+    }
+}
+```
+
+6. **Register in DI:**
+```kotlin
+single<MyNewAgent> { MyNewAgentImpl(...) }
+
+single<MasterAgent> {
+    MasterAgentImpl(
+        classifier = get(),
+        createNoteAgent = get(),
+        searchNoteAgent = get(),
+        summarizeNoteAgent = get(),
+        myNewAgent = get()  // Add new agent
     )
 }
 ```
 
-3. **Extract Parameters:**
+7. **Add AgentResult Type (if needed):**
 ```kotlin
-private fun extractParameter(message: String): String? {
-    // Pattern matching and extraction
-}
-```
-
-4. **Return Appropriate Result:**
-```kotlin
-return AgentResult.NoteCreated(...)
-// or
-return AgentResult.NotesFound(...)
-// or
-return AgentResult.NoteSummarized(...)
-```
-
-5. **Register in DI:**
-```kotlin
-single<MyAgent> { MyAgent(...) }
-
-// In ChatService registration:
-val agents = buildList<ChatAgent> {
-    add(get<MyAgent>())
-    // ... other agents
+sealed class AgentResult {
+    data class NoteCreated(...) : AgentResult()
+    data class NotesFound(...) : AgentResult()
+    data class NoteSummarized(...) : AgentResult()
+    data class MyNewResult(...) : AgentResult()  // Add new result type
 }
 ```
 
 ### Best Practices
 
-1. **Clear Intent Patterns**: Use specific, unambiguous patterns
-2. **Validate Prerequisites**: Check vault, dependencies before processing
-3. **Logging**: Log intent detection, actions, and errors
-4. **Error Handling**: Return `null` on errors, don't throw
+1. **Intent Classification**: Ensure `IntentClassifier` can reliably distinguish your intent from others
+2. **Validate Prerequisites**: Check vault, dependencies before processing in concrete agents
+3. **Logging**: Log intent classification, agent execution, and errors
+4. **Error Handling**: Concrete agents should throw exceptions; MasterAgent catches and falls back to normal chat
 5. **Simple Prompts**: For LLM interactions, keep prompts simple (especially for 8B models)
 6. **Structured Results**: Use appropriate `AgentResult` types
 7. **User Feedback**: Provide clear, formatted responses
+8. **Single Responsibility**: Each concrete agent should handle one specific action
 
 ## MCP (Model Context Protocol) Server
 
@@ -718,23 +813,25 @@ Agents adapt to current settings dynamically.
 
 ### Agent Overhead
 
-- **Intent Detection**: Pattern matching is fast (string operations)
+- **Intent Classification**: Single LLM call via `IntentClassifier` (typically fast, ~100-500ms)
 - **Agent Execution**: Varies by agent (file I/O, RAG retrieval, LLM calls)
-- **Early Exit**: Agents return `null` quickly if they don't match
+- **Early Exit**: MasterAgent returns `null` quickly if intent is `NORMAL_CHAT` or `UNKNOWN`
 
 ### Optimization Strategies
 
-1. **Pattern Order**: Most common patterns first
-2. **Early Validation**: Check prerequisites before expensive operations
+1. **Intent Classification**: Single LLM call determines routing (more efficient than checking multiple agents)
+2. **Early Validation**: Concrete agents check prerequisites before expensive operations
 3. **Caching**: Cache file listings, settings where appropriate
 4. **Concurrent Operations**: Use coroutines for parallel work
 5. **Context Limiting**: Limit context size for LLM calls (especially 8B models)
+6. **Conversation History**: IntentClassifier uses only last 4 messages for context (reduces token usage)
 
 ## Future Enhancements
 
 Potential improvements to the agent system:
 
-- **Conversation Context**: Use chat history for better intent detection
+- **Conversation Context**: ✅ Implemented - IntentClassifier uses last 4 messages for context
+- **Confidence Scores**: IntentClassifier could return confidence scores for classification
 - **Confidence Scores**: Agents could return confidence scores
 - **Multi-Agent Collaboration**: Agents could call other agents
 - **Learning**: Agents could learn from user corrections
@@ -748,15 +845,17 @@ Potential improvements to the agent system:
 ### Agent Not Triggering
 
 **Check:**
-1. Intent pattern matches (case-insensitive)
+1. IntentClassifier correctly classifies intent (check logs for "Classified intent: ...")
 2. Prerequisites met (vault open, dependencies available)
-3. Agent registered in DI
-4. Agent not returning `null` early
+3. MasterAgent registered in DI
+4. Concrete agent successfully executes (doesn't throw exception)
 
 **Debug:**
-- Check logs for "Agent called: [AgentName]"
-- Verify intent patterns match your message
+- Check logs for "MasterAgent" and "Classified intent: ..."
+- Check logs for "Agent ${agent::class.simpleName} handled the message successfully"
+- Verify IntentClassifier is working (LLM available and responding)
 - Ensure vault is open for vault-dependent agents
+- Check if intent was classified as `NORMAL_CHAT` or `UNKNOWN` (will fall back to normal chat)
 
 ### Agent Errors
 
@@ -780,19 +879,20 @@ Potential improvements to the agent system:
 
 **Solutions:**
 - Reduce context size (chunk limits, truncation)
-- Optimize pattern matching
-- Add caching where appropriate
+- Optimize IntentClassifier prompt (keep it simple and direct)
+- Add caching where appropriate (intent classification results, file listings)
 - Use simpler prompts for 8B models
+- Reduce conversation history used by IntentClassifier (currently last 4 messages)
 
 ## Conclusion
 
 The agent system provides a powerful way to handle specific user intents with structured, reliable actions. By combining agents with normal chat flow, Krypton provides both deterministic actions for common tasks and flexible conversational AI for everything else.
 
 Agents are designed to be:
-- **Simple**: Clear intent patterns, straightforward logic
-- **Reliable**: Deterministic behavior, proper error handling
-- **Efficient**: Fast intent detection, optimized for 8B models
-- **Extensible**: Easy to add new agents
+- **Intelligent**: LLM-based intent classification understands context and natural language
+- **Efficient**: Single LLM call for intent classification, then direct routing to concrete agents
+- **Reliable**: Deterministic behavior for concrete agents, proper error handling with fallback
+- **Extensible**: Easy to add new intent types and concrete agents
 
 For implementation details, see the agent source files in `composeApp/src/commonMain/kotlin/org/krypton/chat/agent/`.
 

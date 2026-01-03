@@ -10,7 +10,7 @@ Krypton is designed to be your intelligent knowledge companion. It provides:
 
 - **Rich Markdown Editor**: Live preview, syntax highlighting, auto-save, undo/redo, and a modern editing experience
 - **AI Chat Interface**: Interact with your notes using AI, with support for RAG, web search, and hybrid modes
-- **Intelligent Agents**: Specialized agents for note creation, search, and summarization that understand natural language intents
+- **Intelligent Agents**: MasterAgent system with LLM-based intent classification that routes to specialized agents for note creation, search, and summarization
 - **Vector Search**: Automatic indexing of your markdown notes for semantic search with ChromaDB
 - **File Management**: Full file and folder CRUD operations with a clean, intuitive interface
 - **Flashcard Generation**: AI-powered flashcard generation from your notes
@@ -74,7 +74,9 @@ Krypton follows a clean, modular architecture:
    - Chat service interfaces and implementations
    - Retrieval mode handling (NONE, RAG, WEB, HYBRID)
    - Prompt building
-   - Agent system for intent-based actions
+   - MasterAgent system with LLM-based intent classification
+   - Concrete agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+   - Conversation management with bounded memory
 
 6. **Markdown Layer** (`markdown/`)
    - Markdown parsing and AST generation
@@ -316,6 +318,7 @@ The project uses Compose Hot Reload for faster development iteration. Changes to
 - Full-featured markdown editor with live preview
 - Multi-panel layout with docked sidebars
 - AI chat with RAG, web search, and hybrid modes
+- MasterAgent system with LLM-based intent classification
 - Intelligent agents (create note, search, summarize)
 - Vector search with ChromaDB
 - Flashcard generation

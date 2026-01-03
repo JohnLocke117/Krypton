@@ -89,7 +89,12 @@ composeApp/src/
 ### Module Organization
 
 - **chat/**: Chat service interfaces and models
-  - **chat/agent/**: Agent system for intent-based actions (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+  - **chat/agent/**: MasterAgent system with LLM-based intent classification
+    - **MasterAgent**: Single entry point that routes messages to concrete agents
+    - **IntentClassifier**: LLM-based intent classification (LlmIntentClassifier)
+    - **IntentType**: Enum for intent types (CREATE_NOTE, SEARCH_NOTES, SUMMARIZE_NOTE, NORMAL_CHAT, UNKNOWN)
+    - **Concrete Agents**: CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent (interfaces, not ChatAgent)
+  - **chat/conversation/**: Conversation management (ConversationRepository, ConversationMemoryProvider)
   - **chat/rag/**: RAG-specific chat context
   - **chat/web/**: Web search context
   - **chat/ui/**: Chat UI components (message list, status bar)
@@ -494,9 +499,12 @@ Krypton includes an MCP server that exposes agents as standardized tools, enabli
 - HTTP server using Ktor with SSE support
 - MCP SDK for protocol handling
 - Exposes three tools: `create_note`, `search_notes`, `summarize_notes`
+- Uses concrete agents directly (bypasses MasterAgent for MCP calls)
 - Runs as standalone server or embedded in application
 
 **Location:** `composeApp/src/jvmMain/kotlin/org/krypton/mcp/KryptonMcpServer.kt`
+
+**Note:** MCP server calls concrete agents directly, not through MasterAgent, since intent is already determined by the tool name.
 
 See **[Agents & Agentic Architecture](./agents.md)** for detailed MCP server documentation.
 

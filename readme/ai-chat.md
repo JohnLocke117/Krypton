@@ -26,25 +26,26 @@ The chat system consists of several key components:
 
 ### Agent System
 
-Krypton includes an intelligent agent system that intercepts user messages before normal chat processing. Agents detect specific intents (like "create a note" or "summarize my notes") and handle them directly, providing structured responses and actions.
+Krypton includes an intelligent agent system that intercepts user messages before normal chat processing. The system uses a MasterAgent architecture with LLM-based intent classification to route messages to specialized concrete agents.
 
 **Agent Flow:**
 1. User sends message
-2. Agents are checked in order
-3. First agent that matches intent handles the message
-4. If no agent matches, normal RAG/chat flow proceeds
+2. MasterAgent receives message
+3. IntentClassifier (LLM-based) classifies intent
+4. MasterAgent routes to appropriate concrete agent (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+5. If no agent matches (NORMAL_CHAT or UNKNOWN), normal RAG/chat flow proceeds
 
-See **[Agents & Agentic Architecture](./agents.md)** for detailed documentation on all available agents.
+See **[Agents & Agentic Architecture](./agents.md)** for detailed documentation on the MasterAgent system and all available agents.
 
 ### Service Hierarchy
 
 ```
 ChatService (interface)
-├── OllamaChatService (base implementation)
-└── RagChatService (wraps OllamaChatService, adds retrieval)
+└── OllamaChatService (handles retrieval internally, includes agent system)
+    └── RagChatService (simple delegate wrapper, may be removed in future)
 ```
 
-`RagChatService` wraps the base `OllamaChatService` and adds retrieval capabilities. If retrieval components are unavailable or the mode is `NONE`, it falls back to the base service.
+`OllamaChatService` now handles retrieval internally based on the retrieval mode. It includes the MasterAgent system for intent-based routing. `RagChatService` is currently a simple delegate wrapper and may be removed in the future.
 
 ## Retrieval Modes
 
@@ -231,6 +232,61 @@ User query
 - Web snippets include title, URL, and snippet text
 - Context is clearly marked and separated
 
+## Conversation Management
+
+Krypton includes a conversation management system that persists chat history and manages memory bounds for efficient LLM interactions.
+
+### Architecture
+
+```
+ConversationRepository
+    ↓
+ConversationMemoryProvider
+    ↓
+Bounded Context Messages
+    ↓
+ChatService
+```
+
+### Components
+
+1. **ConversationRepository**: Persists conversations per vault
+   - Stores conversations in `.krypton/chat/` directory within each vault
+   - Each conversation stored as separate JSON file
+   - Index file contains summaries of all conversations
+   - Platform-specific implementations (JVM and Android)
+
+2. **ConversationMemoryProvider**: Applies memory bounds to conversations
+   - Loads all messages for a conversation
+   - Applies `ConversationMemoryPolicy` limits:
+     - **Desktop (JVM)**: 50 messages max, 16,000 characters max (generous for Llama 128k)
+     - **Android**: 15 messages max, 6,000 characters max (conservative for Gemini 2.5 Flash)
+   - Builds context from newest to oldest, respecting both message and character limits
+   - Returns bounded context messages in chronological order
+
+3. **ConversationMemoryPolicy**: Configurable memory limits
+   - `maxMessages`: Maximum number of messages to include
+   - `maxChars`: Maximum character count for context
+
+### Flow
+
+1. **Message Sent**: User sends a message
+2. **Conversation Creation/Retrieval**: 
+   - If `conversationId` provided, loads existing conversation
+   - Otherwise, creates new conversation with initial message
+3. **Memory Loading**: `ConversationMemoryProvider` loads bounded history
+4. **Context Building**: Bounded history converted to format for agents and prompt builder
+5. **Agent Processing**: MasterAgent uses recent history (last 4 messages) for intent classification
+6. **Response Generation**: Full bounded history used for LLM prompt
+7. **Persistence**: Both user and assistant messages saved to conversation
+
+### Benefits
+
+- **Bounded Memory**: Prevents context window overflow with long conversations
+- **Efficient**: Only loads necessary messages, respects character limits
+- **Persistent**: Conversations saved per vault, survive app restarts
+- **Platform-Optimized**: Different limits for desktop vs mobile based on model capabilities
+
 ## Configuration
 
 ### Settings
@@ -288,10 +344,10 @@ Potential improvements to the chat system:
 
 - Support for multiple vector backends (currently ChromaDB)
 - Streaming responses for better UX (currently full response)
-- Conversation memory management (currently full history)
 - Custom prompt templates (currently fixed templates)
 - Citation tracking for retrieved chunks (currently context only)
 - Query result caching (currently no caching)
-- Multi-turn conversation optimization
-- Context window management for long conversations
+- Adaptive memory bounds based on model context window size
+- Conversation summarization for very long conversations
+- Conversation search and filtering
 
