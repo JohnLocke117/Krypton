@@ -152,6 +152,50 @@ class GeminiChatService(
                             }
                         }
                     }
+                    is AgentResult.FlashcardsGenerated -> {
+                        buildString {
+                            appendLine("Generated ${agentResult.count} flashcards from note: `${agentResult.notePath}`")
+                            appendLine()
+                            agentResult.flashcards.forEachIndexed { index, flashcard ->
+                                appendLine("**${index + 1}. ${flashcard.question}**")
+                                appendLine(flashcard.answer)
+                                appendLine()
+                            }
+                        }
+                    }
+                    is AgentResult.StudyGoalCreated -> {
+                        buildString {
+                            appendLine("Created study goal: **${agentResult.title}**")
+                            appendLine()
+                            appendLine("- **Goal ID:** `${agentResult.goalId}`")
+                            appendLine("- **Topics:** ${agentResult.topics.joinToString(", ")}")
+                            appendLine("- **Matched Notes:** ${agentResult.matchedNotesCount}")
+                        }
+                    }
+                    is AgentResult.StudyGoalPlanned -> {
+                        buildString {
+                            appendLine("Planned study goal: **${agentResult.goalId}**")
+                            appendLine()
+                            appendLine("- **Sessions Created:** ${agentResult.sessionsCreated}")
+                            appendLine("- **Topics:** ${agentResult.topics.joinToString(", ")}")
+                        }
+                    }
+                    is AgentResult.RoadmapGenerated -> {
+                        buildString {
+                            appendLine("**Roadmap for Goal: ${agentResult.goalId}**")
+                            appendLine()
+                            appendLine(agentResult.roadmap)
+                        }
+                    }
+                    is AgentResult.SessionPrepared -> {
+                        buildString {
+                            appendLine("Prepared session: **${agentResult.topic}**")
+                            appendLine()
+                            appendLine("- **Session ID:** `${agentResult.sessionId}`")
+                            appendLine("- **Summaries Generated:** ${agentResult.summariesCount}")
+                            appendLine("- **Flashcards Generated:** ${agentResult.flashcardsCount}")
+                        }
+                    }
                 }
                 
                 // Save user message
