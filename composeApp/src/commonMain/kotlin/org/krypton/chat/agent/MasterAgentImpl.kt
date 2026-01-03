@@ -13,7 +13,9 @@ class MasterAgentImpl(
     private val classifier: IntentClassifier,
     private val createNoteAgent: CreateNoteAgent,
     private val searchNoteAgent: SearchNoteAgent,
-    private val summarizeNoteAgent: SummarizeNoteAgent
+    private val summarizeNoteAgent: SummarizeNoteAgent,
+    private val flashcardAgent: FlashcardAgent,
+    private val studyAgent: StudyAgent
 ) : MasterAgent {
 
     override suspend fun tryHandle(
@@ -52,6 +54,24 @@ class MasterAgentImpl(
                         summarizeNoteAgent.execute(message, chatHistory, context)
                     } catch (e: Exception) {
                         AppLogger.e("MasterAgent", "SummarizeNoteAgent execution failed", e)
+                        null // Fall back to normal chat
+                    }
+                }
+                
+                IntentType.GENERATE_FLASHCARDS -> {
+                    try {
+                        flashcardAgent.execute(message, chatHistory, context)
+                    } catch (e: Exception) {
+                        AppLogger.e("MasterAgent", "FlashcardAgent execution failed", e)
+                        null // Fall back to normal chat
+                    }
+                }
+                
+                IntentType.STUDY_GOAL -> {
+                    try {
+                        studyAgent.execute(message, chatHistory, context)
+                    } catch (e: Exception) {
+                        AppLogger.e("MasterAgent", "StudyAgent execution failed", e)
                         null // Fall back to normal chat
                     }
                 }

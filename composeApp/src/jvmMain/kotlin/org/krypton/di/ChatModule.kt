@@ -7,6 +7,10 @@ import org.krypton.chat.agent.SearchNoteAgent
 import org.krypton.chat.agent.SearchNoteAgentImpl
 import org.krypton.chat.agent.SummarizeNoteAgent
 import org.krypton.chat.agent.SummarizeNoteAgentImpl
+import org.krypton.chat.agent.FlashcardAgent
+import org.krypton.chat.agent.FlashcardAgentImpl
+import org.krypton.chat.agent.StudyAgent
+import org.krypton.chat.agent.StudyAgentImpl
 import org.krypton.chat.agent.IntentClassifier
 import org.krypton.chat.agent.LlmIntentClassifier
 import org.krypton.chat.agent.MasterAgent
@@ -177,13 +181,37 @@ val chatModule = module {
         )
     }
     
+    // FlashcardAgent (execution-only, no intent matching)
+    factory<FlashcardAgent> {
+        FlashcardAgentImpl(
+            flashcardService = get(),
+            fileSystem = get()
+        )
+    }
+    
+    // StudyAgent (execution-only, no intent matching)
+    single<StudyAgent> {
+        StudyAgentImpl(
+            studyPlanner = get(),
+            studyRunner = get(),
+            studyGoalRepository = get(),
+            sessionRepository = get(),
+            cacheRepository = get(),
+            searchNoteAgent = get(),
+            timeProvider = get(),
+            persistence = get()
+        )
+    }
+    
     // MasterAgent (the only ChatAgent, routes to concrete agents based on intent)
     single<MasterAgent> {
         MasterAgentImpl(
             classifier = get(),
             createNoteAgent = get(),
             searchNoteAgent = get(),
-            summarizeNoteAgent = get()
+            summarizeNoteAgent = get(),
+            flashcardAgent = get(),
+            studyAgent = get()
         )
     }
     

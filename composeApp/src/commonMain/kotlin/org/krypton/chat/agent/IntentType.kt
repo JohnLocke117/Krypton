@@ -21,6 +21,16 @@ enum class IntentType {
     SUMMARIZE_NOTE,
     
     /**
+     * User wants to generate flashcards from a note.
+     */
+    GENERATE_FLASHCARDS,
+    
+    /**
+     * User wants to create, plan, or manage study goals and sessions.
+     */
+    STUDY_GOAL,
+    
+    /**
      * Any other conversation, including questions and general chat.
      * Falls back to normal RAG/chat flow.
      */

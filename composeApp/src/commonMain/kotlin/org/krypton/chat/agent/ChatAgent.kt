@@ -95,5 +95,72 @@ sealed class AgentResult {
         val summary: String,
         val sourceFiles: List<String> = emptyList()
     ) : AgentResult()
+    
+    /**
+     * Indicates that flashcards were successfully generated from a note.
+     * 
+     * @param flashcards List of generated flashcards
+     * @param notePath Path to the note file from which flashcards were generated
+     * @param count Number of flashcards generated
+     */
+    data class FlashcardsGenerated(
+        val flashcards: List<org.krypton.core.domain.flashcard.Flashcard>,
+        val notePath: String,
+        val count: Int
+    ) : AgentResult()
+    
+    /**
+     * Indicates that a study goal was successfully created.
+     * 
+     * @param goalId Unique identifier of the created goal
+     * @param title Title of the study goal
+     * @param topics List of topics in the goal
+     * @param matchedNotesCount Number of notes matched for this goal
+     */
+    data class StudyGoalCreated(
+        val goalId: String,
+        val title: String,
+        val topics: List<String>,
+        val matchedNotesCount: Int
+    ) : AgentResult()
+    
+    /**
+     * Indicates that a study goal was successfully planned (sessions created).
+     * 
+     * @param goalId Unique identifier of the goal
+     * @param sessionsCreated Number of sessions created
+     * @param topics List of topics that were planned
+     */
+    data class StudyGoalPlanned(
+        val goalId: String,
+        val sessionsCreated: Int,
+        val topics: List<String>
+    ) : AgentResult()
+    
+    /**
+     * Indicates that a roadmap was generated for a study goal.
+     * 
+     * @param goalId Unique identifier of the goal
+     * @param roadmap The generated roadmap text
+     */
+    data class RoadmapGenerated(
+        val goalId: String,
+        val roadmap: String
+    ) : AgentResult()
+    
+    /**
+     * Indicates that a study session was prepared (summaries/flashcards generated).
+     * 
+     * @param sessionId Unique identifier of the session
+     * @param topic Topic of the session
+     * @param summariesCount Number of summaries generated
+     * @param flashcardsCount Number of flashcards generated
+     */
+    data class SessionPrepared(
+        val sessionId: String,
+        val topic: String,
+        val summariesCount: Int,
+        val flashcardsCount: Int
+    ) : AgentResult()
 }
 

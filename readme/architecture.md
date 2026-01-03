@@ -92,8 +92,8 @@ composeApp/src/
   - **chat/agent/**: MasterAgent system with LLM-based intent classification
     - **MasterAgent**: Single entry point that routes messages to concrete agents
     - **IntentClassifier**: LLM-based intent classification (LlmIntentClassifier)
-    - **IntentType**: Enum for intent types (CREATE_NOTE, SEARCH_NOTES, SUMMARIZE_NOTE, NORMAL_CHAT, UNKNOWN)
-    - **Concrete Agents**: CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent (interfaces, not ChatAgent)
+    - **IntentType**: Enum for intent types (CREATE_NOTE, SEARCH_NOTES, SUMMARIZE_NOTE, GENERATE_FLASHCARDS, STUDY_GOAL, NORMAL_CHAT, UNKNOWN)
+    - **Concrete Agents**: CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent, FlashcardAgent, StudyAgent (interfaces, not ChatAgent)
   - **chat/conversation/**: Conversation management (ConversationRepository, ConversationMemoryProvider)
   - **chat/rag/**: RAG-specific chat context
   - **chat/web/**: Web search context
@@ -102,6 +102,7 @@ composeApp/src/
   - **core/domain/editor/**: Editor domain logic (autosave, undo/redo, document model)
   - **core/domain/flashcard/**: Flashcard generation service
   - **core/domain/search/**: Search domain logic (pattern matching, search engine)
+  - **core/domain/study/**: Study system domain (StudyPlanner, StudyRunner, study goals and sessions)
 - **data/**: Data access layer (repositories, file system)
   - **data/files/**: File system abstraction interface
   - **data/repository/**: Settings repository and persistence interfaces
@@ -498,7 +499,15 @@ Krypton includes an MCP server that exposes agents as standardized tools, enabli
 **Architecture:**
 - HTTP server using Ktor with SSE support
 - MCP SDK for protocol handling
-- Exposes three tools: `create_note`, `search_notes`, `summarize_notes`
+- Exposes eight tools:
+  - `create_note`: Create a new markdown note
+  - `search_notes`: Search notes using semantic and keyword search
+  - `summarize_notes`: Summarize a note or notes on a topic
+  - `generate_flashcards`: Generate flashcards from a note
+  - `create_study_goal`: Create a new study goal with topics
+  - `plan_study_goal`: Plan sessions for a study goal
+  - `generate_roadmap`: Generate a roadmap for a study goal
+  - `prepare_session`: Prepare a study session (generate summaries/flashcards)
 - Uses concrete agents directly (bypasses MasterAgent for MCP calls)
 - Runs as standalone server or embedded in application
 
@@ -520,9 +529,37 @@ Krypton can generate flashcards from markdown notes using LLM:
 
 **Implementation:**
 - `FlashcardService` interface in domain layer
+- `FlashcardAgent` for chat-based flashcard generation
 - Platform-specific implementations in `jvmMain` and `androidMain`
 - Uses LLM with structured JSON output
-- Integrated into editor UI
+- Integrated into editor UI and exposed as MCP tool
+
+### Study System
+
+Krypton includes a comprehensive study system for managing study goals, planning sessions, and generating learning materials:
+
+**Features:**
+- **Study Goals**: Create goals with topics, descriptions, and target dates
+- **Session Planning**: Automatically plan study sessions based on goal topics
+- **Roadmap Generation**: Generate learning roadmaps for study goals
+- **Session Preparation**: Prepare sessions by generating summaries and flashcards
+- **Note Matching**: Automatically match relevant notes to study goals
+
+**Implementation:**
+- `StudyAgent` orchestrates study goal and session management
+- `StudyPlanner` handles goal planning and roadmap generation
+- `StudyRunner` prepares sessions and manages quizzes
+- `StudyGoalRepository`, `StudySessionRepository`, `StudyCacheRepository` for persistence
+- Integrated with `SearchNoteAgent` for note matching
+- Exposed as MCP tools: `create_study_goal`, `plan_study_goal`, `generate_roadmap`, `prepare_session`
+
+**Study Flow:**
+1. Create a study goal with topics
+2. System matches relevant notes from vault
+3. Generate roadmap (optional)
+4. Plan study sessions
+5. Prepare sessions (generate summaries/flashcards)
+6. Run study sessions with quizzes
 
 ### Android Support
 

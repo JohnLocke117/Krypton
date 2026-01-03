@@ -29,11 +29,15 @@ class LlmIntentClassifier(
                 - CREATE_NOTE
                 - SEARCH_NOTES
                 - SUMMARIZE_NOTE
+                - GENERATE_FLASHCARDS
+                - STUDY_GOAL
                 - NORMAL_CHAT
 
                 CREATE_NOTE: user wants to create a new note or draft content for a new note.
                 SEARCH_NOTES: user wants to search, find, or list notes.
                 SUMMARIZE_NOTE: user wants a summary of the current note or a set of notes on a topic.
+                GENERATE_FLASHCARDS: user wants to generate flashcards from a note.
+                STUDY_GOAL: user wants to create, plan, or manage study goals and sessions.
                 NORMAL_CHAT: any other conversation, including questions and general chat.
 
                 Respond with only the intent label, no explanation, no punctuation.
@@ -63,6 +67,8 @@ class LlmIntentClassifier(
                 "CREATE_NOTE" -> IntentType.CREATE_NOTE
                 "SEARCH_NOTES" -> IntentType.SEARCH_NOTES
                 "SUMMARIZE_NOTE" -> IntentType.SUMMARIZE_NOTE
+                "GENERATE_FLASHCARDS" -> IntentType.GENERATE_FLASHCARDS
+                "STUDY_GOAL" -> IntentType.STUDY_GOAL
                 "NORMAL_CHAT" -> IntentType.NORMAL_CHAT
                 else -> {
                     AppLogger.w("LlmIntentClassifier", "Unknown intent token: \"$token\", falling back to UNKNOWN")
