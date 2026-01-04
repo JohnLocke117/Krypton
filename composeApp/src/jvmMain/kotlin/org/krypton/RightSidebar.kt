@@ -340,7 +340,7 @@ private fun OutlinePanel(
                     heading = heading,
                     theme = theme,
                     onClick = {
-                        // TODO: Scroll to heading in editor
+                        // Scroll to heading functionality not implemented
                     }
                 )
             }

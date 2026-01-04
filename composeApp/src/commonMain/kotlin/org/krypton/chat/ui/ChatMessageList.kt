@@ -507,9 +507,9 @@ private fun SourcesSection(
                             style = MaterialTheme.typography.bodySmall,
                             color = theme.TextPrimary
                         )
-                        if (!source.location.isNullOrEmpty()) {
+                        source.location?.takeIf { it.isNotEmpty() }?.let { location ->
                             Text(
-                                text = source.location!!,
+                                text = location,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = theme.TextSecondary,
                                 fontSize = 11.sp

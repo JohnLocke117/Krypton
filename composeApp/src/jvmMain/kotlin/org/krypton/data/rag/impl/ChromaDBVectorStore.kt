@@ -992,7 +992,7 @@ class ChromaDBVectorStore(
 """)
             } catch (e: Exception) {}
             // #endregion
-            return@withContext embeddingDimension!!
+            embeddingDimension?.let { return@withContext it }
         }
         
         // Try common dimensions: 768 (nomic-embed-text) and 1024 (mxbai-embed-large)

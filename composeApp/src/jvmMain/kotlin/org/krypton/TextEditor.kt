@@ -101,14 +101,14 @@ fun TextEditor(
                             markdown = currentActiveDocument.text,
                             settings = settings,
                             theme = theme,
-                            searchState = null, // TODO: Get from SearchStateHolder
+                            searchState = null, // Search integration not implemented
                             onMarkdownChange = { newText ->
                                 state.updateTabContent(newText)
                             },
                             modifier = Modifier.fillMaxSize()
                         )
                         
-                        // TODO: Add search dialog overlay using SearchStateHolder
+                        // Search dialog overlay not implemented
                     }
                 }
                 ViewMode.Compiled -> {

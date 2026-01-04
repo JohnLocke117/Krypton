@@ -3,7 +3,6 @@ package org.krypton.di
 import android.content.Context
 import io.ktor.client.engine.*
 import io.ktor.client.engine.cio.*
-import org.krypton.FileManager
 import org.krypton.data.files.FileSystem
 import org.krypton.data.files.impl.AndroidFileSystem
 import org.krypton.data.repository.SettingsPersistence
@@ -26,9 +25,6 @@ val dataModule = module {
     single<FileSystem> { 
         AndroidFileSystem(androidContext())
     }
-    
-    // FileManager (compatibility wrapper)
-    single<FileManager> { FileManager(get()) }
     
     // Settings persistence - Android implementation
     single<SettingsPersistence> { 

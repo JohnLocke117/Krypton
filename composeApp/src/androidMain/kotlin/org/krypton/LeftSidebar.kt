@@ -424,15 +424,17 @@ private fun SearchPanel(
                         contentPadding = PaddingValues(0.dp)
                     ) {
                         items(searchResults) { filePath ->
-                            SearchResultItem(
-                                filePath = filePath,
-                                rootPath = currentDirectory!!,
-                                searchQuery = searchQuery,
-                                theme = theme,
-                                onClick = {
-                                    state.openTab(filePath)
-                                }
-                            )
+                            currentDirectory?.let { dir ->
+                                SearchResultItem(
+                                    filePath = filePath,
+                                    rootPath = dir,
+                                    searchQuery = searchQuery,
+                                    theme = theme,
+                                    onClick = {
+                                        state.openTab(filePath)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -717,9 +719,10 @@ private fun SidebarBottomBar(
     
     // FolderNameBar has its own Surface with padding, so we don't need an extra Box
     // We use the same height as top bar for consistency, but FolderNameBar will determine its own height
-    if (currentDirectory != null) {
+    val dir = currentDirectory
+    if (dir != null) {
         FolderNameBar(
-            folderName = PathUtils.getFileName(currentDirectory!!),
+            folderName = PathUtils.getFileName(dir),
             onFolderClick = { /* Will be handled by FolderMenu */ },
             onSettingsClick = { state.openSettingsDialog() },
             onFolderSelected = onFolderSelected,

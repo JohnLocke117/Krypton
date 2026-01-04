@@ -208,13 +208,13 @@ val ragModule = module {
                 false
             }
             
-            if (hasDedicatedModel) {
-                AppLogger.i("RagModule", "Using dedicated reranker model: $rerankerModel")
+            rerankerModel?.let { model ->
+                AppLogger.i("RagModule", "Using dedicated reranker model: $model")
                 DedicatedOllamaReranker(
                     llamaClient = llamaClient,
-                    modelName = rerankerModel!!
+                    modelName = model
                 )
-            } else {
+            } ?: run {
                 val settings = settingsRepository.settingsFlow.value
                 val generatorModel = settings.llm.ollamaModel
                 if (rerankerModel != null) {
@@ -257,8 +257,9 @@ val ragModule = module {
                 rerankerModel = ragSettings.rerankerModel
             )
             
-            // Get notes root from settings (if available)
-            val notesRoot = null // TODO: Get from settings or current directory
+            // Notes root is set dynamically when indexing (via indexer.index() call with vault path)
+            // RAG components are created without a specific root here; the indexer uses the vault path when indexing
+            val notesRoot = null
             
             // Get VectorStore, LlamaClient and Reranker (may fall back to NoopReranker if initialization fails)
             val vectorStore: VectorStore = get()

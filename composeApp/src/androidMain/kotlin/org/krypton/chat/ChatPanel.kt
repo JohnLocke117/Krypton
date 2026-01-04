@@ -79,26 +79,24 @@ actual fun ChatPanel(
     
     // Combine actual messages with optimistic message and agent message for display
     val displayMessages = remember(messages, optimisticUserMessage, agentMessage) {
-        val baseMessages = if (optimisticUserMessage != null && messages.isEmpty()) {
-            listOf(optimisticUserMessage!!)
-        } else if (optimisticUserMessage != null && messages.isNotEmpty()) {
-            // Check if optimistic message is already in the real messages
-            val optimisticId = optimisticUserMessage!!.id
-            if (messages.any { it.id == optimisticId }) {
-                messages // Use real messages if optimistic one is already included
+        val baseMessages = optimisticUserMessage?.let { optimistic ->
+            if (messages.isEmpty()) {
+                listOf(optimistic)
             } else {
-                messages + optimisticUserMessage!! // Append optimistic if not yet in real messages
+                // Check if optimistic message is already in the real messages
+                val optimisticId = optimistic.id
+                if (messages.any { it.id == optimisticId }) {
+                    messages // Use real messages if optimistic one is already included
+                } else {
+                    messages + optimistic // Append optimistic if not yet in real messages
+                }
             }
-        } else {
-            messages
-        }
+        } ?: messages
         
         // Add agent message if present (temporary message shown while agent is processing)
-        if (agentMessage != null) {
-            baseMessages + agentMessage!!
-                        } else {
-            baseMessages
-        }
+        agentMessage?.let { agent ->
+            baseMessages + agent
+        } ?: baseMessages
     }
     
     // Clear optimistic message when real messages update and include it

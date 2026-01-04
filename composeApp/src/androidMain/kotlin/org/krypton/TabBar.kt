@@ -23,6 +23,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import org.krypton.util.PathUtils
 
 /**
@@ -148,9 +151,10 @@ fun TabItem(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val appColors = LocalAppColors.current
     val colorScheme = MaterialTheme.colorScheme
-    val fileName = doc.path?.let { PathUtils.getFileName(it) } ?: "Untitled"
+    val fileName = doc.path?.let { getFileNameFromPath(context, it) } ?: "Untitled"
     val isModified = doc.isDirty
     
     // Note: Hover states removed for Android compatibility - touch interactions work without hover
@@ -223,6 +227,50 @@ fun TabItem(
                 )
             }
         }
+    }
+}
+
+/**
+ * Extracts the filename from a path, handling both SAF URIs and regular file paths.
+ * 
+ * For SAF URIs (content://), uses DocumentFile to get the actual filename.
+ * For regular file paths, uses PathUtils.getFileName.
+ * 
+ * @param context Android context (required for SAF URI access)
+ * @param path The file path (can be a SAF URI or regular file path)
+ * @return The filename, or "Untitled" if extraction fails
+ */
+private fun getFileNameFromPath(context: android.content.Context, path: String): String {
+    return try {
+        // Check if path is a SAF URI
+        val uri = try {
+            Uri.parse(path)
+        } catch (e: Exception) {
+            null
+        }
+        
+        if (uri != null && uri.scheme == "content") {
+            // SAF URI - use DocumentFile to get the actual filename
+            val documentFile = DocumentFile.fromSingleUri(context, uri)
+                ?: DocumentFile.fromTreeUri(context, uri)
+            
+            documentFile?.name ?: run {
+                // Fallback: try to extract from URI path
+                // Handle URL-encoded paths like primary%3ADocuments%2F
+                val decoded = try {
+                    java.net.URLDecoder.decode(path, "UTF-8")
+                } catch (e: Exception) {
+                    path
+                }
+                PathUtils.getFileName(decoded)
+            }
+        } else {
+            // Regular file path - use PathUtils
+            PathUtils.getFileName(path)
+        }
+    } catch (e: Exception) {
+        // Fallback to simple extraction
+        path.substringAfterLast("/").takeIf { it.isNotEmpty() } ?: "Untitled"
     }
 }
 

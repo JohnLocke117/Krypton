@@ -2,7 +2,6 @@ package org.krypton.di
 
 import io.ktor.client.engine.*
 import io.ktor.client.engine.cio.*
-import org.krypton.FileManager
 import org.krypton.data.files.FileSystem
 import org.krypton.data.files.impl.JvmFileSystem
 import org.krypton.data.repository.SettingsPersistence
@@ -19,9 +18,6 @@ import org.koin.dsl.module
 val dataModule = module {
     // File system
     single<FileSystem> { JvmFileSystem() }
-    
-    // FileManager (compatibility wrapper)
-    single<FileManager> { FileManager(get()) }
     
     // Settings persistence
     single<SettingsPersistence> { JvmSettingsPersistence }

@@ -106,7 +106,7 @@ fun FolderNameBar(
                     },
                     onRevealInFinder = {
                         showMenu = false
-                        // TODO: Implement reveal in Finder/Explorer
+                        // Reveal in Finder/Explorer not implemented
                     }
                 )
             }

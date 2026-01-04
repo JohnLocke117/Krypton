@@ -540,9 +540,7 @@ class ChromaCloudVectorStore(
      */
     private suspend fun getEmbeddingDimension(collectionIdToUse: String): Int = withContext(Dispatchers.IO) {
         // Return cached dimension if available
-        if (embeddingDimension != null) {
-            return@withContext embeddingDimension!!
-        }
+        embeddingDimension?.let { return@withContext it }
         
         // Try common dimensions: 768 (nomic-embed-text) and 1024 (mxbai-embed-large)
         val dimensionsToTry = listOf(768, 1024)

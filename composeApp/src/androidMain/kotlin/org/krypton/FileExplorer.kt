@@ -233,15 +233,16 @@ fun FileExplorerContent(
 
     // Auto-expand folder when creating inside it
     LaunchedEffect(editingParentPath, editingMode, currentDirectory) {
-        if (editingParentPath != null && currentDirectory != null && editingMode != null) {
-            val parentPath = editingParentPath!!
-            val rootPath = currentDirectory
-            
-            // Only expand if it's not the root directory and we're creating something
-            if (parentPath != rootPath && 
-                (editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
-                 editingMode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)) {
-                expandFolder(parentPath)
+        editingParentPath?.let { parentPath ->
+            currentDirectory?.let { rootPath ->
+                editingMode?.let { mode ->
+                    // Only expand if it's not the root directory and we're creating something
+                    if (parentPath != rootPath && 
+                        (mode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFile || 
+                         mode == org.krypton.core.domain.editor.FileTreeEditMode.CreatingFolder)) {
+                        expandFolder(parentPath)
+                    }
+                }
             }
         }
     }
@@ -371,10 +372,12 @@ fun FileExplorerContent(
                                 theme = theme,
                                 onConfirm = { name ->
                                     // Use editingParentPath to ensure consistency
-                                    if (isCreatingFileInRoot) {
-                                        state.confirmCreateFile(name, editingParentPath!!)
-                                    } else {
-                                        state.confirmCreateFolder(name, editingParentPath!!)
+                                    editingParentPath?.let { parentPath ->
+                                        if (isCreatingFileInRoot) {
+                                            state.confirmCreateFile(name, parentPath)
+                                        } else {
+                                            state.confirmCreateFolder(name, parentPath)
+                                        }
                                     }
                                     // Tree will refresh automatically via LaunchedEffect(files)
                                 },
@@ -398,7 +401,7 @@ fun FileExplorerContent(
                                 null
                             }
                             
-                            fileTree!!.children.forEach { child ->
+                            fileTree?.children?.forEach { child ->
                                 TreeItem(
                                     node = child,
                                     depth = 0,

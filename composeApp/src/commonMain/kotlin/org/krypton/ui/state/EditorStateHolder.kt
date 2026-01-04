@@ -827,7 +827,7 @@ class EditorStateHolder(
             // Close any open tabs for this file or files within this directory
             if (isDir) {
                 val updatedDocs = _domainState.value.documents.filter { doc ->
-                    doc.path == null || !doc.path!!.startsWith(pathString)
+                    doc.path?.startsWith(pathString) != true
                 }
                 val newActiveIndex = if (updatedDocs.isEmpty()) {
                     -1

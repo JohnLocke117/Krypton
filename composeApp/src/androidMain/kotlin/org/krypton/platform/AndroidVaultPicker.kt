@@ -114,12 +114,10 @@ class AndroidVaultPicker(
     /**
      * File picking is not yet implemented for Android.
      * 
-     * TODO: Implement using Storage Access Framework or Document Picker
      * This would require Activity reference and proper result handling via Activity Result API.
+     * Currently returns null as file picking is not a core feature for the contest.
      */
     override suspend fun pickFile(filter: FileFilter?): String? {
-        // TODO: Implement using Storage Access Framework or Document Picker
-        // For v1, return null (can be enhanced later)
         return null
     }
 }

@@ -84,7 +84,7 @@ class RagRetriever(
                 // Deduplicate by chunk ID, keeping highest similarity
                 val deduplicated = allSearchResults
                     .groupBy { it.chunk.id }
-                    .mapValues { (_, results) -> results.maxByOrNull { it.similarity }!! }
+                    .mapValues { (_, results) -> results.maxByOrNull { it.similarity } ?: results.first() }
                     .values
                     .toList()
                 

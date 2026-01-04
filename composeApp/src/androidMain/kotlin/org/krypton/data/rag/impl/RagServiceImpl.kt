@@ -63,7 +63,7 @@ class RagServiceImpl(
                 // Deduplicate by chunk ID, keeping highest similarity
                 allSearchResults
                     .groupBy { it.chunk.id }
-                    .mapValues { (_, results) -> results.maxByOrNull { it.similarity }!! }
+                    .mapValues { (_, results) -> results.maxByOrNull { it.similarity } ?: results.first() }
                     .values
                     .toList()
             } else {

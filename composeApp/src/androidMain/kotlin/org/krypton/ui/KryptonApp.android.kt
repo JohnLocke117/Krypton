@@ -899,6 +899,7 @@ private fun AndroidEditorScreen(
     theme: ObsidianThemeValues,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val activeDocument by editorStateHolder.activeDocument.collectAsState()
     val activeTabIndex by editorStateHolder.activeTabIndex.collectAsState()
@@ -943,7 +944,7 @@ private fun AndroidEditorScreen(
     }
     
     // Use local variable to avoid smart cast issues - we know it's not null here
-    val doc = activeDocument!!
+    val doc = activeDocument ?: return
     
     Column(
         modifier = Modifier
@@ -963,7 +964,7 @@ private fun AndroidEditorScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = doc.path?.substringAfterLast("/") ?: "Untitled",
+                    text = doc.path?.let { getFileNameFromPath(context, it) } ?: "Untitled",
                     style = MaterialTheme.typography.titleMedium,
                     color = theme.TextPrimary,
                     modifier = Modifier.weight(1f)
@@ -1188,6 +1189,50 @@ private fun AndroidRecentFoldersDialog(
         },
         containerColor = theme.BackgroundElevated
     )
+}
+
+/**
+ * Extracts the filename from a path, handling both SAF URIs and regular file paths.
+ * 
+ * For SAF URIs (content://), uses DocumentFile to get the actual filename.
+ * For regular file paths, uses PathUtils.getFileName.
+ * 
+ * @param context Android context (required for SAF URI access)
+ * @param path The file path (can be a SAF URI or regular file path)
+ * @return The filename, or "Untitled" if extraction fails
+ */
+private fun getFileNameFromPath(context: android.content.Context, path: String): String {
+    return try {
+        // Check if path is a SAF URI
+        val uri = try {
+            Uri.parse(path)
+        } catch (e: Exception) {
+            null
+        }
+        
+        if (uri != null && uri.scheme == "content") {
+            // SAF URI - use DocumentFile to get the actual filename
+            val documentFile = DocumentFile.fromSingleUri(context, uri)
+                ?: DocumentFile.fromTreeUri(context, uri)
+            
+            documentFile?.name ?: run {
+                // Fallback: try to extract from URI path
+                // Handle URL-encoded paths like primary%3ADocuments%2F
+                val decoded = try {
+                    java.net.URLDecoder.decode(path, "UTF-8")
+                } catch (e: Exception) {
+                    path
+                }
+                org.krypton.util.PathUtils.getFileName(decoded)
+            }
+        } else {
+            // Regular file path - use PathUtils
+            org.krypton.util.PathUtils.getFileName(path)
+        }
+    } catch (e: Exception) {
+        // Fallback to simple extraction
+        path.substringAfterLast("/").takeIf { it.isNotEmpty() } ?: "Untitled"
+    }
 }
 
 /**

@@ -22,6 +22,13 @@ object AppLogger {
     private var logger: Logger? = null
     
     /**
+     * Check if debug mode is enabled via KRYPTON_DEBUG environment variable.
+     * When enabled, extra debug information is logged for RAG retrieval and agent routing.
+     */
+    val isDebugMode: Boolean
+        get() = System.getenv("KRYPTON_DEBUG")?.lowercase() == "true"
+    
+    /**
      * Initialize the logger with a Kermit Logger instance.
      * Should be called once at app startup.
      * 
@@ -29,6 +36,9 @@ object AppLogger {
      */
     fun initialize(kermitLogger: Logger) {
         logger = kermitLogger
+        if (isDebugMode) {
+            i("AppLogger", "Debug mode enabled (KRYPTON_DEBUG=true). Extra logging will be shown.")
+        }
     }
     
     /**
@@ -143,6 +153,22 @@ object AppLogger {
             event
         }
         i(screen, message)
+    }
+    
+    /**
+     * Log a debug message only if debug mode is enabled.
+     * 
+     * Use this for verbose debug information that should only be logged when KRYPTON_DEBUG=true.
+     * Examples: RAG retrieval details, agent routing decisions, network request/response details.
+     * 
+     * @param tag Log tag
+     * @param message Log message
+     * @param throwable Optional throwable
+     */
+    fun debug(tag: String, message: String, throwable: Throwable? = null) {
+        if (isDebugMode) {
+            d(tag, message, throwable)
+        }
     }
 }
 
