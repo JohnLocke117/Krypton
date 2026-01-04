@@ -7,7 +7,7 @@ You can treat Krypton as your final knowledge base and your second brain, as men
 ## High-Level Overview
 Here is a very basic high-level architecture of the app:
 
-![[assets/images/high-level-overview.png|700]]
+![high-level-overview](assets/images/high-level-overview.png|700)
 
 The core logic is written in `src/commonMain` and the platform specific code is in `src/jvmMain` for Desktop and `src/androidMain` for Android.
 Krypton makes use of some external services such as:
@@ -17,9 +17,9 @@ Krypton makes use of some external services such as:
 
 All services have been added to allow for graceful failure. However, either Ollama or GeminiAPI is necessary for normal chat. If ChromaDB or Tavily are unavailable, chat falls back to normal.
 
->[!tip] Android-Specific Decisions
->The Desktop app can make use of either Ollama or GeminiAPI to generate its responses or embeddings. However, Android only support GeminiAPI for now.
->Similarly, Desktop can utilise local or cloud embeddings, while Android can only use ChromaDB Cloud as generating and storing embeddings locally was out of scope for this project in the given timeline. Maybe in the future yes would like to extend Android as well for a full local experience.
+> [!IMPORTANT]
+> The Desktop app can make use of either Ollama or GeminiAPI to generate its responses or embeddings. However, Android only support GeminiAPI for now.
+> Similarly, Desktop can utilise local or cloud embeddings, while Android can only use ChromaDB Cloud as generating and storing embeddings locally was out of scope for this project in the given timeline. Maybe in the future yes would like to extend Android as well for a full local experience.
 
 
 ### Core Features
