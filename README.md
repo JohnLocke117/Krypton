@@ -216,12 +216,12 @@ I have also compiled a few other READMEs which you can view for a detailed low-l
 
 | README                                                         | Description                                                                                                                       |
 | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| ![Architecture Design](assets/readme/architecture-design.md)   | This README describes the entire architecture of the app and the key decisions made while building the app                        |
-| ![AI-Chat](assets/readme/ai-chat.md)                           | This README details the AI powered chat, how was it built and the RAG architecture                                                |
-| ![Agents](assets/readme/agents.md)                             | This README describes all the agents available in the app, how to use them, and how they are strung together by our `MasterAgent` |
-| ![Android Architecture](assets/readme/android-architecture.md) | This note describes more about the Android-side of the app, and how was it built.                                                 |
+| [Architecture Design](assets/readme/architecture-design.md)   | This README describes the entire architecture of the app and the key decisions made while building the app                        |
+| [AI-Chat](assets/readme/ai-chat.md)                           | This README details the AI powered chat, how was it built and the RAG architecture                                                |
+| [Agents](assets/readme/agents.md)                             | This README describes all the agents available in the app, how to use them, and how they are strung together by our `MasterAgent` |
+| [Android Architecture](assets/readme/android-architecture.md) | This note describes more about the Android-side of the app, and how was it built.                                                 |
 
 
 ----
 ## License
-Krypton is available with the ![MIT License](LICENSE).
+Krypton is available with the [MIT License](LICENSE).
