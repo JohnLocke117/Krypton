@@ -1,6 +1,18 @@
-# Architecture Guide
+# Krypton Architecture Overview
 
-This document provides a comprehensive overview of Krypton's architecture, design choices, and implementation details, including how markdown parsing works.
+This document provides a comprehensive overview of Krypton's architecture, design choices, and implementation details. Krypton is an AI-Powered Markdown Workspace for Learning and Research, built as a "Second Brain" that combines intelligent note-taking with RAG-powered chat, semantic search, and goal-driven study tools.
+
+## Introduction
+
+Krypton is built using Kotlin Multiplatform, enabling code sharing between Desktop (JVM) and Android platforms while maintaining platform-specific implementations where needed. The application follows a layered, modular architecture with clear separation of concerns, making it maintainable, testable, and extensible.
+
+### Core Philosophy
+
+- **Platform Independence**: Shared business logic in `commonMain`, thin platform layers for UI and integrations
+- **Modularity**: Clear module boundaries with well-defined responsibilities
+- **Graceful Degradation**: Features degrade gracefully when dependencies are unavailable
+- **Type Safety**: Leverages Kotlin's type system for compile-time safety
+- **Reactive**: Uses StateFlow and coroutines for reactive, non-blocking operations
 
 ## Overall Architecture
 
@@ -20,6 +32,8 @@ Krypton follows a layered, modular architecture with clear separation of concern
 │         Domain Layer                     │
 │  - Editor Domain                         │
 │  - Search Domain                         │
+│  - Study Domain                          │
+│  - Flashcard Domain                      │
 │  - Business Logic                        │
 └─────────────────────────────────────────┘
                     ↓
@@ -28,6 +42,8 @@ Krypton follows a layered, modular architecture with clear separation of concern
 │  - Repositories                          │
 │  - File System                           │
 │  - Settings Persistence                  │
+│  - Study Data Persistence                │
+│  - Conversation Persistence              │
 └─────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────┐
@@ -35,9 +51,174 @@ Krypton follows a layered, modular architecture with clear separation of concern
 │  - RAG Components                         │
 │  - Vector Store (ChromaDB)                │
 │  - LLM Clients                            │
-│  - Web Search                             │
+│  - Web Search (Tavily)                    │
+│  - MCP Server (JVM only)                 │
 └─────────────────────────────────────────┘
 ```
+
+### Detailed Architecture Diagram
+
+The following Mermaid diagram illustrates the low-level detailed architecture of Krypton, showing all major components and their relationships:
+
+```mermaid
+graph TB
+    subgraph "UI Layer"
+        UI[Compose UI]
+        StateHolders[State Holders<br/>EditorStateHolder<br/>ChatStateHolder<br/>SearchStateHolder]
+    end
+    
+    subgraph "Chat System"
+        ChatService[ChatService Interface]
+        OllamaChatService[OllamaChatService]
+        MasterAgent[MasterAgent]
+        IntentClassifier[IntentClassifier<br/>LLM-based]
+        
+        subgraph "Concrete Agents"
+            CreateNoteAgent[CreateNoteAgent]
+            SearchNoteAgent[SearchNoteAgent]
+            SummarizeNoteAgent[SummarizeNoteAgent]
+            FlashcardAgent[FlashcardAgent]
+            StudyAgent[StudyAgent]
+        end
+        
+        RetrievalService[RetrievalService]
+        PromptBuilder[PromptBuilder]
+        ConversationRepo[ConversationRepository]
+        MemoryProvider[ConversationMemoryProvider]
+    end
+    
+    subgraph "Domain Layer"
+        EditorDomain[Editor Domain<br/>Autosave, Undo/Redo]
+        SearchDomain[Search Domain<br/>Pattern Matching]
+        StudyDomain[Study Domain<br/>StudyPlanner<br/>StudyRunner]
+        FlashcardDomain[Flashcard Domain<br/>FlashcardService]
+    end
+    
+    subgraph "RAG Pipeline"
+        Indexer[Indexer]
+        MarkdownChunker[MarkdownChunker]
+        Embedder[Embedder]
+        VectorStore[VectorStore<br/>ChromaDB]
+        RagRetriever[RagRetriever]
+        Reranker[Reranker]
+    end
+    
+    subgraph "Data Layer"
+        FileSystem[FileSystem Interface]
+        SettingsRepo[SettingsRepository]
+        StudyRepo[StudyGoalRepository<br/>StudySessionRepository]
+        StudyCache[StudyCacheRepository]
+    end
+    
+    subgraph "Infrastructure"
+        LlamaClient[LlamaClient<br/>Ollama/Gemini]
+        WebSearchClient[WebSearchClient<br/>Tavily]
+        MCP[MCP Server<br/>JVM only]
+    end
+    
+    subgraph "Platform Abstractions"
+        VaultPicker[VaultPicker]
+        SettingsConfig[SettingsConfigProvider]
+    end
+    
+    UI --> StateHolders
+    StateHolders --> ChatService
+    StateHolders --> EditorDomain
+    StateHolders --> SearchDomain
+    StateHolders --> StudyDomain
+    
+    ChatService --> OllamaChatService
+    OllamaChatService --> MasterAgent
+    OllamaChatService --> RetrievalService
+    OllamaChatService --> PromptBuilder
+    OllamaChatService --> ConversationRepo
+    
+    MasterAgent --> IntentClassifier
+    MasterAgent --> CreateNoteAgent
+    MasterAgent --> SearchNoteAgent
+    MasterAgent --> SummarizeNoteAgent
+    MasterAgent --> FlashcardAgent
+    MasterAgent --> StudyAgent
+    
+    RetrievalService --> RagRetriever
+    RetrievalService --> WebSearchClient
+    RagRetriever --> VectorStore
+    RagRetriever --> Reranker
+    RagRetriever --> Embedder
+    
+    Indexer --> MarkdownChunker
+    Indexer --> Embedder
+    Indexer --> VectorStore
+    
+    PromptBuilder --> LlamaClient
+    OllamaChatService --> LlamaClient
+    
+    CreateNoteAgent --> FileSystem
+    SearchNoteAgent --> RagRetriever
+    SearchNoteAgent --> FileSystem
+    SummarizeNoteAgent --> RagRetriever
+    SummarizeNoteAgent --> FileSystem
+    FlashcardAgent --> FlashcardDomain
+    FlashcardAgent --> FileSystem
+    StudyAgent --> StudyDomain
+    StudyAgent --> SearchNoteAgent
+    
+    StudyDomain --> StudyRepo
+    StudyDomain --> StudyCache
+    StudyDomain --> FlashcardDomain
+    
+    EditorDomain --> FileSystem
+    SearchDomain --> FileSystem
+    
+    FileSystem --> VaultPicker
+    SettingsRepo --> SettingsConfig
+    
+    MCP --> CreateNoteAgent
+    MCP --> SearchNoteAgent
+    MCP --> SummarizeNoteAgent
+    MCP --> FlashcardAgent
+    MCP --> StudyAgent
+    
+    style UI fill:#e1f5ff
+    style ChatService fill:#fff4e1
+    style MasterAgent fill:#ffe1f5
+    style Domain fill:#e1ffe1
+    style RAG fill:#f5e1ff
+    style Infrastructure fill:#ffe1e1
+```
+
+## App Layout
+
+### Desktop Layout
+
+The desktop application uses a multi-panel layout optimized for productivity:
+
+- **Left Sidebar**: File browser and vault navigation (collapsible)
+- **Main Editor**: Markdown editor with live preview toggle
+- **Right Sidebar**: Chat interface (collapsible)
+- **Top Bar**: App title, settings access, and vault selection
+- **Status Bar**: File path, word count, and editor status
+
+### Android Layout
+
+The Android application uses a navigation-based layout optimized for mobile:
+
+- **Bottom Navigation Bar**: Quick access to main screens
+  - Notes List: File browser and vault selection
+  - Editor: Markdown editor with preview
+  - Chat: AI chat interface
+  - Settings: Application settings
+- **Top App Bar**: Context-aware title and actions
+- **Drawers**: Slide-in navigation for additional options
+
+### Code Design Principles
+
+1. **Separation of Concerns**: Each module has a single, well-defined responsibility
+2. **Dependency Inversion**: High-level modules depend on abstractions, not concrete implementations
+3. **Interface Segregation**: Interfaces are focused and specific
+4. **Single Responsibility**: Each class/function has one reason to change
+5. **Reactive Programming**: State changes flow through StateFlow observables
+6. **Error Handling**: Graceful degradation with clear error messages
 
 ## Technology Stack
 
@@ -47,14 +228,16 @@ Krypton follows a layered, modular architecture with clear separation of concern
 - **Jetpack Compose Multiplatform**: Declarative UI framework
 - **Koin**: Dependency injection framework
 - **Kotlin Coroutines**: Asynchronous programming
-- **Ktor**: HTTP client for API calls
+- **Ktor**: HTTP client for API calls (3.2.3 for MCP SDK compatibility)
 - **Kermit**: Logging framework
 - **JetBrains Markdown**: Markdown parsing library
+- **MCP SDK**: Model Context Protocol SDK (0.8.1) for exposing agents as tools
 
 ### External Services
 
-- **ChromaDB**: Vector database for embeddings (via Docker, required for RAG)
-- **Ollama**: Local LLM server for text generation and embeddings (optional but recommended)
+- **ChromaDB**: Vector database for embeddings (local via Docker or cloud, required for RAG)
+- **Ollama**: Local LLM server for text generation and embeddings (Desktop only, optional but recommended)
+- **Gemini API**: Google's Gemini API for LLM interactions (Desktop and Android)
 - **Tavily**: Web search API (optional, requires API key)
 
 ## Project Structure
@@ -106,6 +289,7 @@ composeApp/src/
 - **data/**: Data access layer (repositories, file system)
   - **data/files/**: File system abstraction interface
   - **data/repository/**: Settings repository and persistence interfaces
+  - **data/study/**: Study data persistence (GoalData, StudyData, StudyPersistence)
 - **markdown/**: Markdown parsing and rendering (JetBrains Markdown engine)
 - **rag/**: RAG pipeline components
   - **rag/reranker/**: Reranking implementations (dedicated and LLM-based)

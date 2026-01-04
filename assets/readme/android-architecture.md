@@ -91,6 +91,17 @@ The Android UI uses a bottom navigation bar with four main screens:
 
 ## Platform-Specific Implementations
 
+### Platform Restrictions
+
+**Important:** Android has specific platform restrictions compared to Desktop:
+
+1. **LLM Provider**: Only Gemini API is supported (Ollama is not available on Android)
+2. **Vector Backend**: Only ChromaDB Cloud is supported (local ChromaDB via Docker is not available)
+3. **MCP Server**: MCP server is JVM-only and not available on Android
+4. **Memory Limits**: Conversation memory is more conservative (15 messages max, 6,000 chars max) compared to Desktop (50 messages, 16,000 chars)
+
+These restrictions are enforced at the settings level to prevent configuration errors.
+
 ### File System (`AndroidFileSystem`)
 
 **Location:** `composeApp/src/androidMain/kotlin/org/krypton/data/files/impl/AndroidFileSystem.kt`
@@ -100,6 +111,7 @@ The Android UI uses a bottom navigation bar with four main screens:
 - Handles Android storage permissions
 - Supports app-internal and external storage
 - Error handling with `FileError` sealed class
+- SAF (Storage Access Framework) integration for external storage
 
 **Key Methods:**
 - `listFiles()`: Lists files in directory
@@ -151,6 +163,27 @@ The UI already includes SAF integration in `AndroidNotesListScreen`:
 - Provides platform-specific default settings
 - Handles Android-specific configuration paths
 - Manages app version and migration logic
+- Enforces platform restrictions (Gemini-only, ChromaDB Cloud-only)
+
+### Study Persistence (`AndroidStudyPersistence`)
+
+**Location:** `composeApp/src/androidMain/kotlin/org/krypton/data/study/impl/AndroidStudyPersistence.kt`
+
+**Features:**
+- Persists study goals, sessions, and related data
+- Uses JSON serialization
+- Stores data in `.krypton/study/` directory within vault
+- Platform-specific file system integration
+
+### Conversation Persistence (`AndroidConversationPersistence`)
+
+**Location:** `composeApp/src/androidMain/kotlin/org/krypton/data/chat/impl/AndroidConversationPersistence.kt`
+
+**Features:**
+- Persists chat conversations per vault
+- Stores conversations in `.krypton/chat/` directory
+- Uses JSON serialization
+- Platform-specific file system integration
 
 ## Features
 
@@ -167,13 +200,14 @@ All desktop features are available on Android:
 - Customizable font and tab size
 
 ✅ **AI Chat**
-- RAG mode (with ChromaDB)
+- RAG mode (with ChromaDB Cloud only)
 - Web search mode (Tavily API)
 - Hybrid mode (combines RAG + web)
 - Plain chat mode (NONE)
-- Agent system (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
-- Conversation history
+- Agent system (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent, FlashcardAgent, StudyAgent)
+- Conversation history with bounded memory (15 messages max, 6,000 chars max)
 - Streaming responses
+- **Platform Restriction**: Android only supports Gemini API (Ollama not available)
 
 ✅ **File Management**
 - Create, read, update, delete files
@@ -184,9 +218,10 @@ All desktop features are available on Android:
 
 ✅ **Vector Search**
 - Automatic indexing of markdown files
-- Semantic search via ChromaDB
+- Semantic search via ChromaDB Cloud (local ChromaDB not supported)
 - RAG retrieval with reranking
 - Incremental updates (only changed files re-indexed)
+- **Platform Restriction**: Android only supports ChromaDB Cloud (local ChromaDB via Docker not available)
 
 ✅ **Settings**
 - Editor preferences (theme, font, tab size, line numbers)
@@ -199,6 +234,15 @@ All desktop features are available on Android:
 - AI-powered flashcard generation from notes
 - Question-answer pairs
 - Source file tracking
+- FlashcardAgent for chat-based generation
+
+✅ **Study System**
+- Create study goals with topics
+- Automatic note matching for goals
+- Session planning
+- Roadmap generation
+- Session preparation (summaries and flashcards)
+- StudyAgent for chat-based management
 
 ### Mobile-Specific Features
 
@@ -352,9 +396,10 @@ Compose UI tests can be written using:
 - Android: Single-screen navigation with bottom bar
 
 **Feature Parity:**
-- Core features: ✅ Full parity (editor, chat, RAG, file management, agents)
+- Core features: ✅ Full parity (editor, chat, RAG, file management, agents, flashcards, study system)
 - UI features: ⚠️ Mobile-optimized (navigation-based instead of multi-panel)
 - Advanced features: ⚠️ MCP server is desktop-only (all other features available)
+- Platform restrictions: ⚠️ Gemini-only, ChromaDB Cloud-only (Ollama and local ChromaDB not available)
 
 ## Troubleshooting
 

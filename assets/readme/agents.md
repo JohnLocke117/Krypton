@@ -7,8 +7,8 @@ Krypton includes an intelligent agent system that enables natural language inter
 The agent system provides a way to handle specific user intents with dedicated, purpose-built handlers. The architecture consists of:
 
 - **MasterAgent**: Single entry point that uses LLM-based intent classification to route messages
-- **IntentClassifier**: LLM-based classifier that determines user intent (CREATE_NOTE, SEARCH_NOTES, SUMMARIZE_NOTE, or NORMAL_CHAT)
-- **Concrete Agents**: Specialized agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent) that execute specific actions
+- **IntentClassifier**: LLM-based classifier that determines user intent (CREATE_NOTE, SEARCH_NOTES, SUMMARIZE_NOTE, GENERATE_FLASHCARDS, STUDY_GOAL, or NORMAL_CHAT)
+- **Concrete Agents**: Specialized agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent, FlashcardAgent, StudyAgent) that execute specific actions
 - **Structured Actions**: Direct execution of specific operations with clear, formatted responses
 - **Better UX**: Reliable, deterministic behavior for common tasks
 
@@ -29,6 +29,8 @@ Route based on IntentType:
     ├─→ CREATE_NOTE → CreateNoteAgent.execute()
     ├─→ SEARCH_NOTES → SearchNoteAgent.execute()
     ├─→ SUMMARIZE_NOTE → SummarizeNoteAgent.execute()
+    ├─→ GENERATE_FLASHCARDS → FlashcardAgent.execute()
+    ├─→ STUDY_GOAL → StudyAgent.execute()
     └─→ NORMAL_CHAT / UNKNOWN → null (fall back to normal RAG/Chat flow)
 ```
 
@@ -58,11 +60,13 @@ The `IntentClassifier` uses an LLM to classify user messages into one of four in
 
 ```kotlin
 enum class IntentType {
-    CREATE_NOTE,      // User wants to create a new note
-    SEARCH_NOTES,     // User wants to search/find notes
-    SUMMARIZE_NOTE,   // User wants a summary
-    NORMAL_CHAT,      // General conversation (fall back to normal chat)
-    UNKNOWN           // Classification failed (fall back to normal chat)
+    CREATE_NOTE,          // User wants to create a new note
+    SEARCH_NOTES,         // User wants to search/find notes
+    SUMMARIZE_NOTE,       // User wants a summary
+    GENERATE_FLASHCARDS,  // User wants to generate flashcards
+    STUDY_GOAL,           // User wants to manage study goals/sessions
+    NORMAL_CHAT,          // General conversation (fall back to normal chat)
+    UNKNOWN               // Classification failed (fall back to normal chat)
 }
 ```
 
@@ -128,6 +132,11 @@ Agents return structured results via `AgentResult` sealed class:
 - `NoteCreated`: A note was successfully created
 - `NotesFound`: Search results with matching notes
 - `NoteSummarized`: A summary was generated
+- `FlashcardsGenerated`: Flashcards were generated from a note
+- `StudyGoalCreated`: A study goal was created
+- `StudyGoalPlanned`: Study sessions were planned for a goal
+- `RoadmapGenerated`: A roadmap was generated for a study goal
+- `SessionPrepared`: A study session was prepared with summaries/flashcards
 
 These results are converted to formatted chat responses by `OllamaChatService`.
 
@@ -302,6 +311,141 @@ This avoids:
 
 ---
 
+### 4. FlashcardAgent
+
+**Purpose**: Generates flashcards from markdown notes using AI.
+
+**Intent Classification**: Handled when `IntentClassifier` returns `GENERATE_FLASHCARDS`
+
+**How It Works:**
+
+1. **Note Path Extraction**: Extracts note path from message or uses current note from context
+2. **Note Validation**: Verifies note exists and is readable
+3. **Max Cards Extraction**: Extracts maximum number of cards from message (default: 20)
+4. **Flashcard Generation**: Uses `FlashcardService` to generate question-answer pairs from note content
+5. **Response**: Returns formatted list of flashcards with source file
+
+**Example:**
+```
+User: "generate flashcards from my-note.md"
+
+Flow:
+1. MasterAgent receives message
+2. IntentClassifier classifies as GENERATE_FLASHCARDS
+3. FlashcardAgent.execute() called
+4. Extracts note path: "my-note.md"
+5. Validates note exists
+6. Generates flashcards using FlashcardService
+7. Returns AgentResult.FlashcardsGenerated with flashcards
+```
+
+**Features:**
+- Automatic note path extraction from message
+- Uses current note if no path specified
+- Configurable maximum number of cards
+- Source file tracking
+- Structured JSON output from LLM
+
+**Requirements:**
+- Note must be specified (via message or current note)
+- Note file must exist and be readable
+- LLM must be available
+- FlashcardService must be configured
+
+**Note Path Patterns:**
+The agent recognizes various patterns for extracting note paths:
+- "from note [path]"
+- "for the note [path]"
+- "note [path]"
+- Quoted paths: "[path.md]"
+
+**Max Cards Pattern:**
+- "max 10 cards"
+- "up to 20 flashcards"
+- "limit 15"
+
+---
+
+### 5. StudyAgent
+
+**Purpose**: Manages study goals, sessions, roadmaps, and session preparation.
+
+**Intent Classification**: Handled when `IntentClassifier` returns `STUDY_GOAL`
+
+**How It Works:**
+
+The agent handles multiple study-related operations based on message patterns:
+
+#### Create Study Goal:
+1. **Topic Extraction**: Extracts topics from message
+2. **Note Matching**: Uses `SearchNoteAgent` to find relevant notes
+3. **Goal Creation**: Creates study goal with topics and matched notes
+4. **Persistence**: Saves goal to repository
+
+#### Plan Study Goal:
+1. **Goal Retrieval**: Loads existing study goal
+2. **Session Planning**: Uses `StudyPlanner` to create study sessions
+3. **Session Assignment**: Assigns topics to sessions
+4. **Persistence**: Saves sessions to repository
+
+#### Generate Roadmap:
+1. **Goal Retrieval**: Loads existing study goal
+2. **Roadmap Generation**: Uses `StudyPlanner` to generate learning roadmap
+3. **LLM Generation**: Creates structured roadmap content
+4. **Persistence**: Saves roadmap to goal
+
+#### Prepare Session:
+1. **Session Retrieval**: Loads study session
+2. **Summary Generation**: Generates summaries for session notes
+3. **Flashcard Generation**: Generates flashcards for session
+4. **Caching**: Caches summaries and flashcards
+5. **Persistence**: Saves prepared session data
+
+**Example:**
+```
+User: "create a study goal for machine learning with topics: neural networks, deep learning, transformers"
+
+Flow:
+1. MasterAgent receives message
+2. IntentClassifier classifies as STUDY_GOAL
+3. StudyAgent.execute() called
+4. Detects "create" pattern
+5. Extracts topics: ["neural networks", "deep learning", "transformers"]
+6. Uses SearchNoteAgent to find relevant notes
+7. Creates study goal with matched notes
+8. Returns AgentResult.StudyGoalCreated
+```
+
+**Features:**
+- Multiple operation modes (create, plan, roadmap, prepare)
+- Automatic note matching for study goals
+- Session planning with topic distribution
+- Roadmap generation for learning paths
+- Session preparation with summaries and flashcards
+- Caching of generated content
+
+**Requirements:**
+- Vault must be open
+- LLM must be available
+- Study repositories must be configured
+- For note matching: RAG retriever available (optional)
+
+**Operation Patterns:**
+- **Create**: "create study goal", "new study goal", "start studying"
+- **Plan**: "plan study goal", "create sessions", "plan sessions"
+- **Roadmap**: "generate roadmap", "create roadmap", "learning path"
+- **Prepare**: "prepare session", "ready session", "prepare for study"
+
+**Study Flow:**
+1. Create study goal with topics
+2. System automatically matches relevant notes
+3. Generate roadmap (optional)
+4. Plan study sessions
+5. Prepare sessions (generate summaries/flashcards)
+6. Run study sessions with quizzes
+
+---
+
 ## Agent Registration
 
 Agents are registered in the dependency injection system (`ChatModule.kt`):
@@ -316,6 +460,8 @@ single<IntentClassifier> {
 single<CreateNoteAgent> { CreateNoteAgentImpl(...) }
 single<SearchNoteAgent> { SearchNoteAgentImpl(...) }
 single<SummarizeNoteAgent> { SummarizeNoteAgentImpl(...) }
+single<FlashcardAgent> { FlashcardAgentImpl(...) }
+single<StudyAgent> { StudyAgentImpl(...) }
 
 // MasterAgent (the only ChatAgent, routes to concrete agents)
 single<MasterAgent> {
@@ -323,7 +469,9 @@ single<MasterAgent> {
         classifier = get(),
         createNoteAgent = get(),
         searchNoteAgent = get(),
-        summarizeNoteAgent = get()
+        summarizeNoteAgent = get(),
+        flashcardAgent = get(),
+        studyAgent = get()
     )
 }
 
@@ -472,10 +620,19 @@ Krypton's agents are exposed as MCP tools via an HTTP server, allowing external 
 
 ### Overview
 
-The MCP server exposes Krypton's three agents as standardized MCP tools:
+The MCP server exposes Krypton's agents as standardized MCP tools, enabling external clients (like Claude Desktop, MCP Inspector, or custom applications) to interact with Krypton programmatically. The server exposes **eight tools** covering all agent capabilities:
+
+**Note Management:**
 - `create_note`: Create markdown notes in a vault
-- `search_notes`: Search notes using semantic and keyword search
+- `search_notes`: Search notes in a vault using semantic and keyword search
 - `summarize_notes`: Summarize notes or topics
+
+**Learning Tools:**
+- `generate_flashcards`: Generate flashcards from a note
+- `create_study_goal`: Create a new study goal with topics
+- `plan_study_goal`: Plan study sessions for a goal
+- `generate_roadmap`: Generate a learning roadmap for a study goal
+- `prepare_session`: Prepare a study session (generate summaries/flashcards)
 
 ### Architecture
 
@@ -488,7 +645,7 @@ MCP Server (io.modelcontextprotocol SDK)
     ↓
 Tool Handlers
     ↓
-Agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+Agents (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent, FlashcardAgent, StudyAgent)
     ↓
 AgentContext (vault path, settings, note path)
 ```
@@ -587,6 +744,184 @@ Summarizes either a specific note or notes on a topic from the vault.
   "title": "AWS",
   "summary": "Your notes about AWS cover various services including EC2, S3, and Lambda...",
   "sourceFiles": ["aws-notes.md", "cloud-computing.md"]
+}
+```
+
+#### 4. `generate_flashcards`
+
+Generates flashcards from a markdown note.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory
+- `note_path` (required, string): Path to the note file to generate flashcards from
+- `max_cards` (optional, integer, default: 20): Maximum number of flashcards to generate
+
+**Returns:**
+- Success: JSON object with flashcards array, notePath, and count
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "note_path": "/path/to/vault/my-note.md",
+  "max_cards": 15
+}
+```
+
+**Example Response:**
+```json
+{
+  "flashcards": [
+    {
+      "question": "What is machine learning?",
+      "answer": "Machine learning is a subset of artificial intelligence..."
+    }
+  ],
+  "notePath": "/path/to/vault/my-note.md",
+  "count": 15
+}
+```
+
+#### 5. `create_study_goal`
+
+Creates a new study goal with topics and automatically matches relevant notes.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory
+- `title` (required, string): Title of the study goal
+- `topics` (required, array of strings): List of topics to study
+- `description` (optional, string): Optional description of the goal
+- `target_date` (optional, string): Target completion date (ISO-8601 format: YYYY-MM-DD)
+
+**Returns:**
+- Success: JSON object with goalId, title, topics, matchedNotes, and status
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "title": "Machine Learning Fundamentals",
+  "topics": ["neural networks", "deep learning", "transformers"],
+  "description": "Learn the basics of machine learning",
+  "target_date": "2024-12-31"
+}
+```
+
+**Example Response:**
+```json
+{
+  "goalId": "uuid-here",
+  "title": "Machine Learning Fundamentals",
+  "topics": ["neural networks", "deep learning", "transformers"],
+  "matchedNotes": ["ml-basics.md", "neural-networks.md"],
+  "status": "ACTIVE"
+}
+```
+
+#### 6. `plan_study_goal`
+
+Plans study sessions for an existing study goal.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory
+- `goal_id` (required, string): ID of the study goal to plan
+
+**Returns:**
+- Success: JSON object with goalId, sessionCount, and sessions array
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "goal_id": "uuid-here"
+}
+```
+
+**Example Response:**
+```json
+{
+  "goalId": "uuid-here",
+  "sessionCount": 3,
+  "sessions": [
+    {
+      "sessionId": "session-uuid-1",
+      "topic": "neural networks",
+      "status": "PLANNED"
+    }
+  ]
+}
+```
+
+#### 7. `generate_roadmap`
+
+Generates a learning roadmap for a study goal.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory
+- `goal_id` (required, string): ID of the study goal
+
+**Returns:**
+- Success: JSON object with goalId and roadmap (markdown content)
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "goal_id": "uuid-here"
+}
+```
+
+**Example Response:**
+```json
+{
+  "goalId": "uuid-here",
+  "roadmap": "# Machine Learning Fundamentals Roadmap\n\n## Week 1: Neural Networks\n..."
+}
+```
+
+#### 8. `prepare_session`
+
+Prepares a study session by generating summaries and flashcards.
+
+**Parameters:**
+- `vault_path` (required, string): Path to the vault directory
+- `goal_id` (required, string): ID of the study goal
+- `session_id` (required, string): ID of the session to prepare
+
+**Returns:**
+- Success: JSON object with sessionId, summaries, flashcards, and status
+- Error: Descriptive error message
+
+**Example Request:**
+```json
+{
+  "vault_path": "/path/to/vault",
+  "goal_id": "uuid-here",
+  "session_id": "session-uuid-1"
+}
+```
+
+**Example Response:**
+```json
+{
+  "sessionId": "session-uuid-1",
+  "summaries": [
+    {
+      "notePath": "neural-networks.md",
+      "summary": "Summary of neural networks..."
+    }
+  ],
+  "flashcards": [
+    {
+      "question": "What is a neural network?",
+      "answer": "A neural network is..."
+    }
+  ],
+  "status": "PREPARED"
 }
 ```
 
@@ -699,6 +1034,34 @@ curl -X POST http://localhost:8080/mcp/tools/call \
   }'
 ```
 
+**Call a Tool (generate_flashcards):**
+```bash
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "generate_flashcards",
+    "arguments": {
+      "vault_path": "/path/to/vault",
+      "note_path": "/path/to/vault/my-note.md",
+      "max_cards": 20
+    }
+  }'
+```
+
+**Call a Tool (create_study_goal):**
+```bash
+curl -X POST http://localhost:8080/mcp/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool": "create_study_goal",
+    "arguments": {
+      "vault_path": "/path/to/vault",
+      "title": "Machine Learning",
+      "topics": ["neural networks", "deep learning"]
+    }
+  }'
+```
+
 #### Using Claude Desktop
 
 1. **Configure Claude Desktop** to use the MCP server:
@@ -726,6 +1089,11 @@ curl -X POST http://localhost:8080/mcp/tools/call \
    - "Create a note about machine learning"
    - "Search my notes for AWS"
    - "Summarize my notes on cloud computing"
+   - "Generate flashcards from my-note.md"
+   - "Create a study goal for machine learning with topics: neural networks, deep learning"
+   - "Plan study sessions for goal [goal-id]"
+   - "Generate a roadmap for my study goal"
+   - "Prepare session [session-id] for studying"
 
 ### Implementation Details
 

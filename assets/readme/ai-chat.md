@@ -32,7 +32,12 @@ Krypton includes an intelligent agent system that intercepts user messages befor
 1. User sends message
 2. MasterAgent receives message
 3. IntentClassifier (LLM-based) classifies intent
-4. MasterAgent routes to appropriate concrete agent (CreateNoteAgent, SearchNoteAgent, SummarizeNoteAgent)
+4. MasterAgent routes to appropriate concrete agent:
+   - CreateNoteAgent: Creates new notes
+   - SearchNoteAgent: Searches notes semantically and by keywords
+   - SummarizeNoteAgent: Summarizes notes or topics
+   - FlashcardAgent: Generates flashcards from notes
+   - StudyAgent: Manages study goals and sessions
 5. If no agent matches (NORMAL_CHAT or UNKNOWN), normal RAG/chat flow proceeds
 
 See **[Agents & Agentic Architecture](./agents.md)** for detailed documentation on the MasterAgent system and all available agents.
