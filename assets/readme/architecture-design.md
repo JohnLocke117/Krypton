@@ -2,7 +2,7 @@
 This document gives a friendly tour of how Krypton is put together under the hood – the layers, the modules, and the key design decisions that make the app tick. Krypton is an AI‑Powered Markdown Workspace and **second brain** for learning and research, built with Kotlin Multiplatform for Desktop and Android.
 As this app was built for the KMP Contest, I started out with an oath to utilise as much as Kotlin Tooling as possible, and I found some great open-sourced work along the way, which overall turned out to be a very fun path of building what I wanted.
 
-![low-level-architecture](assets/images/low-level-architecture.png)
+![low-level-architecture](../images/low-level-architecture.png)
 
 
 ---

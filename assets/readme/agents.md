@@ -30,7 +30,7 @@ Krypton uses a **MasterAgent** at the center of its agent architecture, backed b
 ## Message Flow: From User to Agent (or Chat)
 The high‑level flow for every chat message looks like this:
 
-![agents](assets/images/agents.png)
+![agents](../images/agents.png)
 
 - **Single classification step**: Only one LLM call is made per message to decide routing.
 - **Graceful fallback**: If classification fails, prerequisites are missing (for example, no vault open), or an agent throws, MasterAgent returns `null` and the message is handled by the normal chat pipeline.

@@ -58,15 +58,15 @@ Here is a detailed step-by-step path to run the app and try it out on both Deskt
 ### Prerequisites
 Here are the prerequisites for running the app:
 
-|          | Item                       | Description                                                                    | Links |
-| -------- | -------------------------- | ------------------------------------------------------------------------------ | ----- |
-| Required | **JDK17+**                 |                                                                                |       |
-| Required | **Android SDK**            | An Android SDK is required to be installed locally                             |       |
-| Optional | **Ollama**                 | For local LLM Responses in Chat                                                |       |
-| Optional | **Gemini API Key**         | For running without Ollama                                                     |       |
-| Optional | **ChromaDB**               | For RAG features. Can be installed locally or (recommended) via Docker as well |       |
-| Optional | **ChromaDB Cloud API Key** | For RAG features. ChromaDB Cloud can also be used instead of local ChromaDB    |       |
-| Optional | **Tavilly API Key**        | To enable Web Search in Chat Responses                                         |       |
+|          | Item                       | Description                                                                    |
+| -------- | -------------------------- | ------------------------------------------------------------------------------ |
+| Required | **JDK17+**                 |                                                                                |
+| Required | **Android SDK**            | An Android SDK is required to be installed locally                             | 
+| Optional | **Ollama**                 | For local LLM Responses in Chat                                                |
+| Optional | **Gemini API Key**         | For running without Ollama                                                     |
+| Optional | **ChromaDB**               | For RAG features. Can be installed locally or (recommended) via Docker as well |
+| Optional | **ChromaDB Cloud API Key** | For RAG features. ChromaDB Cloud can also be used instead of local ChromaDB    |
+| Optional | **Tavilly API Key**        | To enable Web Search in Chat Responses                                         |
 
 Note that either Ollama or a GeminiAPI Key are *required* for chat to function. You can toggle which one you want to use in the UI or from `settings.json`
 
