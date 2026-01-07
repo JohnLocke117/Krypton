@@ -60,17 +60,10 @@ class AndroidSettingsPersistence(
     }
 
     override fun saveSettingsToFile(path: String, settings: Settings): Boolean {
-        return try {
-            val file = File(path)
-            // Ensure parent directory exists
-            file.parentFile?.mkdirs()
-            
-            val content = json.encodeToString(Settings.serializer(), settings)
-            file.writeText(content)
-            true
-        } catch (e: Exception) {
-            false
-        }
+        // Android: Settings modifications are disabled (read-only)
+        // This method should never be called on Android, but if it is, return false
+        android.util.Log.w("AndroidSettingsPersistence", "saveSettingsToFile called on Android (read-only mode) - operation ignored")
+        return false
     }
 }
 

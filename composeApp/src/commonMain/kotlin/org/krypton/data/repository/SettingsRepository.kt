@@ -29,5 +29,20 @@ interface SettingsRepository {
      * This is useful when the settings file might have been modified externally.
      */
     suspend fun reloadFromDisk()
+    
+    /**
+     * Sets the current vault ID to track which vault is open.
+     * This is used to load vault-specific settings that override project root settings.
+     * 
+     * @param vaultId The vault root path/URI, or null if no vault is open
+     */
+    fun setCurrentVaultId(vaultId: String?)
+    
+    /**
+     * Gets the current vault ID.
+     * 
+     * @return The current vault root path/URI, or null if no vault is open
+     */
+    fun getCurrentVaultId(): String?
 }
 

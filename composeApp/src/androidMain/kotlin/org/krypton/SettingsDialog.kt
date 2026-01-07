@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.key.Key
@@ -153,11 +154,34 @@ fun SettingsDialog(
                         }
                     }
 
-                    // Content - Two column layout
+                    // Android: Show message that settings are not available
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = theme.SurfaceContainer
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Settings Not Available on Android",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = theme.TextPrimary
+                            )
+                            Text(
+                                text = "Settings modifications are not available on Android. The app uses default values only. Model, vector database, and other advanced settings are not configurable on this platform.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = theme.TextSecondary
+                            )
+                        }
+                    }
+
+                    // Content - Two column layout (disabled on Android)
                     Row(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
+                            .alpha(0.5f) // Make it look disabled
                     ) {
                         // Left column - Categories
                         Surface(
@@ -168,7 +192,7 @@ fun SettingsDialog(
                         ) {
                             SettingsCategoryList(
                                 selectedCategory = selectedSettingsCategory,
-                                onCategorySelected = { state.selectSettingsCategory(it) },
+                                onCategorySelected = { /* Disabled on Android */ },
                                 modifier = Modifier.fillMaxSize(),
                                 theme = theme
                             )
@@ -189,7 +213,7 @@ fun SettingsDialog(
                             SettingsContent(
                                 category = selectedSettingsCategory,
                                 settings = localSettings,
-                                onSettingsChange = { localSettings = it },
+                                onSettingsChange = { /* Disabled on Android */ },
                                 onReindex = onReindex,
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -198,7 +222,8 @@ fun SettingsDialog(
                                 theme = theme,
                                 settingsRepository = settingsRepository,
                                 vaultPicker = vaultPicker,
-                                onOpenSettingsJson = onOpenSettingsJson
+                                onOpenSettingsJson = onOpenSettingsJson,
+                                isReadOnly = true // Pass read-only flag
                             )
                         }
                     }
@@ -264,40 +289,31 @@ fun SettingsDialog(
                                     Text("Refresh")
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                            TextButton(
-                                onClick = { onOpenSettingsJson() }
-                            ) {
-                                Text("Open Settings JSON")
+                                // Disable "Open Settings JSON" on Android
+                                TextButton(
+                                    onClick = { /* Disabled on Android */ },
+                                    enabled = false
+                                ) {
+                                    Text("Open Settings JSON")
                                 }
                             }
                             Row {
-                                // Apply button - applies settings but doesn't close
+                                // Apply and Save buttons disabled on Android
                                 Button(
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            applySettings()
-                                        }
-                                    },
+                                    onClick = { /* Disabled on Android */ },
+                                    enabled = false,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = theme.Accent.copy(alpha = 0.8f)
+                                        containerColor = theme.Accent.copy(alpha = 0.3f)
                                     )
                                 ) {
                                     Text("Apply")
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                                // Save button - applies settings and closes
                                 Button(
-                                    onClick = {
-                                        coroutineScope.launch {
-                                            val success = applySettings()
-                                            // Only close if settings were successfully applied
-                                            if (success) {
-                                                onDismiss()
-                                            }
-                                        }
-                                    },
+                                    onClick = { /* Disabled on Android */ },
+                                    enabled = false,
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = theme.Accent
+                                        containerColor = theme.Accent.copy(alpha = 0.3f)
                                     )
                                 ) {
                                     Text("Save")
@@ -378,7 +394,8 @@ private fun SettingsContent(
     theme: ObsidianThemeValues,
     settingsRepository: org.krypton.data.repository.SettingsRepository,
     vaultPicker: org.krypton.platform.VaultPicker?,
-    onOpenSettingsJson: () -> Unit
+    onOpenSettingsJson: () -> Unit,
+    isReadOnly: Boolean = false
 ) {
     Column(
         modifier = modifier,

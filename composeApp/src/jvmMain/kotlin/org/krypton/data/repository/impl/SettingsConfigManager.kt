@@ -28,29 +28,30 @@ object SettingsConfigManager {
     )
     
     /**
-     * Gets the settings file path from config, or returns default.
+     * Gets the settings file path.
+     * 
+     * Zero-configuration approach: Automatically detects project root and uses settings.json there.
+     * Environment variable KRYPTON_SETTINGS_PATH can be used as an optional override for advanced users.
+     * Config.json file is deprecated and no longer used for default behavior.
      */
     fun getSettingsFilePath(): String {
-        // Check environment variable first
+        // Check environment variable first (optional override for advanced users)
         val envPath = System.getenv("KRYPTON_SETTINGS_PATH")
         if (envPath != null && envPath.isNotBlank()) {
             val path = Paths.get(envPath).toAbsolutePath().normalize().toString()
-            AppLogger.d("SettingsConfigManager", "Using settings path from environment: $path")
+            AppLogger.d("SettingsConfigManager", "Using settings path from environment variable: $path")
             return path
         }
         
-        // Try to load from config file
-        val config = loadConfig()
-        if (config?.settingsFilePath != null && config.settingsFilePath.isNotBlank()) {
-            val path = Paths.get(config.settingsFilePath).toAbsolutePath().normalize().toString()
-            AppLogger.d("SettingsConfigManager", "Using settings path from config: $path")
-            return path
-        }
-        
-        // Default to settings.json in current working directory or project root
+        // Primary method: Automatically detect project root and use settings.json there
+        // This is the zero-configuration approach - no user setup needed
         val defaultPath = findDefaultSettingsPath()
-        AppLogger.d("SettingsConfigManager", "Using default settings path: $defaultPath")
+        AppLogger.d("SettingsConfigManager", "Using project root settings path (zero-config): $defaultPath")
         return defaultPath
+        
+        // Note: Config.json file is no longer checked for default behavior.
+        // It may still be used by setSettingsFilePath() for custom browsed paths,
+        // but project root detection is now the primary method.
     }
     
     /**

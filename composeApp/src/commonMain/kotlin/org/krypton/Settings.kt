@@ -136,3 +136,106 @@ data class Settings(
     val study: StudySettings = StudySettings()
 )
 
+/**
+ * Merges two Settings objects, with override taking precedence over base.
+ * This is used to merge vault-specific settings over project root settings.
+ * 
+ * @param base The base settings (typically project root settings)
+ * @param override The override settings (typically vault-specific settings)
+ * @return Merged settings with override values taking precedence
+ */
+fun mergeSettings(base: Settings, override: Settings): Settings {
+    return base.copy(
+        version = override.version,
+        editor = base.editor.copy(
+            theme = override.editor.theme,
+            fontFamily = override.editor.fontFamily,
+            fontSize = override.editor.fontSize,
+            lineNumbers = override.editor.lineNumbers,
+            wordWrap = override.editor.wordWrap,
+            tabSize = override.editor.tabSize,
+            lineHeight = override.editor.lineHeight,
+            editorPadding = override.editor.editorPadding,
+            codeBlockFontSize = override.editor.codeBlockFontSize,
+            codeSpanFontSize = override.editor.codeSpanFontSize
+        ),
+        ui = base.ui.copy(
+            ribbonWidth = override.ui.ribbonWidth,
+            sidebarMinWidth = override.ui.sidebarMinWidth,
+            sidebarDefaultWidth = override.ui.sidebarDefaultWidth,
+            sidebarMaxWidth = override.ui.sidebarMaxWidth,
+            tabHeight = override.ui.tabHeight,
+            tabPadding = override.ui.tabPadding,
+            tabCornerRadius = override.ui.tabCornerRadius,
+            panelBorderWidth = override.ui.panelBorderWidth,
+            panelPadding = override.ui.panelPadding,
+            tabFontSize = override.ui.tabFontSize,
+            tabLabelFontSize = override.ui.tabLabelFontSize,
+            fileExplorerFontSize = override.ui.fileExplorerFontSize
+        ),
+        colors = base.colors.copy(
+            background = override.colors.background,
+            backgroundElevated = override.colors.backgroundElevated,
+            backgroundHover = override.colors.backgroundHover,
+            textPrimary = override.colors.textPrimary,
+            textSecondary = override.colors.textSecondary,
+            textTertiary = override.colors.textTertiary,
+            accent = override.colors.accent,
+            accentHover = override.colors.accentHover,
+            accentPressed = override.colors.accentPressed,
+            border = override.colors.border,
+            borderVariant = override.colors.borderVariant,
+            surface = override.colors.surface,
+            surfaceVariant = override.colors.surfaceVariant,
+            surfaceContainer = override.colors.surfaceContainer,
+            selection = override.colors.selection,
+            codeBlockBackground = override.colors.codeBlockBackground,
+            codeBlockBorder = override.colors.codeBlockBorder,
+            codeSpanBackground = override.colors.codeSpanBackground,
+            linkColor = override.colors.linkColor,
+            linkHover = override.colors.linkHover,
+            blockquoteBackground = override.colors.blockquoteBackground
+        ),
+        app = base.app.copy(
+            recentFolders = override.app.recentFolders,
+            autosaveIntervalSeconds = override.app.autosaveIntervalSeconds,
+            telemetryEnabled = override.app.telemetryEnabled,
+            vaultRootUri = override.app.vaultRootUri ?: base.app.vaultRootUri
+        ),
+        rag = base.rag.copy(
+            vectorBackend = override.rag.vectorBackend,
+            llamaBaseUrl = override.rag.llamaBaseUrl ?: base.rag.llamaBaseUrl,
+            embeddingBaseUrl = override.rag.embeddingBaseUrl,
+            chromaBaseUrl = override.rag.chromaBaseUrl,
+            chromaCollectionName = override.rag.chromaCollectionName,
+            chromaTenant = override.rag.chromaTenant,
+            chromaDatabase = override.rag.chromaDatabase,
+            ragEnabled = override.rag.ragEnabled,
+            llamaModel = override.rag.llamaModel ?: base.rag.llamaModel,
+            embeddingModel = override.rag.embeddingModel,
+            topK = override.rag.topK,
+            similarityThreshold = override.rag.similarityThreshold,
+            maxK = override.rag.maxK,
+            displayK = override.rag.displayK,
+            queryRewritingEnabled = override.rag.queryRewritingEnabled,
+            multiQueryEnabled = override.rag.multiQueryEnabled,
+            rerankingEnabled = override.rag.rerankingEnabled,
+            rerankerModel = override.rag.rerankerModel ?: base.rag.rerankerModel,
+            embeddingMaxTokens = override.rag.embeddingMaxTokens,
+            embeddingMaxChars = override.rag.embeddingMaxChars
+        ),
+        llm = base.llm.copy(
+            provider = override.llm.provider,
+            ollamaBaseUrl = override.llm.ollamaBaseUrl,
+            ollamaModel = override.llm.ollamaModel,
+            geminiModel = override.llm.geminiModel,
+            agentRoutingLlmProvider = override.llm.agentRoutingLlmProvider ?: base.llm.agentRoutingLlmProvider
+        ),
+        study = base.study.copy(
+            maxNotes = override.study.maxNotes,
+            maxFlashcardsPerNote = override.study.maxFlashcardsPerNote,
+            quizFlashcardCount = override.study.quizFlashcardCount
+        )
+    )
+}
+

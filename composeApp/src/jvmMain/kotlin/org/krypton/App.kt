@@ -93,12 +93,17 @@ private fun handleFolderSelection(
         val isDirectory = fileSystem.isDirectory(path)
         if (isDirectory) {
             editorStateHolder.changeDirectoryWithHistory(path)
+            // Set current vault ID to the selected directory (assuming it's a vault root)
+            // This allows vault-specific settings to be loaded
+            settingsRepository.setCurrentVaultId(path)
         } else {
             // Extract parent directory from path string
             val lastSeparator = path.lastIndexOf('/')
             val parentPath = if (lastSeparator > 0) path.substring(0, lastSeparator) else null
             if (parentPath != null) {
                 editorStateHolder.changeDirectoryWithHistory(parentPath)
+                // Set current vault ID to parent directory
+                settingsRepository.setCurrentVaultId(parentPath)
             }
             editorStateHolder.openTab(path)
         }

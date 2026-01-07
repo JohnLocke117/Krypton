@@ -10,25 +10,34 @@ import org.krypton.migrateSettings
 import org.krypton.validateSettings
 import org.krypton.data.repository.SettingsRepository
 import org.krypton.data.repository.SettingsPersistence
+import org.krypton.util.AppLogger
 
 /**
- * JVM implementation of SettingsRepository.
+ * Android implementation of SettingsRepository.
+ * 
+ * Android uses read-only settings - loads from project root (vault root) settings.json if available,
+ * otherwise uses hardcoded defaults. Settings modifications are disabled.
  */
 class SettingsRepositoryImpl(
     private val persistence: SettingsPersistence
 ) : SettingsRepository {
     private val mutex = Mutex()
+    private var currentVaultId: String? = null
     
-    // Get settings path dynamically each time (can change via config)
-    // For now, use app-wide settings (vault-specific can be added later if needed)
-    private fun getSettingsPath(vaultId: String? = null): String = persistence.getSettingsFilePath(vaultId)
+    // Get project root settings path (vault root on Android)
+    private fun getProjectRootSettingsPath(): String {
+        // On Android, project root is the vault root
+        return persistence.getSettingsFilePath(null)
+    }
     
     private val _settingsFlow = MutableStateFlow<Settings>(loadInitialSettings())
     override val settingsFlow: StateFlow<Settings> = _settingsFlow.asStateFlow()
 
     private fun loadInitialSettings(): Settings {
-        val settingsPath = getSettingsPath()
-        val loaded = persistence.loadSettingsFromFile(settingsPath)
+        // Try to load from project root (vault root) settings.json
+        val projectRootPath = getProjectRootSettingsPath()
+        val loaded = persistence.loadSettingsFromFile(projectRootPath)
+        
         return if (loaded != null) {
             val migrated = migrateSettings(loaded)
             
@@ -36,6 +45,7 @@ class SettingsRepositoryImpl(
             // If loaded settings have unsupported values, override them with Android defaults
             val androidCompliantSettings = if (migrated.llm.provider != org.krypton.LlmProvider.GEMINI ||
                 migrated.rag.vectorBackend != org.krypton.VectorBackend.CHROMA_CLOUD) {
+                AppLogger.w("SettingsRepositoryImpl", "Loaded settings have unsupported values, overriding with Android defaults")
                 migrated.copy(
                     llm = migrated.llm.copy(provider = org.krypton.LlmProvider.GEMINI),
                     rag = migrated.rag.copy(vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD)
@@ -46,79 +56,57 @@ class SettingsRepositoryImpl(
             
             val validated = validateSettings(androidCompliantSettings)
             if (validated.isValid) {
+                AppLogger.d("SettingsRepositoryImpl", "Loaded settings from project root: $projectRootPath")
                 androidCompliantSettings
             } else {
                 // If validation fails on load, use Android defaults
-                Settings(
-                    rag = Settings().rag.copy(
-                        vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
-                    ),
-                    llm = Settings().llm.copy(
-                        provider = org.krypton.LlmProvider.GEMINI
-                    )
-                )
+                AppLogger.w("SettingsRepositoryImpl", "Settings validation failed, using Android defaults")
+                createAndroidDefaults()
             }
         } else {
-            // File doesn't exist, create default settings with Android preferences
-            // Android: MUST use ChromaCloud and Gemini ONLY (OLLAMA and local ChromaDB not supported)
-            val defaultSettings = Settings(
-                rag = Settings().rag.copy(
-                    vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
-                ),
-                llm = Settings().llm.copy(
-                    provider = org.krypton.LlmProvider.GEMINI
-                )
-            )
-            persistence.saveSettingsToFile(settingsPath, defaultSettings)
-            defaultSettings
+            // File doesn't exist, use Android defaults (never create files on Android)
+            AppLogger.d("SettingsRepositoryImpl", "Project root settings.json not found, using Android defaults")
+            createAndroidDefaults()
         }
+    }
+    
+    private fun createAndroidDefaults(): Settings {
+        // Android: MUST use ChromaCloud and Gemini ONLY (OLLAMA and local ChromaDB not supported)
+        return Settings(
+            rag = Settings().rag.copy(
+                vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
+            ),
+            llm = Settings().llm.copy(
+                provider = org.krypton.LlmProvider.GEMINI
+            )
+        )
     }
 
     override suspend fun update(transform: (Settings) -> Settings) {
-        mutex.withLock {
-            val current = _settingsFlow.value
-            val updated = transform(current)
-            val migrated = migrateSettings(updated)
-            
-            // Android-specific validation: Only GEMINI and CHROMA_CLOUD are supported
-            val androidErrors = mutableListOf<String>()
-            if (migrated.llm.provider != org.krypton.LlmProvider.GEMINI) {
-                androidErrors.add("Android only supports GEMINI provider. OLLAMA is not supported on Android.")
-            }
-            if (migrated.rag.vectorBackend != org.krypton.VectorBackend.CHROMA_CLOUD) {
-                androidErrors.add("Android only supports CHROMA_CLOUD vector backend. Local ChromaDB is not supported on Android.")
-            }
-            
-            if (androidErrors.isNotEmpty()) {
-                throw IllegalArgumentException("Android platform restrictions: ${androidErrors.joinToString()}")
-            }
-            
-            val validation = validateSettings(migrated)
-            
-            if (validation.isValid) {
-                _settingsFlow.value = migrated
-                // Save to current settings file path
-                val settingsPath = getSettingsPath()
-                persistence.saveSettingsToFile(settingsPath, migrated)
-            } else {
-                // Validation failed, don't update
-                throw IllegalArgumentException("Settings validation failed: ${validation.errors.joinToString()}")
-            }
-        }
+        // Android: Settings modifications are disabled
+        throw UnsupportedOperationException("Settings modifications are not available on Android. The app uses default values only.")
     }
 
     override suspend fun reloadFromDisk() {
         mutex.withLock {
-            val settingsPath = getSettingsPath()
-            val loaded = persistence.loadSettingsFromFile(settingsPath)
-            if (loaded != null) {
-                val migrated = migrateSettings(loaded)
-                val validation = validateSettings(migrated)
-                if (validation.isValid) {
-                    _settingsFlow.value = migrated
-                }
-            }
+            // Reload from project root (vault root)
+            val reloaded = loadInitialSettings()
+            _settingsFlow.value = reloaded
         }
+    }
+    
+    override fun setCurrentVaultId(vaultId: String?) {
+        if (currentVaultId != vaultId) {
+            currentVaultId = vaultId
+            AppLogger.d("SettingsRepositoryImpl", "Current vault ID set to: $vaultId")
+            // Reload settings (though Android doesn't support vault-specific settings)
+            val reloaded = loadInitialSettings()
+            _settingsFlow.value = reloaded
+        }
+    }
+    
+    override fun getCurrentVaultId(): String? {
+        return currentVaultId
     }
 }
 
