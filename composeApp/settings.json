@@ -15,7 +15,7 @@
     "ui": {
         "ribbonWidth": 48,
         "sidebarMinWidth": 200,
-        "sidebarDefaultWidth": 320,
+        "sidebarDefaultWidth": 280,
         "sidebarMaxWidth": 400,
         "tabHeight": 36,
         "tabPadding": 12,
@@ -50,23 +50,21 @@
         "blockquoteBackground": "#1F1F1F"
     },
     "app": {
-        "recentFolders": [
-            "/Users/vararya/Varun/Test"
-        ],
+        "recentFolders": [],
         "autosaveIntervalSeconds": 60,
         "telemetryEnabled": false,
         "vaultRootUri": null
     },
     "rag": {
         "vectorBackend": "CHROMADB",
-        "llamaBaseUrl": "http://localhost:11434",
+        "llamaBaseUrl": null,
         "embeddingBaseUrl": "http://localhost:11434",
         "chromaBaseUrl": "http://localhost:8000",
         "chromaCollectionName": "note_chunks",
         "chromaTenant": "default",
         "chromaDatabase": "defaultDB",
         "ragEnabled": true,
-        "llamaModel": "llama3.1:8b",
+        "llamaModel": null,
         "embeddingModel": "mxbai-embed-large:335m",
         "topK": 5,
         "similarityThreshold": 0.25,
@@ -75,7 +73,7 @@
         "queryRewritingEnabled": false,
         "multiQueryEnabled": false,
         "rerankingEnabled": false,
-        "rerankerModel": "dengcao/Qwen3-Reranker-8B:Q3_K_M",
+        "rerankerModel": "xitao/bge-reranker-v2-m3",
         "embeddingMaxTokens": 409,
         "embeddingMaxChars": 2000
     },
