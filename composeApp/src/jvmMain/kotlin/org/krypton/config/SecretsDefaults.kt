@@ -7,106 +7,30 @@ import org.krypton.util.SecretsLoader
 import org.krypton.util.AppLogger
 
 /**
- * Loads default configuration values from local.properties.
+ * Creates default Settings for first-time setup.
  * 
- * This is used when creating settings.json for the first time.
- * If a property is not found in local.properties, returns null
- * to allow the code to use its own fallback defaults.
+ * Ollama configuration is now managed via settings.json, not local.properties.
+ * local.properties should only contain API keys (TAVILLY_API_KEY, CHROMA_API_KEY, GEMINI_API_KEY, etc.).
+ * 
+ * This function creates settings with hardcoded defaults that match the defaults
+ * defined in Settings.kt. Users can then modify settings.json directly or via the UI.
  */
 object SecretsDefaults {
     /**
-     * Gets the OLLAMA base URL from local.properties.
-     */
-    fun getOllamaBaseUrl(): String? {
-        return SecretsLoader.loadSecret("OLLAMA_BASE_URL")
-    }
-    
-    /**
-     * Gets the OLLAMA generation model from local.properties.
-     */
-    fun getOllamaGenerationModel(): String? {
-        return SecretsLoader.loadSecret("OLLAMA_GENERATION_MODEL")
-    }
-    
-    /**
-     * Gets the OLLAMA generation model context length from local.properties.
-     */
-    fun getOllamaGenerationModelContextLength(): Int? {
-        return SecretsLoader.loadSecret("OLLAMA_GENERATION_MODEL_CONTEXT_LENGTH")?.toIntOrNull()
-    }
-    
-    /**
-     * Gets the OLLAMA embedding model from local.properties.
-     */
-    fun getOllamaEmbeddingModel(): String? {
-        return SecretsLoader.loadSecret("OLLAMA_EMBEDDING_MODEL")
-    }
-    
-    /**
-     * Gets the OLLAMA embedding model context length from local.properties.
-     */
-    fun getOllamaEmbeddingModelContextLength(): Int? {
-        return SecretsLoader.loadSecret("OLLAMA_EMBEDDING_MODEL_CONTEXT_LENGTH")?.toIntOrNull()
-    }
-    
-    /**
-     * Creates default Settings using values from local.properties.
-     * If a value is not found in local.properties, uses sensible defaults.
+     * Creates default Settings with hardcoded defaults.
+     * 
+     * All Ollama configuration (base URL, models, etc.) comes from the defaults
+     * defined in Settings.kt, which in turn use RagDefaults and LlmDefaults.
+     * These defaults can be overridden in settings.json.
      */
     fun createDefaultSettings(): Settings {
-        val ollamaBaseUrl = getOllamaBaseUrl() ?: "http://localhost:11434"
-        val ollamaModel = getOllamaGenerationModel()
-        val embeddingModel = getOllamaEmbeddingModel()
+        AppLogger.d("SecretsDefaults", "Creating default settings with hardcoded defaults")
+        AppLogger.d("SecretsDefaults", "Ollama configuration should be managed via settings.json")
         
-        AppLogger.d("SecretsDefaults", "Creating default settings from local.properties")
-        AppLogger.d("SecretsDefaults", "OLLAMA_BASE_URL: $ollamaBaseUrl")
-        AppLogger.d("SecretsDefaults", "OLLAMA_GENERATION_MODEL: ${ollamaModel ?: "not found, using default"}")
-        AppLogger.d("SecretsDefaults", "OLLAMA_EMBEDDING_MODEL: ${embeddingModel ?: "not found, using default"}")
-        
-        // Create default settings
-        val defaultSettings = Settings()
-        
-        // Override with values from local.properties if available
-        val llmSettings = if (ollamaModel != null) {
-            defaultSettings.llm.copy(
-                ollamaBaseUrl = ollamaBaseUrl,
-                ollamaModel = ollamaModel
-            )
-        } else {
-            defaultSettings.llm.copy(
-                ollamaBaseUrl = ollamaBaseUrl
-            )
-        }
-        
-        // Compute embedding max tokens from context length if available
-        val embeddingContextLength = getOllamaEmbeddingModelContextLength()
-        val embeddingMaxTokens = if (embeddingContextLength != null && embeddingContextLength > 0) {
-            // Use 80% of context length as conservative safety margin
-            (embeddingContextLength * 0.8).toInt().coerceAtLeast(100)
-        } else {
-            // Use default from RagDefaults
-            org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_TOKENS
-        }
-        
-        val ragSettings = if (embeddingModel != null) {
-            defaultSettings.rag.copy(
-                embeddingBaseUrl = ollamaBaseUrl,
-                embeddingModel = embeddingModel,
-                embeddingMaxTokens = embeddingMaxTokens,
-                embeddingMaxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
-            )
-        } else {
-            defaultSettings.rag.copy(
-                embeddingBaseUrl = ollamaBaseUrl,
-                embeddingMaxTokens = embeddingMaxTokens,
-                embeddingMaxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
-            )
-        }
-        
-        return defaultSettings.copy(
-            llm = llmSettings,
-            rag = ragSettings
-        )
+        // Simply return Settings() with all defaults
+        // The defaults in Settings.kt will use RagDefaults and LlmDefaults,
+        // which now return hardcoded values instead of reading from local.properties
+        return Settings()
     }
 }
 

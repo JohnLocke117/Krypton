@@ -24,7 +24,9 @@ actual fun createRagComponents(
     vectorStore: VectorStore?,
     llamaClient: LlamaClient?,
     reranker: Reranker?,
-    embedder: Embedder?
+    embedder: Embedder?,
+    settingsRepository: org.krypton.data.repository.SettingsRepository?,
+    llamaClientFactory: (() -> LlamaClient)?
 ): RagComponents {
     val httpClientEngine = httpClientEngineFactory.engine
     
@@ -97,7 +99,9 @@ actual fun createRagComponents(
         embedder = embedderToUse,
         llamaClient = llamaClientToUse,
         indexer = indexer,
-        ragService = ragService
+        ragService = ragService,
+        settingsRepository = settingsRepository,
+        llamaClientFactory = llamaClientFactory
     )
 }
 

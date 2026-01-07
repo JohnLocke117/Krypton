@@ -1,24 +1,25 @@
 package org.krypton.config
 
 /**
- * JVM implementation that loads from local.properties.
+ * JVM implementation that returns hardcoded defaults.
+ * 
+ * Ollama configuration is now managed via settings.json, not local.properties.
+ * local.properties should only contain API keys.
  */
 internal actual fun loadOllamaEmbeddingModel(): String {
-    return SecretsDefaults.getOllamaEmbeddingModel() ?: ""
+    // Default Ollama embedding model - can be overridden in settings.json
+    return "mxbai-embed-large:335m"
 }
 
 /**
- * JVM implementation that loads default embedding max tokens from secrets.
- * Uses 80% of OLLAMA_EMBEDDING_MODEL_CONTEXT_LENGTH if available, otherwise defaults to 500.
+ * JVM implementation that returns default embedding max tokens.
+ * 
+ * Uses a conservative default that works for most embedding models.
+ * Can be overridden in settings.json.
  */
 internal actual fun loadDefaultEmbeddingMaxTokens(): Int {
-    val contextLength = SecretsDefaults.getOllamaEmbeddingModelContextLength()
-    return if (contextLength != null && contextLength > 0) {
-        // Use 80% of context length as conservative safety margin
-        (contextLength * 0.8).toInt().coerceAtLeast(100)
-    } else {
-        // Fallback to default constant
-        RagDefaults.Embedding.MAX_EMBEDDING_CONTEXT_TOKENS
-    }
+    // Default: 409 tokens (80% of 512 token context length, which is common for embedding models)
+    // This is a conservative default that works for most models
+    return 409
 }
 

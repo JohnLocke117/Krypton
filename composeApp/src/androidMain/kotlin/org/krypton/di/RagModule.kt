@@ -290,7 +290,9 @@ val ragModule = module {
                 vectorStore = vectorStore,
                 llamaClient = llamaClient,
                 reranker = reranker,
-                embedder = embedder
+                embedder = embedder,
+                settingsRepository = settingsRepository,
+                llamaClientFactory = { get<LlamaClient>() } // Factory to get new LlamaClient with current settings
             )
         } catch (e: Exception) {
             // If RAG initialization fails, return null

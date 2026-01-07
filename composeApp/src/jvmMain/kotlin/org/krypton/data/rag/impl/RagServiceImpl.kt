@@ -2,6 +2,8 @@ package org.krypton.data.rag.impl
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.krypton.config.RagDefaults
 import org.krypton.rag.*
 import org.krypton.rag.models.RagQueryOptions
@@ -12,22 +14,61 @@ import org.krypton.util.AppLogger
  * Default implementation of RagService.
  * 
  * JVM-specific implementation that coordinates embedding, vector search, reranking, and LLM generation.
+ * 
+ * Observes settings changes and updates LlamaClient when model/baseUrl changes.
  */
 class RagServiceImpl(
     private val embedder: Embedder,
     private val vectorStore: VectorStore,
-    private val llamaClient: LlamaClient,
+    private var llamaClient: LlamaClient,
     private val similarityThreshold: Float = 0.25f,
     private val maxK: Int = 10,
     private val displayK: Int = 5,
-    private val queryPreprocessor: QueryPreprocessor? = null,
+    private var queryPreprocessor: QueryPreprocessor? = null,
     private val queryRewritingEnabled: Boolean = false,
     private val multiQueryEnabled: Boolean = false,
-    private val reranker: Reranker = NoopReranker()
+    private val reranker: Reranker = NoopReranker(),
+    private val settingsRepository: org.krypton.data.repository.SettingsRepository? = null,
+    private val llamaClientFactory: (() -> LlamaClient)? = null
 ) : RagService {
     // Reranking enabled flag (can be toggled at runtime)
     @Volatile
     private var rerankingEnabled: Boolean = true
+    
+    private var lastModel: String? = null
+    private var lastBaseUrl: String? = null
+    
+    init {
+        // Initialize last known values and observe settings changes
+        settingsRepository?.let { repo ->
+            val settings = repo.settingsFlow.value
+            lastModel = settings.llm.ollamaModel
+            lastBaseUrl = settings.llm.ollamaBaseUrl
+            
+            // Observe settings changes and update client when model/baseUrl changes
+            CoroutineScope(Dispatchers.Default).launch {
+                repo.settingsFlow.collect { settings ->
+                    val newModel = settings.llm.ollamaModel
+                    val newBaseUrl = settings.llm.ollamaBaseUrl
+                    
+                    if (newModel != lastModel || newBaseUrl != lastBaseUrl) {
+                        lastModel = newModel
+                        lastBaseUrl = newBaseUrl
+                        llamaClientFactory?.let { factory ->
+                            llamaClient = factory()
+                            // Update query preprocessor if it exists (it also uses llamaClient)
+                            queryPreprocessor = if (queryRewritingEnabled || multiQueryEnabled) {
+                                QueryPreprocessor(llamaClient)
+                            } else {
+                                null
+                            }
+                            AppLogger.d("RagServiceImpl", "LlamaClient updated: model=$newModel, baseUrl=$newBaseUrl")
+                        }
+                    }
+                }
+            }
+        }
+    }
     
     override suspend fun answer(
         query: String,
@@ -38,16 +79,17 @@ class RagServiceImpl(
             val effectiveThreshold = (options.similarityThreshold?.toFloat() ?: similarityThreshold)
             
             // Step 0: Rewrite query if enabled
-            val processedQuestion = if (queryRewritingEnabled && queryPreprocessor != null) {
-                queryPreprocessor.rewriteQuery(query)
+            val currentPreprocessor = queryPreprocessor // Use local variable to avoid smart cast issues
+            val processedQuestion = if (queryRewritingEnabled && currentPreprocessor != null) {
+                currentPreprocessor.rewriteQuery(query)
             } else {
                 query
             }
             
             // Step 1: Handle multi-query or single query
-            val allResults = if (multiQueryEnabled && queryPreprocessor != null) {
+            val allResults = if (multiQueryEnabled && currentPreprocessor != null) {
                 // Multi-query: generate alternatives and search for each
-                val queries = queryPreprocessor.generateAlternativeQueries(processedQuestion)
+                val queries = currentPreprocessor.generateAlternativeQueries(processedQuestion)
                 AppLogger.i("RagService", "Multi-query mode: Generated ${queries.size} queries")
                 
                 // Embed all queries

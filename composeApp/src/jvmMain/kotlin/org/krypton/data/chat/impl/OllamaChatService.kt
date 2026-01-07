@@ -2,6 +2,8 @@ package org.krypton.data.chat.impl
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.krypton.chat.ChatService
 import org.krypton.chat.ChatMessage as OldChatMessage
 import org.krypton.chat.ChatResult
@@ -30,9 +32,11 @@ import java.io.IOException
  * 
  * Handles message sending, retrieval (if enabled), and LLM generation.
  * Manages conversation persistence and bounded memory.
+ * 
+ * Observes settings changes and updates LlamaClient when model/baseUrl changes.
  */
 class OllamaChatService(
-    private val llamaClient: LlamaClient,
+    private var llamaClient: LlamaClient,
     private val promptBuilder: PromptBuilder,
     private val retrievalService: RetrievalService?,
     private val settingsRepository: SettingsRepository,
@@ -40,8 +44,35 @@ class OllamaChatService(
     private val memoryProvider: ConversationMemoryProvider,
     private val agents: List<ChatAgent>? = null,
     private val idGenerator: IdGenerator = createIdGenerator(),
-    private val timeProvider: TimeProvider = createTimeProvider()
+    private val timeProvider: TimeProvider = createTimeProvider(),
+    private val llamaClientFactory: (() -> LlamaClient)? = null
 ) : ChatService {
+    private var lastModel: String? = null
+    private var lastBaseUrl: String? = null
+    
+    init {
+        // Initialize last known values and observe settings changes
+        val settings = settingsRepository.settingsFlow.value
+        lastModel = settings.llm.ollamaModel
+        lastBaseUrl = settings.llm.ollamaBaseUrl
+        
+        // Observe settings changes and update client when model/baseUrl changes
+        CoroutineScope(Dispatchers.Default).launch {
+            settingsRepository.settingsFlow.collect { settings ->
+                val newModel = settings.llm.ollamaModel
+                val newBaseUrl = settings.llm.ollamaBaseUrl
+                
+                if (newModel != lastModel || newBaseUrl != lastBaseUrl) {
+                    lastModel = newModel
+                    lastBaseUrl = newBaseUrl
+                    llamaClientFactory?.let { factory ->
+                        llamaClient = factory()
+                        AppLogger.d("OllamaChatService", "LlamaClient updated: model=$newModel, baseUrl=$newBaseUrl")
+                    }
+                }
+            }
+        }
+    }
 
     override suspend fun sendMessage(
         vaultId: String,

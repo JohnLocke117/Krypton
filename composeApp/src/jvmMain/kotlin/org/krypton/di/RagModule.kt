@@ -277,7 +277,9 @@ val ragModule = module {
                 httpClientEngineFactory = org.krypton.rag.HttpClientEngineFactory(httpEngine),
                 vectorStore = vectorStore,
                 llamaClient = llamaClient,
-                reranker = reranker
+                reranker = reranker,
+                settingsRepository = settingsRepository,
+                llamaClientFactory = { get<LlamaClient>() } // Factory to get new LlamaClient with current settings
             )
         } catch (e: Exception) {
             // If RAG initialization fails, return null

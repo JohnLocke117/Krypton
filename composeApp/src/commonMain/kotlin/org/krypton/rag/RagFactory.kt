@@ -1,5 +1,8 @@
 package org.krypton.rag
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.krypton.VectorBackend
 import org.krypton.config.RagDefaults
 
@@ -26,14 +29,55 @@ data class RagConfig(
 
 /**
  * Container for all RAG components.
+ * 
+ * Observes settings changes and updates LlamaClient when model/baseUrl changes.
  */
-data class RagComponents(
+class RagComponents(
     val vectorStore: VectorStore,
     val embedder: Embedder,
-    val llamaClient: LlamaClient,
+    llamaClient: LlamaClient,
     val indexer: VaultIndexService,
-    val ragService: RagService
-)
+    val ragService: RagService,
+    private val settingsRepository: org.krypton.data.repository.SettingsRepository? = null,
+    private val llamaClientFactory: (() -> org.krypton.rag.LlamaClient)? = null
+) {
+    private var _llamaClient: LlamaClient = llamaClient
+    private var lastModel: String? = null
+    private var lastBaseUrl: String? = null
+    
+    init {
+        // Initialize last known values
+        settingsRepository?.let { repo ->
+            val settings = repo.settingsFlow.value
+            lastModel = settings.llm.ollamaModel
+            lastBaseUrl = settings.llm.ollamaBaseUrl
+            
+            // Observe settings changes and update client when model/baseUrl changes
+            CoroutineScope(Dispatchers.Default).launch {
+                repo.settingsFlow.collect { settings ->
+                    val newModel = settings.llm.ollamaModel
+                    val newBaseUrl = settings.llm.ollamaBaseUrl
+                    
+                    if (newModel != lastModel || newBaseUrl != lastBaseUrl) {
+                        lastModel = newModel
+                        lastBaseUrl = newBaseUrl
+                        llamaClientFactory?.let { factory ->
+                            _llamaClient = factory()
+                            org.krypton.util.AppLogger.d("RagComponents", "LlamaClient updated: model=$newModel, baseUrl=$newBaseUrl")
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Gets the current LlamaClient.
+     * The client is automatically updated when settings change.
+     */
+    val llamaClient: LlamaClient
+        get() = _llamaClient
+}
 
 /**
  * Platform-specific HTTP client engine factory.
@@ -55,6 +99,9 @@ expect class HttpClientEngineFactory
  * @param vectorStore VectorStore instance (optional, will be created if not provided - for backward compatibility)
  * @param llamaClient LlamaClient instance (optional, will be created if not provided)
  * @param reranker Reranker instance (optional, will use NoopReranker if not provided)
+ * @param embedder Embedder instance (optional, will be created if not provided)
+ * @param settingsRepository SettingsRepository for observing settings changes (optional)
+ * @param llamaClientFactory Factory function for creating LlamaClient when settings change (optional)
  */
 expect fun createRagComponents(
     config: RagConfig,
@@ -63,6 +110,8 @@ expect fun createRagComponents(
     vectorStore: VectorStore? = null,
     llamaClient: LlamaClient? = null,
     reranker: Reranker? = null,
-    embedder: Embedder? = null
+    embedder: Embedder? = null,
+    settingsRepository: org.krypton.data.repository.SettingsRepository? = null,
+    llamaClientFactory: (() -> LlamaClient)? = null
 ): RagComponents
 

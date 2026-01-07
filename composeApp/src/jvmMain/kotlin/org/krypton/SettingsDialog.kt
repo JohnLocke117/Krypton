@@ -29,6 +29,7 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import krypton.composeapp.generated.resources.Res
 import krypton.composeapp.generated.resources.close
+import org.krypton.util.AppLogger
 
 @Composable
 fun SettingsDialog(
@@ -54,6 +55,29 @@ fun SettingsDialog(
         if (settingsDialogOpen) {
             localSettings = currentSettings
             validationErrors = emptyList()
+        }
+    }
+    
+    // Auto-save settings with debouncing (500ms delay)
+    LaunchedEffect(localSettings) {
+        if (settingsDialogOpen) {
+            // Debounce: wait 500ms after last change before saving
+            kotlinx.coroutines.delay(500)
+            
+            // Only save if settings have actually changed from current
+            if (localSettings != currentSettings) {
+                val validation = validateSettings(localSettings)
+                if (validation.isValid) {
+                    try {
+                        settingsRepository.update { localSettings }
+                        validationErrors = emptyList()
+                        AppLogger.d("SettingsDialog", "Settings auto-saved to settings.json")
+                    } catch (e: Exception) {
+                        // Don't show error for auto-save failures, just log
+                        AppLogger.w("SettingsDialog", "Auto-save failed: ${e.message}")
+                    }
+                }
+            }
         }
     }
     

@@ -68,20 +68,24 @@ Here are the prerequisites for running the app:
 | Optional | **ChromaDB Cloud API Key** | For RAG features. ChromaDB Cloud can also be used instead of local ChromaDB    |
 | Optional | **Tavilly API Key**        | To enable Web Search in Chat Responses                                         |
 
-Note that either Ollama or a GeminiAPI Key are *required* for chat to function. You can toggle which one you want to use in the UI or from `settings.json`
+Note that either Ollama or a GeminiAPI Key are *required* for chat to function. You can toggle which one you want to use in the UI or from `composeApp/settings.json`.
+I have included a default `settings.json` as well with this app to make the setup easier. That'll be different if this app is published.
+
 
 ### How to Run the App
 Here is a step-by-step guide for running and testing out the app.
 
-###### **Step 1: Clone the Git Repository**
+##### **Step 1: Clone the Git Repository**
 You need to clone the Git Repository into a clean location.
 
 ```git
 git clone https://github.com/JohnLocke117/Krypton.git
 cd krypton
 ```
+> [!important]
+> It is highly recommended to open the project in IntelliJ Idea (or Android Studio) as they will provide a seamless setup process, else you'll have to perform many steps manually ;0
 
-###### **Step 2: Start up the External Services**
+##### **Step 2: Start up the External Services**
 For the best experience, it is recommended to have all of the prerequisites ready.
 As mentioned before, you need either Ollama or Gemini to use the chat features. You can skip one of them if planning on using either.
 
@@ -89,14 +93,6 @@ As mentioned before, you need either Ollama or Gemini to use the chat features. 
 ChromaDB is the VectorDB that we'll be using for RAG here. It is required if you want to query your notes, but not required for just normal chats.
 
 ChromaDB can be installed via the ChromaDB CLI or via a more recommended way that is Docker.
-To install the ChromaDB CLI, use:
-
-```sh
-pip install chromadb
-# Run the server and specify a persistence path
-chroma run --path ./chroma_server_data --port 8000
-```
-
 To run ChromaDB via Docker, run the following commands in a terminal:
 
 ```sh
@@ -117,6 +113,15 @@ docker run -d \
   chromadb/chroma:latest
 ```
 
+To install the ChromaDB CLI, use:
+
+```sh
+pip install chromadb
+# Run the server and specify a persistence path
+chroma run --path ./chroma_server_data --port 8000
+```
+
+
 After the ChromaDB Server is installed, you can make sure that it is running properly on port 8000 via:
 
 ```sh
@@ -130,6 +135,22 @@ Here, we'll setup Ollama for local LLM responses in the chat. We'll be needing a
 You can download the Ollama client from [Ollama Client Download](https://ollama.com/download).
 
 After that, you need to install a *Generator Model* (for the Responses) and an *Embedding Model* (for the RAG). Optionally, you can also install a dedicated Re-Ranker model as well (recommended for the best experience).
+
+The default configuration is:
+
+```json
+{
+	...,
+	"provider": "OLLAMA",
+	"ollamaModel": "llama3.1:8b",
+	...,
+	"embeddingModel": "mxbai-embed-large:335m",
+	...,
+	"rerankerModel": "xitao/bge-reranker-v2-m3",
+}
+```
+
+It is recommended to use these models (via `ollama pull <MODEL-NAME>`) for a quick run-through. If you want to use other models, then you can change in `composeApp/settings.json` or directly from the UI. Continue with the setup below.
 
 ```sh
 # Check if Ollama is installed
@@ -159,7 +180,7 @@ Krypton assumes that Ollama will run by default on `http://localhost:11434`
 ##### **Step 3: Setup Environment Variables**
 Here, we're going to setup some environment variables required by the app to run. By default, all API Keys and variables are stored in a `local.properties` file.
 
-At the project root, create a `local.properties` files. In the file add:
+Also, when you open the project in IntelliJ (or Android Studio), Gradle Sync will automatically create your `local.properties` with the Android SDK Path already set. But, if for some reason, it does not, then you can also at the project root, create a `local.properties` files. In the file add:
 
 ```txt
 sdk.dir=<PATH_TO_ANDROID_SDK>
@@ -173,17 +194,12 @@ CHROMA_DATABASE=<YOUR_CHROMADB_CLOUD_DATABASE_NAME>
 
 GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
 GEMINI_API_KEY=<YOUR_GEMINI_API_KEY>
-
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_GENERATION_MODEL=llama3.1:8b
-OLLAMA_GENERATION_MODEL_CONTEXT_LENGTH=128000
-OLLAMA_EMBEDDING_MODEL=mxbai-embed-large:335m
-OLLAMA_EMBEDDING_MODEL_CONTEXT_LENGTH=512
 ```
 
 Note that:
 1. `sdk.dir` points to the location of the installed Android SDK. It is required to test out the Android app.
-2. All the Chroma Credentials are only required if you want to use ChromaDB Cloud.
+2. `sdk.dir` will already be set during Gradle Sync, or if you install an Android SDK inside IntelliJ, it'll add it automatically.
+3. All the Chroma Credentials are only required if you want to use ChromaDB Cloud.
 
 ##### **Step 4: Run the Desktop App**
 After all is in place, you can build and run the app via gradle.

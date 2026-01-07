@@ -252,7 +252,8 @@ val chatModule = module {
             settingsRepository = settingsRepository,
             conversationRepository = get(),
             memoryProvider = get(),
-            agents = agents
+            agents = agents,
+            llamaClientFactory = { get<LlamaClient>() } // Factory to get new LlamaClient with current settings
         )
     }
 }
