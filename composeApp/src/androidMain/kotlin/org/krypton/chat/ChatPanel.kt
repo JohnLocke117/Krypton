@@ -364,7 +364,10 @@ actual fun ChatPanel(
                         coroutineScope.launch {
                             settingsRepository.update { current ->
                                 current.copy(
-                                    llm = current.llm.copy(provider = provider)
+                                    llm = current.llm.copy(
+                                        provider = provider,
+                                        agentRoutingLlmProvider = provider
+                                    )
                                 )
                             }
                         }

@@ -35,7 +35,10 @@ fun RagSettings(
                 LlmProvider.values().find { it.name.equals(newValue, ignoreCase = true) }?.let { provider ->
                     onSettingsChange(
                         settings.copy(
-                            llm = settings.llm.copy(provider = provider)
+                            llm = settings.llm.copy(
+                                provider = provider,
+                                agentRoutingLlmProvider = provider
+                            )
                         )
                     )
                 }
@@ -56,6 +59,20 @@ fun RagSettings(
                     )
                 },
                 description = "Ollama generator model name (e.g., llama3.2:1b)",
+                theme = theme
+            )
+            
+            InlineTextField(
+                label = "Ollama Embedding Model",
+                value = settings.llm.ollamaEmbeddingModel,
+                onValueChange = { newValue ->
+                    onSettingsChange(
+                        settings.copy(
+                            llm = settings.llm.copy(ollamaEmbeddingModel = newValue)
+                        )
+                    )
+                },
+                description = "Ollama embedding model name (e.g., mxbai-embed-large:335m)",
                 theme = theme
             )
             
@@ -85,6 +102,20 @@ fun RagSettings(
                 description = "Gemini model name (e.g., gemini-2.5-flash)",
                 theme = theme
             )
+            
+            InlineTextField(
+                label = "Gemini Embedding Model",
+                value = settings.llm.geminiEmbeddingModel,
+                onValueChange = { newValue ->
+                    onSettingsChange(
+                        settings.copy(
+                            llm = settings.llm.copy(geminiEmbeddingModel = newValue)
+                        )
+                    )
+                },
+                description = "Gemini embedding model name (e.g., gemini-embedding-001)",
+                theme = theme
+            )
         }
         
         Divider(color = theme.Border)
@@ -111,19 +142,25 @@ fun RagSettings(
             theme = theme
         )
 
-        InlineTextField(
-            label = "Embedding Model",
-            value = settings.rag.embeddingModel,
-            onValueChange = { newValue ->
-                onSettingsChange(
-                    settings.copy(
-                        rag = settings.rag.copy(embeddingModel = newValue)
+        // Deprecated: Show old embedding model field only for backward compatibility
+        // New fields are shown in LLM Provider Settings section above
+        if (settings.rag.embeddingModel.isNotBlank() && 
+            settings.llm.ollamaEmbeddingModel.isBlank() && 
+            settings.llm.geminiEmbeddingModel.isBlank()) {
+            InlineTextField(
+                label = "Embedding Model (Deprecated)",
+                value = settings.rag.embeddingModel,
+                onValueChange = { newValue ->
+                    onSettingsChange(
+                        settings.copy(
+                            rag = settings.rag.copy(embeddingModel = newValue)
+                        )
                     )
-                )
-            },
-            description = "Ollama embedding model name (e.g., nomic-embed-text:v1.5)",
-            theme = theme
-        )
+                },
+                description = "Deprecated: Use Ollama Embedding Model or Gemini Embedding Model in LLM Provider Settings",
+                theme = theme
+            )
+        }
 
         Divider(color = theme.Border)
 

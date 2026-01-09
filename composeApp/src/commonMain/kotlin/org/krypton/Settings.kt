@@ -80,13 +80,15 @@ enum class LlmProvider {
 
 @Serializable
 data class LlmSettings(
-    val provider: LlmProvider = LlmProvider.OLLAMA,
+    val provider: LlmProvider = LlmProvider.GEMINI,
     val ollamaBaseUrl: String = org.krypton.config.RagDefaults.DEFAULT_LLM.baseUrl,
     val ollamaModel: String = org.krypton.config.RagDefaults.DEFAULT_LLM.modelName,
+    val ollamaEmbeddingModel: String = org.krypton.config.RagDefaults.Embedding.DEFAULT_MODEL,
     val geminiModel: String = "gemini-2.5-flash",
+    val geminiEmbeddingModel: String = "gemini-embedding-001",
     /**
      * LLM provider to use for agent intent classification/routing.
-     * If null, defaults to Ollama on Desktop and Gemini on Android.
+     * If null, uses the same provider as the main chat (provider field).
      */
     val agentRoutingLlmProvider: LlmProvider? = null
 )
@@ -104,7 +106,8 @@ data class RagSettings(
     val ragEnabled: Boolean = true,
     @Deprecated("Use Settings.llm.ollamaModel instead")
     val llamaModel: String? = null, // Deprecated, kept for backward compatibility
-    val embeddingModel: String = org.krypton.config.RagDefaults.Embedding.DEFAULT_MODEL,
+    @Deprecated("Use Settings.llm.ollamaEmbeddingModel or Settings.llm.geminiEmbeddingModel instead")
+    val embeddingModel: String = org.krypton.config.RagDefaults.Embedding.DEFAULT_MODEL, // Deprecated, kept for backward compatibility
     val topK: Int = org.krypton.config.RagDefaults.Retrieval.DEFAULT_TOP_K,
     val similarityThreshold: Float = org.krypton.config.RagDefaults.Retrieval.DEFAULT_SIMILARITY_THRESHOLD,
     val maxK: Int = org.krypton.config.RagDefaults.Retrieval.DEFAULT_MAX_K,
@@ -228,7 +231,9 @@ fun mergeSettings(base: Settings, override: Settings): Settings {
             provider = override.llm.provider,
             ollamaBaseUrl = override.llm.ollamaBaseUrl,
             ollamaModel = override.llm.ollamaModel,
+            ollamaEmbeddingModel = override.llm.ollamaEmbeddingModel,
             geminiModel = override.llm.geminiModel,
+            geminiEmbeddingModel = override.llm.geminiEmbeddingModel,
             agentRoutingLlmProvider = override.llm.agentRoutingLlmProvider ?: base.llm.agentRoutingLlmProvider
         ),
         study = base.study.copy(

@@ -207,6 +207,7 @@ fun LlmProviderSelector(
                 .widthIn(max = 150.dp)
         ) {
             availableProviders.forEach { provider ->
+                val isSelected = provider == selectedProvider
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -215,7 +216,7 @@ fun LlmProviderSelector(
                                 LlmProvider.GEMINI -> "Gemini API"
                             },
                             style = MaterialTheme.typography.bodySmall,
-                            color = theme.TextPrimary
+                            color = if (isSelected) theme.Accent else theme.TextPrimary
                         )
                     },
                     onClick = {
@@ -223,7 +224,8 @@ fun LlmProviderSelector(
                         onExpandedChange(false)
                     },
                     colors = MenuDefaults.itemColors(
-                        textColor = theme.TextPrimary
+                        textColor = if (isSelected) theme.Accent else theme.TextPrimary,
+                        leadingIconColor = if (isSelected) theme.Accent else theme.TextPrimary
                     )
                 )
             }

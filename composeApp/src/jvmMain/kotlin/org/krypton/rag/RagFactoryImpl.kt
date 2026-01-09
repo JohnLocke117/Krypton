@@ -42,6 +42,7 @@ actual fun createRagComponents(
     
     // Use provided embedder (from DI) or create one for backward compatibility
     val embedderToUse = embedder ?: run {
+        org.krypton.util.AppLogger.w("RagFactoryImpl", "No embedder provided, creating HttpEmbedder from config (this should not happen with DI)")
         val sanitizer = EmbeddingTextSanitizer(
             maxTokens = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_TOKENS,
             maxChars = org.krypton.config.RagDefaults.Embedding.DEFAULT_EMBEDDING_MAX_CHARS
@@ -54,6 +55,9 @@ actual fun createRagComponents(
             httpClientEngine = httpClientEngine
         )
     }
+    
+    // Log which embedder is being used
+    org.krypton.util.AppLogger.i("RagFactoryImpl", "Using embedder: ${embedderToUse::class.simpleName}")
     
     // Use provided LlamaClient or create a new one
     val llamaClientToUse = llamaClient ?: HttpLlamaClient(

@@ -309,7 +309,8 @@ class GeminiChatService(
                     org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
                     org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
                 }
-                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
+                val embeddingModel = llmSettings.geminiEmbeddingModel.ifBlank { "gemini-embedding-001" }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: $embeddingModel", e)
             }
             throw e
         } catch (e: RagException) {
@@ -324,7 +325,8 @@ class GeminiChatService(
                     org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
                     org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
                 }
-                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
+                val embeddingModel = llmSettings.geminiEmbeddingModel.ifBlank { "gemini-embedding-001" }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: $embeddingModel", e)
             }
             throw ChatException("RAG failed: ${e.message}", e)
         } catch (e: IOException) {
@@ -342,7 +344,8 @@ class GeminiChatService(
                     org.krypton.LlmProvider.OLLAMA -> llmSettings.ollamaModel
                     org.krypton.LlmProvider.GEMINI -> llmSettings.geminiModel
                 }
-                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: ${ragSettings.embeddingModel}", e)
+                val embeddingModel = llmSettings.geminiEmbeddingModel.ifBlank { "gemini-embedding-001" }
+                throw ChatException("Error occurred, please check model name. Generator model: $modelName, Embedding model: $embeddingModel", e)
             }
             throw ChatException("Unexpected chat error: ${e.message}", e)
         }

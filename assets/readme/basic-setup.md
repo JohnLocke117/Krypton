@@ -1,11 +1,11 @@
 # Basic Krypton Setup
 This is just a bare-bones setup for Krypton, if you're short on time and just want to build the app and use it as a Notepad with a Gemini Wrapper :(
 
-This README is supposed to provide a quick 30-second setup, with the Gemini-API
+This README is supposed to provide a quick 30-second setup, with the Gemini-API.
 
 > [!IMPORTANT]
 > In this basic setup, you will not have majority of the features of the app!!!
-> You can perform CRUD on files, use basic chat, and use all the agents. RAG will NOT be available here.
+> You can perform CRUD on files, use basic chat, and use all the agents. RAG & Web Search will NOT be available here.
 
 ## Prerequisites
 

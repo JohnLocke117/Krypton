@@ -15,7 +15,7 @@
     "ui": {
         "ribbonWidth": 48,
         "sidebarMinWidth": 200,
-        "sidebarDefaultWidth": 280,
+        "sidebarDefaultWidth": 320,
         "sidebarMaxWidth": 400,
         "tabHeight": 36,
         "tabPadding": 12,
@@ -50,7 +50,9 @@
         "blockquoteBackground": "#1F1F1F"
     },
     "app": {
-        "recentFolders": [],
+        "recentFolders": [
+            "/Users/vararya/Varun/Test"
+        ],
         "autosaveIntervalSeconds": 60,
         "telemetryEnabled": false,
         "vaultRootUri": null
@@ -78,11 +80,13 @@
         "embeddingMaxChars": 2000
     },
     "llm": {
-        "provider": "OLLAMA",
+        "provider": "GEMINI",
         "ollamaBaseUrl": "http://localhost:11434",
         "ollamaModel": "llama3.1:8b",
+        "ollamaEmbeddingModel": "mxbai-embed-large:335m",
         "geminiModel": "gemini-2.5-flash",
-        "agentRoutingLlmProvider": null
+        "geminiEmbeddingModel": "gemini-embedding-001",
+        "agentRoutingLlmProvider": "GEMINI"
     },
     "study": {
         "maxNotes": 5,

@@ -22,6 +22,7 @@ import org.krypton.ObsidianThemeValues
  * @param success Whether the operation completed successfully
  * @param title Dialog title (defaults to "Index Vault")
  * @param message Custom message (optional, uses default if null)
+ * @param embeddingModelName Name of the embedding model to show in warning (optional)
  * @param theme Theme values
  */
 @Composable
@@ -33,6 +34,7 @@ fun IngestionPromptDialog(
     success: Boolean = false,
     title: String = "Index Vault",
     message: String? = null,
+    embeddingModelName: String? = null,
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
@@ -65,6 +67,16 @@ fun IngestionPromptDialog(
                     style = MaterialTheme.typography.headlineSmall,
                     color = theme.TextPrimary
                 )
+                
+                // Warning message (only show before ingestion starts)
+                if (!isIngesting && !success && errorMessage == null && embeddingModelName != null) {
+                    Text(
+                        text = "Ingestion can be an expensive operation, are you sure you want to continue with $embeddingModelName?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFFFA726), // Orange for warning
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 
                 // Message
                 Text(
@@ -106,10 +118,10 @@ fun IngestionPromptDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Cancel/Close button
+                    // Cancel/Close button (always enabled to allow cancellation)
                     TextButton(
                         onClick = onCancel,
-                        enabled = !isIngesting,
+                        enabled = true, // Always enabled to allow cancellation
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(

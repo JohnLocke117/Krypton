@@ -47,7 +47,10 @@ class SettingsRepositoryImpl(
                 migrated.rag.vectorBackend != org.krypton.VectorBackend.CHROMA_CLOUD) {
                 AppLogger.w("SettingsRepositoryImpl", "Loaded settings have unsupported values, overriding with Android defaults")
                 migrated.copy(
-                    llm = migrated.llm.copy(provider = org.krypton.LlmProvider.GEMINI),
+                    llm = migrated.llm.copy(
+                        provider = org.krypton.LlmProvider.GEMINI,
+                        agentRoutingLlmProvider = org.krypton.LlmProvider.GEMINI
+                    ),
                     rag = migrated.rag.copy(vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD)
                 )
             } else {
@@ -77,7 +80,8 @@ class SettingsRepositoryImpl(
                 vectorBackend = org.krypton.VectorBackend.CHROMA_CLOUD
             ),
             llm = Settings().llm.copy(
-                provider = org.krypton.LlmProvider.GEMINI
+                provider = org.krypton.LlmProvider.GEMINI,
+                agentRoutingLlmProvider = org.krypton.LlmProvider.GEMINI
             )
         )
     }

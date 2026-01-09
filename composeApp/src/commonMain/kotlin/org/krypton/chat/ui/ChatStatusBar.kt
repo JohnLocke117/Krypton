@@ -20,11 +20,13 @@ fun ChatStatusBar(
     llmProviderError: String?,
     chatError: String?,
     agentError: String?,
+    healthCheckError: String? = null,
     onDismissRebuildStatus: () -> Unit,
     onDismissTavilyError: () -> Unit,
     onDismissLlmProviderError: () -> Unit,
     onDismissChatError: () -> Unit,
     onDismissAgentError: () -> Unit,
+    onDismissHealthCheckError: () -> Unit = {},
     theme: ObsidianThemeValues,
     modifier: Modifier = Modifier
 ) {
@@ -252,6 +254,46 @@ fun ChatStatusBar(
                     )
                     TextButton(
                         onClick = onDismissAgentError,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Dismiss")
+                    }
+                }
+            }
+        }
+        
+        // Health check error message (auto-dismisses after 5 seconds)
+        healthCheckError?.let { errorMsg ->
+            // Auto-dismiss after 5 seconds
+            androidx.compose.runtime.LaunchedEffect(errorMsg) {
+                kotlinx.coroutines.delay(5000)
+                onDismissHealthCheckError()
+            }
+            
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = errorMsg,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = onDismissHealthCheckError,
                         colors = ButtonDefaults.textButtonColors(
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )

@@ -45,12 +45,11 @@ cd Krypton
 For this complete run, we'll setup all the services. You can skip some if you're feeling like it ;)
 
 #### **Setup Ollama**
-*This is Optional if you just want to use GeminiAPI. You can skip this part.*
+(*This is Optional if you just want to use GeminiAPI. You can skip this part.*)
 
 Here, we'll setup Ollama for local LLM responses in the chat. We'll be needing a Generator model, an Embedding Model, and a (optional) Re-Ranker Model.
 You can download the Ollama client from [Ollama Client Download](https://ollama.com/download).
 
-After that, you need to install a *Generator Model* (for the Responses) and an *Embedding Model* (for the RAG). Optionally, you can also install a dedicated Re-Ranker model as well (recommended for the best experience).
 
 ```sh
 # Check if Ollama is installed
@@ -79,13 +78,13 @@ Krypton assumes that Ollama will run by default on `http://localhost:11434`.
 It is recommended to use the above-mentioned models for a quick run-through. If you want to use other models, then you can change in `composeApp/settings.json` or directly from the app settings UI.
 
 #### **Get Tavilly API Key**
-*Tavilly is used for enabling Web Search in the Chat. You CAN SKIP this part if you don't require web searches*
+(*Tavilly is used for enabling Web Search in the Chat. You CAN SKIP this part if you don't require web searches*)
 
 Go to [Tavilly](https://app.tavily.com/home), create your free account, and copy the API Key.
 
 
 #### **Setup ChromaDB**
-*ChromaDB is required for enabling RAG in the chat. You can skip this part if you just want to chat normally.*
+(*ChromaDB is required for enabling RAG in the chat. You can skip this part if you just want to chat normally.*)
 
 ChromaDB is the VectorDB that we'll be using for RAG here. It is required if you want to query your notes, but not required for just normal chats.
 
@@ -124,6 +123,7 @@ curl --location 'http://localhost:8000/api/v2/healthcheck'
 OR
 
 **Setup ChromaDB Cloud**
+
 You can also setup a VectorDB in ChromaDB Cloud. Follow these steps:
 - Go to [ChromaDB Cloud](https://www.trychroma.com/) and create a free account
 - After that, create a Database named `defaultDB`

@@ -48,6 +48,11 @@ import org.krypton.util.SecretsLoader
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
+import io.ktor.client.*
+import io.ktor.client.engine.*
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.*
+import io.ktor.http.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -171,6 +176,9 @@ actual fun ChatPanel(
     // Error state for Tavily toggle attempts without API key
     var tavilyError by remember { mutableStateOf<String?>(null) }
     
+    // Error state for health check failures
+    var healthCheckError by remember { mutableStateOf<String?>(null) }
+    
     // LLM provider selection state - sync with settings
     var selectedLlmProvider by remember { mutableStateOf(currentSettings.llm.provider) }
     var llmProviderDropdownExpanded by remember { mutableStateOf(false) }
@@ -194,20 +202,31 @@ actual fun ChatPanel(
     var rebuildStatus by remember { mutableStateOf<UiStatus?>(null) }
     
     // Get RAG components and extended services
-    val ragComponents: RagComponents? = remember {
+    // Make it reactive to LLM provider changes so embedder updates when provider changes
+    // Use provider as key to force recreation when it changes
+    val ragComponents: RagComponents? = remember(currentSettings.llm.provider) {
+        AppLogger.d("ChatPanel", "Recreating RagComponents for provider: ${currentSettings.llm.provider}")
         try {
-            koin.getOrNull<RagComponents>()
+            val components = koin.getOrNull<RagComponents>()
+            AppLogger.d("ChatPanel", "RagComponents created: ${components != null}, embedder: ${components?.embedder?.javaClass?.simpleName}")
+            components
         } catch (e: Exception) {
+            AppLogger.e("ChatPanel", "Failed to get RagComponents: ${e.message}", e)
             null
         }
     }
     
     // Get extended RAG components with sync services from DI
-    // Make it reactive to vectorBackend changes so re-ingestion uses the correct backend
-    val extendedRagComponents: ExtendedRagComponents? = remember(selectedBackend) {
+    // Make it reactive to vectorBackend and LLM provider changes so re-ingestion uses the correct backend and embedder
+    // Use both backend and provider as keys to force recreation when either changes
+    val extendedRagComponents: ExtendedRagComponents? = remember(selectedBackend, currentSettings.llm.provider) {
+        AppLogger.d("ChatPanel", "Recreating ExtendedRagComponents for backend: $selectedBackend, provider: ${currentSettings.llm.provider}")
         try {
-            koin.getOrNull<ExtendedRagComponents>()
+            val components = koin.getOrNull<ExtendedRagComponents>()
+            AppLogger.d("ChatPanel", "ExtendedRagComponents created: ${components != null}, embedder: ${components?.base?.embedder?.javaClass?.simpleName}")
+            components
         } catch (e: Exception) {
+            AppLogger.e("ChatPanel", "Failed to get ExtendedRagComponents: ${e.message}", e)
             null
         }
     }
@@ -217,8 +236,11 @@ actual fun ChatPanel(
     
     // Re-index prompt dialog state
     var showReindexPrompt by remember { mutableStateOf(false) }
+    var showReindexButtonPrompt by remember { mutableStateOf(false) }
+    var userWantsToReindexFromButton by remember { mutableStateOf(false) }
     
     // RAG activation manager
+    // Recreate when extendedRagComponents changes (which happens when provider or backend changes)
     val ragActivationManager: RagActivationManager? = remember(extendedRagComponents) {
         extendedRagComponents?.let {
             RagActivationManager(
@@ -356,11 +378,13 @@ actual fun ChatPanel(
             llmProviderError = llmProviderError,
             chatError = error,
             agentError = agentError,
+            healthCheckError = healthCheckError,
             onDismissRebuildStatus = { rebuildStatus = null },
             onDismissTavilyError = { tavilyError = null },
             onDismissLlmProviderError = { llmProviderError = null },
             onDismissChatError = { chatStateHolder.clearError() },
             onDismissAgentError = { chatStateHolder.clearAgentError() },
+            onDismissHealthCheckError = { healthCheckError = null },
             theme = theme
         )
 
@@ -528,7 +552,10 @@ actual fun ChatPanel(
                                         coroutineScope.launch {
                                             settingsRepository.update { current ->
                                                 current.copy(
-                                                    llm = current.llm.copy(provider = LlmProvider.OLLAMA)
+                                                    llm = current.llm.copy(
+                                                        provider = LlmProvider.OLLAMA,
+                                                        agentRoutingLlmProvider = LlmProvider.OLLAMA
+                                                    )
                                                 )
                                             }
                                         }
@@ -539,7 +566,10 @@ actual fun ChatPanel(
                                 coroutineScope.launch {
                                     settingsRepository.update { current ->
                                         current.copy(
-                                            llm = current.llm.copy(provider = provider)
+                                            llm = current.llm.copy(
+                                                provider = provider,
+                                                agentRoutingLlmProvider = provider
+                                            )
                                         )
                                     }
                                 }
@@ -764,42 +794,8 @@ actual fun ChatPanel(
                                 loading = rebuildStatus is UiStatus.Loading || isIngesting,
                                 syncStatus = syncStatus,
                                 onReindex = {
-                                    if (currentVaultPath != null && extendedRagComponents != null) {
-                                        // Use ingestionScope for long-running operation
-                                        ingestionScope.launch {
-                                            try {
-                                                withContext(Dispatchers.Main) {
-                                                    rebuildStatus = UiStatus.Loading
-                                                    isIngesting = true
-                                                }
-                                                
-                                                // Get existing metadata to enable incremental indexing
-                                                val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
-                                                val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
-                                                
-                                                extendedRagComponents.base.indexer.indexVault(
-                                                    rootPath = currentVaultPath,
-                                                    existingFileHashes = existingHashes
-                                                )
-                                                
-                                                // Update sync status on IO thread, then update UI
-                                                val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
-                                                withContext(Dispatchers.Main) {
-                                                    syncStatus = newSyncStatus
-                                                    rebuildStatus = UiStatus.Success
-                                                    isIngesting = false
-                                                }
-                                            } catch (e: Exception) {
-                                                withContext(Dispatchers.Main) {
-                                                    rebuildStatus = UiStatus.Error(
-                                                        e.message ?: "Failed to rebuild vector database",
-                                                        recoverable = true
-                                                    )
-                                                    isIngesting = false
-                                                }
-                                            }
-                                        }
-                                    }
+                                    // Show warning dialog first
+                                    showReindexButtonPrompt = true
                                 },
                                 theme = theme
                             )
@@ -880,6 +876,22 @@ actual fun ChatPanel(
         }
     }
     
+    // Get current embedding model name based on LLM provider
+    val currentEmbeddingModelName = remember(currentSettings.llm.provider, currentSettings.llm.ollamaEmbeddingModel, currentSettings.llm.geminiEmbeddingModel, currentSettings.rag.embeddingModel) {
+        when (currentSettings.llm.provider) {
+            LlmProvider.GEMINI -> {
+                // Use geminiEmbeddingModel if available, otherwise default
+                currentSettings.llm.geminiEmbeddingModel.ifBlank { "gemini-embedding-001" }
+            }
+            LlmProvider.OLLAMA -> {
+                // Use ollamaEmbeddingModel if available, otherwise fall back to deprecated embeddingModel
+                currentSettings.llm.ollamaEmbeddingModel.ifBlank { 
+                    currentSettings.rag.embeddingModel.ifBlank { "nomic-embed-text:v1.5" }
+                }
+            }
+        }
+    }
+    
     if (showDialog) {
         IngestionPromptDialog(
             onContinue = {
@@ -909,6 +921,7 @@ actual fun ChatPanel(
                 isIngesting -> "Indexing vault to $currentBackendName... This may take a few minutes."
                 else -> "This vault hasn't been indexed yet. Indexing will generate embeddings for all markdown files in $currentBackendName. This may take a few minutes."
             },
+            embeddingModelName = if (!isIngesting && !ingestionSuccess && ingestionError == null) currentEmbeddingModelName else null,
             theme = theme
         )
     }
@@ -1019,21 +1032,213 @@ actual fun ChatPanel(
                 isIngesting -> "Re-indexing vault to $currentBackendName... This may take a few minutes."
                 else -> "Some files in this vault have changed. Re-indexing will update embeddings for changed files only in $currentBackendName."
             },
+            embeddingModelName = if (!isIngesting && !reindexSuccess && reindexError == null) currentEmbeddingModelName else null,
             theme = theme
         )
+    }
+    
+    // Re-index button prompt dialog (for ReindexControls button)
+    if (showReindexButtonPrompt) {
+        IngestionPromptDialog(
+            onContinue = {
+                if (!isIngesting) {
+                    userWantsToReindexFromButton = true
+                    showReindexButtonPrompt = false
+                }
+            },
+            onCancel = {
+                if (!isIngesting) {
+                    showReindexButtonPrompt = false
+                }
+            },
+            isIngesting = isIngesting,
+            errorMessage = null,
+            success = false,
+            title = "Re-index Vault",
+            message = "Re-indexing will update embeddings for all markdown files. This may take a few minutes.",
+            embeddingModelName = if (!isIngesting) currentEmbeddingModelName else null,
+            theme = theme
+        )
+    }
+    
+    // Helper function to check LLM health (Ollama or Gemini)
+    suspend fun checkLlmHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            when (currentSettings.llm.provider) {
+                LlmProvider.OLLAMA -> {
+                    // Check Ollama health by checking if the service is reachable
+                    // Use a lightweight check: try to list models
+                    val httpEngine: HttpClientEngine = koin.get()
+                    val client = HttpClient(httpEngine) {
+                        install(HttpTimeout) {
+                            requestTimeoutMillis = 5_000 // 5 seconds timeout for health check
+                            connectTimeoutMillis = 3_000
+                        }
+                    }
+                    try {
+                        val response = client.get("${currentSettings.llm.ollamaBaseUrl}/api/tags")
+                        val isHealthy = response.status.value in 200..299
+                        client.close()
+                        if (!isHealthy) {
+                            AppLogger.w("ChatPanel", "Ollama health check failed: ${response.status}")
+                        }
+                        isHealthy
+                    } catch (e: Exception) {
+                        client.close()
+                        AppLogger.e("ChatPanel", "Ollama health check failed: ${e.message}", e)
+                        false
+                    }
+                }
+                LlmProvider.GEMINI -> {
+                    // Check Gemini health by making a minimal test request
+                    val llamaClient: org.krypton.rag.LlamaClient = koin.get()
+                    try {
+                        // Use a very short prompt for health check
+                        llamaClient.complete("Hi")
+                        true
+                    } catch (e: Exception) {
+                        AppLogger.e("ChatPanel", "Gemini health check failed: ${e.message}", e)
+                        false
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e("ChatPanel", "LLM health check failed: ${e.message}", e)
+            false
+        }
+    }
+    
+    // Helper function to check ChromaDB health
+    suspend fun checkChromaDbHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val healthService = extendedRagComponents?.healthService
+            if (healthService != null) {
+                val healthStatus = healthService.checkHealth()
+                healthStatus == org.krypton.rag.HealthStatus.HEALTHY
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            AppLogger.e("ChatPanel", "ChromaDB health check failed: ${e.message}", e)
+            false
+        }
+    }
+    
+    // Handle re-indexing from button after user confirms
+    LaunchedEffect(userWantsToReindexFromButton) {
+        if (userWantsToReindexFromButton && currentVaultPath != null && extendedRagComponents != null) {
+            userWantsToReindexFromButton = false
+            
+            ingestionScope.launch {
+                try {
+                    // Perform health checks before starting re-ingestion
+                    withContext(Dispatchers.Main) {
+                        isIngesting = true
+                        rebuildStatus = UiStatus.Loading
+                        healthCheckError = null
+                    }
+                    
+                    // Check LLM health
+                    val llmHealthy = checkLlmHealth()
+                    if (!llmHealthy) {
+                        val providerName = when (currentSettings.llm.provider) {
+                            LlmProvider.OLLAMA -> "Ollama"
+                            LlmProvider.GEMINI -> "Gemini"
+                        }
+                        withContext(Dispatchers.Main) {
+                            isIngesting = false
+                            rebuildStatus = null
+                            healthCheckError = "$providerName is not available. Please check your connection and try again."
+                        }
+                        return@launch
+                    }
+                    
+                    // Check ChromaDB health
+                    val chromaDbHealthy = checkChromaDbHealth()
+                    if (!chromaDbHealthy) {
+                        withContext(Dispatchers.Main) {
+                            isIngesting = false
+                            rebuildStatus = null
+                            healthCheckError = "ChromaDB is not available. Please check your connection and try again."
+                        }
+                        return@launch
+                    }
+                    
+                    // All health checks passed, proceed with re-indexing
+                    // Get existing metadata to enable incremental indexing
+                    val existingMetadata = extendedRagComponents.vaultMetadataService.getVaultMetadata(currentVaultPath)
+                    val existingHashes = existingMetadata?.indexedFileHashes ?: emptyMap()
+                    
+                    extendedRagComponents.base.indexer.indexVault(
+                        rootPath = currentVaultPath,
+                        existingFileHashes = existingHashes
+                    )
+                    
+                    // Update sync status on IO thread, then update UI
+                    val newSyncStatus = extendedRagComponents.vaultSyncService.checkSyncStatus(currentVaultPath)
+                    withContext(Dispatchers.Main) {
+                        syncStatus = newSyncStatus
+                        rebuildStatus = UiStatus.Success
+                        isIngesting = false
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        rebuildStatus = UiStatus.Error(
+                            e.message ?: "Failed to rebuild vector database",
+                            recoverable = true
+                        )
+                        isIngesting = false
+                    }
+                }
+            }
+        }
     }
     
     // Handle re-indexing after user confirms
     LaunchedEffect(userWantsToReindex) {
         if (userWantsToReindex && ragActivationManager != null && currentVaultPath != null) {
             userWantsToReindex = false
-            isIngesting = true
-            reindexError = null
-            reindexSuccess = false
             
             // Use ingestionScope for long-running operation
             ingestionScope.launch {
                 try {
+                    // Perform health checks before starting re-ingestion
+                    withContext(Dispatchers.Main) {
+                        isIngesting = true
+                        reindexError = null
+                        reindexSuccess = false
+                        healthCheckError = null
+                    }
+                    
+                    // Check LLM health
+                    val llmHealthy = checkLlmHealth()
+                    if (!llmHealthy) {
+                        val providerName = when (currentSettings.llm.provider) {
+                            LlmProvider.OLLAMA -> "Ollama"
+                            LlmProvider.GEMINI -> "Gemini"
+                        }
+                        withContext(Dispatchers.Main) {
+                            isIngesting = false
+                            healthCheckError = "$providerName is not available. Please check your connection and try again."
+                        }
+                        return@launch
+                    }
+                    
+                    // Check ChromaDB health
+                    val chromaDbHealthy = if (extendedRagComponents != null) {
+                        checkChromaDbHealth()
+                    } else {
+                        false
+                    }
+                    if (!chromaDbHealthy) {
+                        withContext(Dispatchers.Main) {
+                            isIngesting = false
+                            healthCheckError = "ChromaDB is not available. Please check your connection and try again."
+                        }
+                        return@launch
+                    }
+                    
+                    // All health checks passed, proceed with re-indexing
                     val result = ragActivationManager.activateRag(
                         vaultPath = currentVaultPath,
                         onIngestionNeeded = { false }, // Not needed
