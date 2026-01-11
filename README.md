@@ -1,5 +1,3 @@
-# Krypton
-
 ![banner](assets/images/banner.png)
 
 
