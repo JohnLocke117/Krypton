@@ -4,6 +4,13 @@ Krypton is an AI-Powered Markdown Workspace for Learning and Research, built for
 You can treat Krypton as your final knowledge base and your second brain, as mentioned above. You can query your notes, make edits, learn a topic quickly, or learn a topic in detail. You can create timed Study Plans and generate flashcards as well for a quick crash course over a topic.
 
 
+----
+## Demonstration
+Click below to watch the Video Demonstration for Krypton:
+
+[![Watch the demo](https://img.youtube.com/vi/wDchsz8nmbo/hqdefault.jpg)](https://www.youtube.com/watch?v=wDchsz8nmbo)
+
+
 ---
 ## High-Level Overview
 Here is a very basic high-level architecture of the app:
