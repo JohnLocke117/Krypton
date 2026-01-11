@@ -12,7 +12,7 @@ Click below to watch the Video Demonstration for Krypton:
 [![Watch the demo](https://img.youtube.com/vi/wDchsz8nmbo/hqdefault.jpg)](https://www.youtube.com/watch?v=wDchsz8nmbo)
 
 ### Google Drive
-[Watch the Demo on GDrive](https://drive.google.com/file/d/1SKAjyAOgGQ4OjU66oxJet5Gn9nYLbxfm/view?usp=sharing)
+[![Watch the demo](assets/images/demo-thumbnail.jpg)](https://drive.google.com/file/d/1SKAjyAOgGQ4OjU66oxJet5Gn9nYLbxfm/view?usp=sharing)
 
 
 ---
