@@ -1,4 +1,8 @@
 # Krypton
+
+![banner](assets/images/banner.png)
+
+
 Krypton is an AI-Powered Markdown Workspace for Learning and Research, built for Desktop and Android. Built with Kotlin Multiplatform, Krypton combines intelligent note-taking with a RAG-Powered Chat, Semantic Search, and Goal-Driven study tools to create a comprehensive knowledge management system and a "**Second Brain**".
 
 You can treat Krypton as your final knowledge base and your second brain, as mentioned above. You can query your notes, make edits, learn a topic quickly, or learn a topic in detail. You can create timed Study Plans and generate flashcards as well for a quick crash course over a topic.
@@ -6,8 +10,8 @@ You can treat Krypton as your final knowledge base and your second brain, as men
 
 ----
 ## Demonstration
-Click below to watch the Video Demonstration for Krypton: 
-[Watch the demo](https://drive.google.com/file/d/1SKAjyAOgGQ4OjU66oxJet5Gn9nYLbxfm/view?usp=sharing)
+Click here to watch the Video Demonstration for Krypton: 
+[Watch the demo](https://drive.google.com/file/d/1AFbPwPyZFQ04wNATsQCsDo1DSFZVaPo8/view?usp=sharing)
 
 
 ---
