@@ -12,6 +12,9 @@ Click here to watch the Video Demonstration for Krypton:
 [Watch the demo](https://drive.google.com/file/d/1AFbPwPyZFQ04wNATsQCsDo1DSFZVaPo8/view?usp=sharing)
 
 
+![Demo-SS](assets/images/Demo-SS.png)
+
+
 ---
 ## High-Level Overview
 Here is a very basic high-level architecture of the app:
