@@ -72,6 +72,12 @@ Here are two ways to setup Krypton. Complete Setup is recommended to test out al
 | [Complete Setup](assets/readme/complete-setup.md) | Complete Krypton setup. Recommended.                      |
 | [Basic Setup](assets/readme/basic-setup.md)       | Just the basic setup, use this to test if the app builds. |
 
+### Sample Vault
+Here is a sample vault of some Markdown Documents so that you can test Krypton out:
+[Git](https://drive.google.com/drive/folders/1cVB0AeWUgBFQB794R17EqQGz37FrFzyK?usp=sharing)
+
+You can also use your own vault.
+
 
 ----
 ## Detailed Overview of the App
