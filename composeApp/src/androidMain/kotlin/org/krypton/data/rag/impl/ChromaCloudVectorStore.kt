@@ -174,12 +174,25 @@ class ChromaCloudVectorStore(
             val collectionIdToUse = collectionId
                 ?: throw ChromaDBException("Collection ID not available for search")
             
+            // Detect collection's expected dimension before querying
+            val collectionDimension = getEmbeddingDimension(collectionIdToUse)
+            val queryDimension = queryEmbedding.vector.size
+            
             // Log query execution
             AppLogger.d("ChromaCloudVectorStore", "Running Query on Collection")
             AppLogger.d("ChromaCloudVectorStore", "  Collection Name: $collectionName")
             AppLogger.d("ChromaCloudVectorStore", "  Collection ID: $collectionIdToUse")
             AppLogger.d("ChromaCloudVectorStore", "  Top K: $topK")
-            AppLogger.d("ChromaCloudVectorStore", "  Query Embedding Dimension: ${queryEmbedding.vector.size}")
+            AppLogger.d("ChromaCloudVectorStore", "  Collection Expected Dimension: $collectionDimension")
+            AppLogger.d("ChromaCloudVectorStore", "  Query Embedding Dimension: $queryDimension")
+            
+            // Check for dimension mismatch before querying
+            if (queryDimension != collectionDimension) {
+                val errorMsg = "Dimension mismatch: Collection expects embeddings with dimension $collectionDimension, but query embedding has dimension $queryDimension. " +
+                        "Please ensure the embedding model on Android matches the dimension used when creating the collection on Desktop."
+                AppLogger.e("ChromaCloudVectorStore", errorMsg, null)
+                throw ChromaDBException(errorMsg)
+            }
             
             // Build where clause from filters
             val whereClause = if (filters.isNotEmpty()) {
@@ -213,8 +226,14 @@ class ChromaCloudVectorStore(
                 
                 // Check for dimension mismatch error and provide helpful message
                 if (errorBody.contains("dimension") && errorBody.contains("expecting")) {
-                    AppLogger.e("ChromaCloudVectorStore", "Dimension mismatch detected. Collection expects a different embedding dimension than what Gemini returned.", null)
-                    AppLogger.e("ChromaCloudVectorStore", "Solution: Recreate the collection on Desktop using Gemini embeddings (3072 dimensions) or use a different embedding model that matches the collection dimension.", null)
+                    // Try to parse the expected dimension from the error message
+                    val expectedDimMatch = Regex("dimension of (\\d+)").find(errorBody)
+                    val gotDimMatch = Regex("got (\\d+)").find(errorBody)
+                    val expectedDim = expectedDimMatch?.groupValues?.get(1) ?: "unknown"
+                    val gotDim = gotDimMatch?.groupValues?.get(1) ?: "unknown"
+                    
+                    AppLogger.e("ChromaCloudVectorStore", "Dimension mismatch detected. Collection expects dimension $expectedDim, but got $gotDim.", null)
+                    AppLogger.e("ChromaCloudVectorStore", "Solution: Change the Android embedder outputDimension to $expectedDim to match the collection, or recreate the collection on Desktop with dimension $gotDim.", null)
                 }
                 
                 throw ChromaDBException(errorMsg)
@@ -490,11 +509,11 @@ class ChromaCloudVectorStore(
             }
         }
         
-        // If we couldn't detect, default to 1024 (mxbai-embed-large is now the default)
-        val finalDimension = detectedDimension ?: 1024
+        // If we couldn't detect, default to 768 (matches Gemini embedder default)
+        val finalDimension = detectedDimension ?: 768
         
         if (detectedDimension == null) {
-            AppLogger.w("ChromaCloudVectorStore", "Could not detect embedding dimension, defaulting to 1024 (mxbai-embed-large)")
+            AppLogger.w("ChromaCloudVectorStore", "Could not detect embedding dimension, defaulting to 768 (Gemini embedder default)")
         }
         
         // Cache and return the dimension

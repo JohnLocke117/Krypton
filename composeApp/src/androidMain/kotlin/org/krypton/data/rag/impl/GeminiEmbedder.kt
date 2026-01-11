@@ -26,14 +26,14 @@ import org.krypton.util.AppLogger
  * @param apiKey Gemini API key from secrets (same as GeminiClient)
  * @param baseUrl Base URL for Gemini API (default: "https://generativelanguage.googleapis.com/v1beta")
  * @param model Embedding model name (default: "gemini-embedding-001")
- * @param outputDimension Output dimension for embeddings (default: 1024 to match common collections)
+ * @param outputDimension Output dimension for embeddings (default: 768 to match Desktop/collection dimension)
  * @param httpClientEngine HTTP client engine (platform-specific)
  */
 class GeminiEmbedder(
     private val apiKey: String,
     private val baseUrl: String = "https://generativelanguage.googleapis.com/v1beta",
     private val model: String = "gemini-embedding-001",
-    private val outputDimension: Int = 1024,
+    private val outputDimension: Int = 768,
     httpClientEngine: HttpClientEngine
 ) : Embedder {
     

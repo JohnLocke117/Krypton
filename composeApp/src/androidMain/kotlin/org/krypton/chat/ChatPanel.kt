@@ -716,7 +716,11 @@ actual fun ChatPanel(
                         },
                         enabled = inputText.isNotBlank() && !isLoading
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send")
+                        Icon(
+                            Icons.Default.Send,
+                            contentDescription = "Send",
+                            tint = Color.White
+                        )
                     }
                 }
             }
