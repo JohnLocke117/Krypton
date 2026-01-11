@@ -15,13 +15,16 @@ import org.krypton.util.AppLogger
 
 /**
  * Service for checking ChromaDB health and connectivity.
+ * 
+ * @param apiKey Optional API key for ChromaDB Cloud authentication. If provided, adds X-Chroma-Token header to requests.
  */
 class ChromaDBHealthService(
     private val baseUrl: String,
     private val collectionName: String,
     private val httpClientEngine: HttpClientEngine,
     private val tenant: String = "default",
-    private val database: String = "defaultDB"
+    private val database: String = "defaultDB",
+    private val apiKey: String? = null
 ) {
     
     private val collectionsBasePath = "$baseUrl/api/v2/tenants/$tenant/databases/$database/collections"
@@ -34,6 +37,13 @@ class ChromaDBHealthService(
         }
     }
     
+    // Helper to add auth header to requests when using ChromaDB Cloud
+    private fun HttpRequestBuilder.addAuthHeaderIfNeeded() {
+        apiKey?.let {
+            header("X-Chroma-Token", it)
+        }
+    }
+    
     /**
      * Checks the health of ChromaDB.
      * 
@@ -42,14 +52,18 @@ class ChromaDBHealthService(
     suspend fun checkHealth(): HealthStatus = withContext(Dispatchers.IO) {
         try {
             // First check healthcheck endpoint
-            val healthcheckResponse = client.get("$baseUrl/api/v2/healthcheck")
+            val healthcheckResponse = client.get("$baseUrl/api/v2/healthcheck") {
+                addAuthHeaderIfNeeded()
+            }
             if (healthcheckResponse.status != HttpStatusCode.OK) {
                 AppLogger.w("ChromaDBHealthService", "Healthcheck failed: ${healthcheckResponse.status}")
                 return@withContext HealthStatus.UNHEALTHY
             }
             
             // Then check if collection exists and is accessible (get collection ID from name)
-            val collectionResponse = client.get("$collectionsBasePath/$collectionName")
+            val collectionResponse = client.get("$collectionsBasePath/$collectionName") {
+                addAuthHeaderIfNeeded()
+            }
             if (collectionResponse.status == HttpStatusCode.OK) {
                 AppLogger.d("ChromaDBHealthService", "ChromaDB is healthy")
                 return@withContext HealthStatus.HEALTHY
@@ -75,7 +89,9 @@ class ChromaDBHealthService(
      */
     suspend fun isCollectionAccessible(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val response = client.get("$collectionsBasePath/$collectionName")
+            val response = client.get("$collectionsBasePath/$collectionName") {
+                addAuthHeaderIfNeeded()
+            }
             return@withContext response.status == HttpStatusCode.OK
         } catch (e: Exception) {
             AppLogger.e("ChromaDBHealthService", "Collection accessibility check failed: ${e.message}", e)
@@ -93,7 +109,9 @@ class ChromaDBHealthService(
             AppLogger.i("IngestionPipeline", "Checking if tenant '$tenant' exists...")
             
             // Check if tenant exists
-            val checkResponse = client.get("$baseUrl/api/v2/tenants/$tenant")
+            val checkResponse = client.get("$baseUrl/api/v2/tenants/$tenant") {
+                addAuthHeaderIfNeeded()
+            }
             
             if (checkResponse.status == HttpStatusCode.OK) {
                 AppLogger.i("IngestionPipeline", "✓ Tenant '$tenant' already exists")
@@ -106,6 +124,7 @@ class ChromaDBHealthService(
                 
                 val createRequest = CreateTenantRequest(name = tenant)
                 val createResponse = client.post("$baseUrl/api/v2/tenants") {
+                    addAuthHeaderIfNeeded()
                     contentType(ContentType.Application.Json)
                     setBody(createRequest)
                 }
@@ -141,7 +160,9 @@ class ChromaDBHealthService(
             AppLogger.i("IngestionPipeline", "Checking if database '$database' exists in tenant '$tenant'...")
             
             // Check if database exists
-            val checkResponse = client.get("$baseUrl/api/v2/tenants/$tenant/databases/$database")
+            val checkResponse = client.get("$baseUrl/api/v2/tenants/$tenant/databases/$database") {
+                addAuthHeaderIfNeeded()
+            }
             
             if (checkResponse.status == HttpStatusCode.OK) {
                 AppLogger.i("IngestionPipeline", "✓ Database '$database' already exists in tenant '$tenant'")
@@ -154,6 +175,7 @@ class ChromaDBHealthService(
                 
                 val createRequest = CreateDatabaseRequest(name = database)
                 val createResponse = client.post("$baseUrl/api/v2/tenants/$tenant/databases") {
+                    addAuthHeaderIfNeeded()
                     contentType(ContentType.Application.Json)
                     setBody(createRequest)
                 }

@@ -58,7 +58,7 @@
         "vaultRootUri": null
     },
     "rag": {
-        "vectorBackend": "CHROMADB",
+        "vectorBackend": "CHROMA_CLOUD",
         "llamaBaseUrl": null,
         "embeddingBaseUrl": "http://localhost:11434",
         "chromaBaseUrl": "http://localhost:8000",

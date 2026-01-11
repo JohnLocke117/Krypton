@@ -390,21 +390,51 @@ val ragModule = module {
                     rerankerModel = ragSettings.rerankerModel
                 )
                 
+                // Determine the correct base URL, tenant, database, and API key based on vector backend
+                val baseUrl: String
+                val tenant: String
+                val database: String
+                val apiKey: String?
+                
+                when (ragSettings.vectorBackend) {
+                    VectorBackend.CHROMA_CLOUD -> {
+                        val host = SecretsLoader.loadSecret("CHROMA_HOST") ?: "api.trychroma.com"
+                        tenant = SecretsLoader.loadSecret("CHROMA_TENANT") ?: "default"
+                        database = SecretsLoader.loadSecret("CHROMA_DATABASE") ?: "defaultDB"
+                        apiKey = SecretsLoader.loadSecret("CHROMA_API_KEY")
+                        
+                        // Ensure baseUrl uses https
+                        baseUrl = if (host.startsWith("http://") || host.startsWith("https://")) {
+                            host
+                        } else {
+                            "https://$host"
+                        }
+                    }
+                    VectorBackend.CHROMADB -> {
+                        baseUrl = config.chromaBaseUrl
+                        tenant = config.chromaTenant
+                        database = config.chromaDatabase
+                        apiKey = null
+                    }
+                }
+                
                 // Create extended services using the base RagComponents (which already has the correct embedder)
                 val healthService = org.krypton.rag.ChromaDBHealthService(
-                    baseUrl = config.chromaBaseUrl,
+                    baseUrl = baseUrl,
                     collectionName = config.chromaCollectionName,
                     httpClientEngine = httpEngine,
-                    tenant = config.chromaTenant,
-                    database = config.chromaDatabase
+                    tenant = tenant,
+                    database = database,
+                    apiKey = apiKey
                 )
                 
                 val vaultMetadataService = org.krypton.rag.VaultMetadataService(
-                    baseUrl = config.chromaBaseUrl,
+                    baseUrl = baseUrl,
                     metadataCollectionName = "vault_metadata",
                     httpClientEngine = httpEngine,
-                    tenant = config.chromaTenant,
-                    database = config.chromaDatabase
+                    tenant = tenant,
+                    database = database,
+                    apiKey = apiKey
                 )
                 
                 val vaultSyncService = org.krypton.rag.VaultSyncService(

@@ -20,13 +20,16 @@ import java.nio.file.Paths
  * Service for managing vault metadata in ChromaDB.
  * 
  * Stores metadata about indexed vaults in a separate collection.
+ * 
+ * @param apiKey Optional API key for ChromaDB Cloud authentication. If provided, adds X-Chroma-Token header to requests.
  */
 class VaultMetadataService(
     private val baseUrl: String,
     private val metadataCollectionName: String = "vault_metadata",
     private val httpClientEngine: HttpClientEngine,
     private val tenant: String = "default",
-    private val database: String = "defaultDB"
+    private val database: String = "defaultDB",
+    private val apiKey: String? = null
 ) {
     
     private val collectionsBasePath = "$baseUrl/api/v2/tenants/$tenant/databases/$database/collections"
@@ -36,6 +39,13 @@ class VaultMetadataService(
                 ignoreUnknownKeys = true
                 encodeDefaults = false
             })
+        }
+    }
+    
+    // Helper to add auth header to requests when using ChromaDB Cloud
+    private fun HttpRequestBuilder.addAuthHeaderIfNeeded() {
+        apiKey?.let {
+            header("X-Chroma-Token", it)
         }
     }
     
@@ -52,7 +62,9 @@ class VaultMetadataService(
      */
     private suspend fun getCollectionIdFromName(collectionName: String): String? = withContext(Dispatchers.IO) {
         try {
-            val response = client.get("$collectionsBasePath/$collectionName")
+            val response = client.get("$collectionsBasePath/$collectionName") {
+                addAuthHeaderIfNeeded()
+            }
             if (response.status == HttpStatusCode.OK) {
                 val collectionResponse: CollectionResponse = response.body()
                 return@withContext collectionResponse.id
@@ -104,6 +116,7 @@ class VaultMetadataService(
         )
         
         val response = client.post(collectionsBasePath) {
+            addAuthHeaderIfNeeded()
             contentType(ContentType.Application.Json)
             setBody(request)
         }
@@ -135,6 +148,7 @@ class VaultMetadataService(
             
             val normalizedPath = normalizePath(vaultPath)
             val response = client.get("$collectionsBasePath/$collectionIdToUse/get") {
+                addAuthHeaderIfNeeded()
                 contentType(ContentType.Application.Json)
                 parameter("ids", listOf(normalizedPath))
                 parameter("include", listOf("documents", "metadatas"))
@@ -194,6 +208,7 @@ class VaultMetadataService(
             )
             
             val response = client.post("$collectionsBasePath/$collectionIdToUse/add") {
+                addAuthHeaderIfNeeded()
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
@@ -243,6 +258,7 @@ class VaultMetadataService(
             )
             
             val response = client.post("$collectionsBasePath/$collectionIdToUse/delete") {
+                addAuthHeaderIfNeeded()
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
